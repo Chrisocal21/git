@@ -14,6 +14,7 @@ export default function FldrPage() {
   const [fldrs, setFldrs] = useState<Fldr[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterOption>('all')
+  const [showDeleteButtons, setShowDeleteButtons] = useState(false)
 
   useEffect(() => {
     // Check storage health first
@@ -116,6 +117,30 @@ export default function FldrPage() {
     return fldr.status === filter
   })
 
+  const handleDelete = async (fldrId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent navigation
+    
+    if (!confirm('Delete this fldr? This cannot be undone.')) {
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/fldrs/${fldrId}`, { method: 'DELETE' })
+      if (res.ok) {
+        // Update local state
+        const updated = fldrs.filter(f => f.id !== fldrId)
+        setFldrs(updated)
+        localStorage.setItem('git-fldrs', JSON.stringify(updated))
+        console.log('✅ Fldr deleted:', fldrId)
+      } else {
+        alert('Failed to delete fldr')
+      }
+    } catch (err) {
+      console.error('Delete error:', err)
+      alert('Failed to delete fldr')
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-4 max-w-lg mx-auto pb-24">
@@ -138,13 +163,25 @@ export default function FldrPage() {
     <div className="p-4 max-w-lg mx-auto pb-24">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">GIT</h1>
-        <button
-          onClick={() => router.push('/fldr/create')}
-          className="p-2 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg transition-colors"
-          aria-label="Create new Fldr"
-        >
-          <PlusIcon className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowDeleteButtons(!showDeleteButtons)}
+            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+              showDeleteButtons
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
+            }`}
+          >
+            {showDeleteButtons ? 'Done' : 'Delete'}
+          </button>
+          <button
+            onClick={() => router.push('/fldr/create')}
+            className="p-2 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg transition-colors"
+            aria-label="Create new Fldr"
+          >
+            <PlusIcon className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -208,31 +245,40 @@ export default function FldrPage() {
       ) : (
         <div className="space-y-3">
           {filteredFldrs.map((fldr) => (
-            <button
-              key={fldr.id}
-              onClick={() => router.push(`/fldr/${fldr.id}`)}
-              className="w-full p-4 rounded-lg text-left transition-all bg-[#1a1a1a] border-2 border-transparent hover:border-gray-700"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-lg">{fldr.title}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(fldr.status)}`}>
-                      {fldr.status}
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    {formatDate(fldr.date_start)}
-                    {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
-                  </div>
-                  {fldr.location && (
-                    <div className="text-sm text-gray-500 mt-1">
-                      {fldr.location}
+            <div key={fldr.id} className="relative">
+              <button
+                onClick={() => router.push(`/fldr/${fldr.id}`)}
+                className="w-full p-4 rounded-lg text-left transition-all bg-[#1a1a1a] border-2 border-transparent hover:border-gray-700"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-lg">{fldr.title}</h3>
+                      <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(fldr.status)}`}>
+                        {fldr.status}
+                      </span>
                     </div>
+                    <div className="text-sm text-gray-400">
+                      {formatDate(fldr.date_start)}
+                      {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
+                    </div>
+                    {fldr.location && (
+                      <div className="text-sm text-gray-500 mt-1">
+                        {fldr.location}
+                      </div>
+                    )}
+                  </div>
+                  {showDeleteButtons && (
+                    <button
+                      onClick={(e) => handleDelete(fldr.id, e)}
+                      className="ml-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+                    >
+                      Delete
+                    </button>
                   )}
                 </div>
-              </div>
-            </button>
+              </button>
+            </div>
           ))}
         </div>
       )}
