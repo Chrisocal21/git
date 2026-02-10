@@ -121,7 +121,6 @@ export default function ImportPage() {
               status: fldr.status,
               notes: fldr.notes,
               checklist: fldr.checklist,
-              color: fldr.color,
             }),
           });
 
