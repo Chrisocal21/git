@@ -27,14 +27,48 @@ export default function FldrPage() {
       }
     }
 
-    // Then fetch from API and update
+    // Then fetch from API and merge with cache (don't overwrite on empty)
     fetch('/api/fldrs')
       .then(res => res.json())
       .then(data => {
-        setFldrs(data)
+        // If API returns data and cache exists, merge by ID
+        if (cached && Array.isArray(data)) {
+          try {
+            const cachedData = JSON.parse(cached)
+            
+            // If server returns empty but we have cached data, keep cache
+            if (data.length === 0 && cachedData.length > 0) {
+              console.log('Server returned empty, keeping cached data')
+              return // Don't update - keep cached data
+            }
+            
+            // Otherwise merge: prefer cached version if it exists
+            const merged = cachedData.map((cachedFldr: Fldr) => {
+              const serverFldr = data.find((f: Fldr) => f.id === cachedFldr.id)
+              // Use cached version (it has unsaved changes)
+              return cachedFldr
+            })
+            
+            // Add any new fldrs from server that aren't in cache
+            data.forEach((serverFldr: Fldr) => {
+              if (!cachedData.find((f: Fldr) => f.id === serverFldr.id)) {
+                merged.push(serverFldr)
+              }
+            })
+            
+            setFldrs(merged)
+            localStorage.setItem('git-fldrs', JSON.stringify(merged))
+          } catch (e) {
+            console.error('Failed to merge cache:', e)
+            setFldrs(data)
+          }
+        } else {
+          setFldrs(data)
+          if (data.length > 0) {
+            localStorage.setItem('git-fldrs', JSON.stringify(data))
+          }
+        }
         setLoading(false)
-        // Cache for next time
-        localStorage.setItem('git-fldrs', JSON.stringify(data))
       })
       .catch(err => {
         console.error('Failed to fetch fldrs:', err)

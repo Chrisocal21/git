@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { cacheFldr } from '@/lib/offlineStorage'
 
 export default function CreateFldrPage() {
   const router = useRouter()
@@ -28,6 +29,24 @@ export default function CreateFldrPage() {
 
     if (response.ok) {
       const fldr = await response.json()
+      
+      // Cache the new fldr
+      cacheFldr(fldr)
+      
+      // Update localStorage cache
+      try {
+        const cached = localStorage.getItem('git-fldrs')
+        if (cached) {
+          const allFldrs = JSON.parse(cached)
+          allFldrs.push(fldr)
+          localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+        } else {
+          localStorage.setItem('git-fldrs', JSON.stringify([fldr]))
+        }
+      } catch (e) {
+        console.error('Failed to update cache:', e)
+      }
+      
       router.push(`/fldr/${fldr.id}`)
     }
   }

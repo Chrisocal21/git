@@ -79,30 +79,12 @@ export default function FldrDetailPage() {
         setLoading(false)
       }
       
-      // Then fetch from server (if online)
-      if (isOnline()) {
-        fetch(`/api/fldrs/${fldrId}`)
-          .then(res => {
-            if (!res.ok) throw new Error('Fldr not found on server')
-            return res.json()
-          })
-          .then(data => {
-            setFldr(data)
-            cacheFldr(data)
-            setLoading(false)
-          })
-          .catch((err) => {
-            console.error('Failed to fetch fldr from server:', err)
-            // If we have cached data, use it
-            if (cached) {
-              setLoading(false)
-            } else {
-              // No cached data and server failed - redirect
-              router.push('/fldr')
-            }
-          })
-      } else if (!cached) {
-        // Offline and no cache - redirect
+      // Don't fetch from server - we're using localStorage as primary storage
+      // Server memory resets on Vercel serverless, so it's unreliable
+      // Only sync happens on explicit save (in saveFldr function)
+      if (!cached) {
+        // No cached data - redirect to list
+        console.error('No cached data found for fldr:', fldrId)
         router.push('/fldr')
       }
     }
@@ -475,31 +457,18 @@ export default function FldrDetailPage() {
     const success = await syncQueuedChanges()
     if (success) {
       setHasUnsynced(false)
-      // Refresh fldr data from server
-      if (params.id) {
-        const response = await fetch(`/api/fldrs/${params.id as string}`)
-        if (response.ok) {
-          const data = await response.json()
-          setFldr(data)
-          cacheFldr(data)
-        }
-      }
+      // Don't fetch from server - it might be stale
+      // Local cache is the source of truth
     }
     setSaving(false)
   }
 
   const handleHardRefresh = async () => {
-    if (confirm('Clear all offline data and refresh from server?')) {
+    if (confirm('Clear all offline data? This will remove all locally saved changes!')) {
       clearAllCache()
       setHasUnsynced(false)
-      if (params.id) {
-        const response = await fetch(`/api/fldrs/${params.id as string}`)
-        if (response.ok) {
-          const data = await response.json()
-          setFldr(data)
-          cacheFldr(data)
-        }
-      }
+      // Redirect to list since we cleared everything
+      router.push('/fldr')
     }
   }
 
