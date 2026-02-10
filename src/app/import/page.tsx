@@ -85,34 +85,69 @@ export default function ImportPage() {
       }
 
       // Add migrated fldrs to store via API
+      let successCount = 0;
+      let failCount = 0;
+      
       for (const fldr of data.fldrs) {
-        await fetch('/api/fldrs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: fldr.title,
-            date_start: fldr.date_start,
-            date_end: fldr.date_end,
-            location: fldr.location,
-          }),
-        }).then(async (res) => {
-          const newFldr = await res.json();
+        try {
+          console.log('Creating fldr:', fldr.title);
+          
+          const createRes = await fetch('/api/fldrs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: fldr.title,
+              date_start: fldr.date_start,
+              date_end: fldr.date_end,
+              location: fldr.location,
+            }),
+          });
+
+          if (!createRes.ok) {
+            const errorText = await createRes.text();
+            console.error('Failed to create fldr:', createRes.status, errorText);
+            failCount++;
+            continue;
+          }
+
+          const newFldr = await createRes.json();
+          console.log('Created fldr with ID:', newFldr.id);
           
           // Update the fldr with all the migrated data
-          await fetch(`/api/fldrs/${newFldr.id}`, {
+          const updateRes = await fetch(`/api/fldrs/${newFldr.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               status: fldr.status,
               notes: fldr.notes,
               checklist: fldr.checklist,
+              color: fldr.color,
             }),
           });
-        });
-      }
 
-      setMigratedCount(data.count);
+          if (!updateRes.ok) {
+            const errorText = await updateRes.text();
+            console.error('Failed to update fldr:', updateRes.status, errorText);
+            failCount++;
+            continue;
+          }
+
+          console.log('Successfully imported:', fldr.title);
+          successCount++;
+        } catch (err) {
+          console.error('Error importing fldr:', err);
+          failCount++;
+        }
+      }
+      
+      console.log(`Import complete: ${successCount} succeeded, ${failCount} failed`);
+
+      setMigratedCount(successCount);
       setMigrationComplete(true);
+      
+      if (failCount > 0) {
+        setError(`Imported ${successCount} jobs, but ${failCount} failed. Check console for details.`);
+      }
     } catch (err: any) {
       console.error('Error migrating trips:', err);
       setError(err.message || 'Failed to migrate trips');
