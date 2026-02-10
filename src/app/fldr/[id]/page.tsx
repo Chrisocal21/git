@@ -337,6 +337,17 @@ export default function FldrDetailPage() {
     }
   }
 
+  const updateStatus = async (newStatus: 'incomplete' | 'ready' | 'active' | 'complete') => {
+    if (!fldr) return
+    setSaving(true)
+    try {
+      setFldr({ ...fldr, status: newStatus })
+      await saveFldr({ status: newStatus })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const generateWrapUp = async () => {
     if (!fldr || !fldr.notes.trim()) return
     
@@ -471,11 +482,14 @@ export default function FldrDetailPage() {
       <div className="mb-6">
         <div className="flex items-start justify-between mb-2">
           <h2 className="text-2xl font-bold">{fldr.title}</h2>
-          {fldr.status === 'incomplete' && (
-            <div className="px-2 py-1 bg-[#3b82f6]/20 border border-[#3b82f6]/50 rounded text-xs text-[#3b82f6]">
-              Incomplete
-            </div>
-          )}
+          <div className={`px-2 py-1 rounded text-xs font-medium border ${
+            fldr.status === 'incomplete' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+            fldr.status === 'ready' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+            fldr.status === 'active' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+            'bg-gray-500/20 text-gray-400 border-gray-500/30'
+          }`}>
+            {fldr.status}
+          </div>
         </div>
         <div className="text-gray-400">
           {formatDate(fldr.date_start)}
@@ -485,6 +499,48 @@ export default function FldrDetailPage() {
           <div className="text-gray-500 mt-1">{fldr.location}</div>
         )}
       </div>
+
+      {/* Status Actions */}
+      {(fldr.status === 'ready' || fldr.status === 'incomplete') && (
+        <div className="mb-4">
+          <button
+            onClick={() => updateStatus('active')}
+            disabled={saving}
+            className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Activating...' : '▶️ Activate Job'}
+          </button>
+        </div>
+      )}
+      {fldr.status === 'active' && (
+        <div className="mb-4 flex gap-2">
+          <button
+            onClick={() => updateStatus('complete')}
+            disabled={saving}
+            className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Completing...' : '✓ Mark Complete'}
+          </button>
+          <button
+            onClick={() => updateStatus('ready')}
+            disabled={saving}
+            className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Pausing...' : '⏸ Pause'}
+          </button>
+        </div>
+      )}
+      {fldr.status === 'complete' && (
+        <div className="mb-4">
+          <button
+            onClick={() => updateStatus('active')}
+            disabled={saving}
+            className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Reactivating...' : '↻ Reactivate Job'}
+          </button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {/* Quick Reference Card */}

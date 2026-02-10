@@ -92,13 +92,21 @@ export async function POST(request: Request) {
 
       // Determine status based on dates
       const now = new Date();
-      const endDate = trip.endDate ? new Date(trip.endDate) : new Date(trip.startDate);
+      const startDate = trip.startDate ? new Date(trip.startDate) : null;
+      const endDate = trip.endDate ? new Date(trip.endDate) : (startDate || new Date());
       const isPast = endDate < now;
+      const isUpcoming = startDate && startDate > now;
       
       let status: 'incomplete' | 'ready' | 'active' | 'complete' = 'complete';
       if (!isPast) {
         // Job is in the future
-        status = trip.status === 'upcoming' ? 'active' : 'ready';
+        if (isUpcoming || trip.status === 'upcoming') {
+          status = 'ready'; // Not started yet
+        } else if (trip.status === 'active') {
+          status = 'active'; // Already in progress
+        } else {
+          status = 'ready'; // Default for future jobs
+        }
       }
 
       // Create new Fldr from old trip
