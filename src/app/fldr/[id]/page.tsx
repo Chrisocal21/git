@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Fldr, QuickReference, JobInfo, ReferenceLink, Person } from '@/types/fldr'
 import { ChevronDownIcon } from '@/components/Icons'
@@ -33,6 +33,9 @@ export default function FldrDetailPage() {
   const [generatingWrapUp, setGeneratingWrapUp] = useState(false)
   const [online, setOnline] = useState(true)
   const [hasUnsynced, setHasUnsynced] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [, setRefreshCounter] = useState(0)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     // Check online status
@@ -130,6 +133,22 @@ export default function FldrDetailPage() {
       const newFldr = { ...fldr, ...updates }
       setFldr(newFldr)
       cacheFldr(newFldr)
+      setLastSaved(new Date())
+      
+      // Also update the list cache so changes appear on list page
+      try {
+        const listCache = localStorage.getItem('git-fldrs')
+        if (listCache) {
+          const allFldrs = JSON.parse(listCache)
+          const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+          if (index !== -1) {
+            allFldrs[index] = newFldr
+            localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+          }
+        }
+      } catch (e) {
+        console.error('Failed to update list cache:', e)
+      }
       
       // If online, save to server
       if (isOnline()) {
@@ -143,6 +162,22 @@ export default function FldrDetailPage() {
             const updated = await response.json()
             setFldr(updated)
             cacheFldr(updated)
+            setLastSaved(new Date())
+            
+            // Update list cache with server response
+            try {
+              const listCache = localStorage.getItem('git-fldrs')
+              if (listCache) {
+                const allFldrs = JSON.parse(listCache)
+                const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+                if (index !== -1) {
+                  allFldrs[index] = updated
+                  localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+                }
+              }
+            } catch (e) {
+              console.error('Failed to update list cache:', e)
+            }
           }
         } catch (error) {
           // If save fails, add to sync queue
@@ -160,6 +195,36 @@ export default function FldrDetailPage() {
       setSaving(false)
     }
   }, [fldr])
+
+  // Debounced save - clear existing timeout and set new one
+  const debouncedSave = useCallback((updates: Partial<Fldr>) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    setSaving(true)
+    saveTimeoutRef.current = setTimeout(() => {
+      saveFldr(updates)
+    }, 1000) // Save 1 second after typing stops
+  }, [saveFldr])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Update "time ago" display every minute
+  useEffect(() => {
+    if (!lastSaved) return
+    const interval = setInterval(() => {
+      // Force re-render to update "time ago" text
+      setRefreshCounter(c => c + 1)
+    }, 60000) // Update every minute
+    return () => clearInterval(interval)
+  }, [lastSaved])
 
   const toggleCard = (cardName: string) => {
     setExpandedCards(prev => ({
@@ -180,7 +245,7 @@ export default function FldrDetailPage() {
     }
     const updated = { ...quickRef, [field]: value || null }
     setFldr({ ...fldr, quick_reference: updated })
-    saveFldr({ quick_reference: updated })
+    debouncedSave({ quick_reference: updated })
   }
 
   const updateJobInfo = (field: keyof JobInfo, value: any) => {
@@ -200,7 +265,7 @@ export default function FldrDetailPage() {
     }
     const updated = { ...jobInfo, [field]: value }
     setFldr({ ...fldr, job_info: updated })
-    saveFldr({ job_info: updated })
+    debouncedSave({ job_info: updated })
   }
 
   const addReferenceLink = () => {
@@ -269,13 +334,13 @@ export default function FldrDetailPage() {
   const updateNotes = (value: string) => {
     if (!fldr) return
     setFldr({ ...fldr, notes: value })
-    saveFldr({ notes: value })
+    debouncedSave({ notes: value })
   }
 
   const updateWrapUp = (value: string) => {
     if (!fldr) return
     setFldr({ ...fldr, wrap_up: value })
-    saveFldr({ wrap_up: value })
+    debouncedSave({ wrap_up: value })
   }
 
   const addChecklistItem = () => {
@@ -284,7 +349,7 @@ export default function FldrDetailPage() {
     const newItem = { item: '', completed: false }
     const updated = [...checklist, newItem]
     setFldr({ ...fldr, checklist: updated })
-    saveFldr({ checklist: updated })
+    debouncedSave({ checklist: updated })
   }
 
   const updateChecklistItem = (index: number, value: string) => {
@@ -292,7 +357,7 @@ export default function FldrDetailPage() {
     const items = [...fldr.checklist]
     items[index] = { ...items[index], item: value }
     setFldr({ ...fldr, checklist: items })
-    saveFldr({ checklist: items })
+    debouncedSave({ checklist: items })
   }
 
   const toggleChecklistItem = (index: number) => {
@@ -300,14 +365,14 @@ export default function FldrDetailPage() {
     const items = [...fldr.checklist]
     items[index] = { ...items[index], completed: !items[index].completed }
     setFldr({ ...fldr, checklist: items })
-    saveFldr({ checklist: items })
+    debouncedSave({ checklist: items })
   }
 
   const removeChecklistItem = (index: number) => {
     if (!fldr?.checklist) return
     const items = fldr.checklist.filter((_, i) => i !== index)
     setFldr({ ...fldr, checklist: items })
-    saveFldr({ checklist: items })
+    debouncedSave({ checklist: items })
   }
 
   const addPerson = () => {
@@ -316,7 +381,7 @@ export default function FldrDetailPage() {
     const newPerson: Person = { name: '', role: null, phone: null, email: null }
     const updated = [...people, newPerson]
     setFldr({ ...fldr, people: updated })
-    saveFldr({ people: updated })
+    debouncedSave({ people: updated })
   }
 
   const updatePerson = (index: number, field: keyof Person, value: string) => {
@@ -324,25 +389,25 @@ export default function FldrDetailPage() {
     const people = [...fldr.people]
     people[index] = { ...people[index], [field]: value || null }
     setFldr({ ...fldr, people })
-    saveFldr({ people })
+    debouncedSave({ people })
   }
 
   const removePerson = (index: number) => {
     if (!fldr?.people) return
     const people = fldr.people.filter((_, i) => i !== index)
     setFldr({ ...fldr, people })
-    saveFldr({ people })
+    debouncedSave({ people })
   }
 
   const enableModule = (module: 'checklist' | 'people' | 'job_info') => {
     if (!fldr) return
     if (module === 'checklist') {
       setFldr({ ...fldr, checklist: [] })
-      saveFldr({ checklist: [] })
+      debouncedSave({ checklist: [] })
       setExpandedCards(prev => ({ ...prev, checklist: true }))
     } else if (module === 'people') {
       setFldr({ ...fldr, people: [] })
-      saveFldr({ people: [] })
+      debouncedSave({ people: [] })
       setExpandedCards(prev => ({ ...prev, people: true }))
     } else if (module === 'job_info') {
       const jobInfo: JobInfo = {
@@ -359,7 +424,7 @@ export default function FldrDetailPage() {
         pre_engrave_details: null,
       }
       setFldr({ ...fldr, job_info: jobInfo })
-      saveFldr({ job_info: jobInfo })
+      debouncedSave({ job_info: jobInfo })
       setExpandedCards(prev => ({ ...prev, jobInfo: true, preTrip: true }))
     }
   }
@@ -460,14 +525,23 @@ export default function FldrDetailPage() {
           ← Back
         </button>
         <h1 className="text-2xl font-bold">GIT</h1>
-        <div className="flex items-center gap-2">
-          {/* Online/Offline indicator */}
-          <div className="flex items-center gap-1">
-            <div className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-gray-400">{online ? 'Online' : 'Offline'}</span>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            {/* Online/Offline indicator */}
+            <div className="flex items-center gap-1">
+              <div className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-xs text-gray-400">{online ? 'Online' : 'Offline'}</span>
+            </div>
           </div>
           {saving && (
-            <span className="text-xs text-gray-400">Saving...</span>
+            <span className="text-xs text-yellow-400">Saving...</span>
+          )}
+          {!saving && lastSaved && (
+            <span className="text-xs text-gray-500">
+              Saved {new Date().getTime() - lastSaved.getTime() < 60000
+                ? 'just now'
+                : `${Math.floor((new Date().getTime() - lastSaved.getTime()) / 60000)}m ago`}
+            </span>
           )}
         </div>
       </div>
