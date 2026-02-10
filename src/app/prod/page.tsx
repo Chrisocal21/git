@@ -42,6 +42,14 @@ export default function ProdPage() {
       }
       
       console.log('Migration result:', result)
+      
+      // Log detailed errors
+      if (result.results?.failed && result.results.failed.length > 0) {
+        console.error('❌ Failed migrations:')
+        result.results.failed.forEach((f: any) => {
+          console.error(`  - ${f.id}: ${f.error}`)
+        })
+      }
     } catch (error) {
       console.error('Migration error:', error)
       alert('❌ Migration failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
