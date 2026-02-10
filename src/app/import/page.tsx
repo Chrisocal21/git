@@ -141,6 +141,18 @@ export default function ImportPage() {
       
       console.log(`Import complete: ${successCount} succeeded, ${failCount} failed`);
 
+      // Refresh the fldrs cache after successful import
+      try {
+        const fldrRes = await fetch('/api/fldrs');
+        if (fldrRes.ok) {
+          const allFldrs = await fldrRes.json();
+          localStorage.setItem('git-fldrs', JSON.stringify(allFldrs));
+          console.log('Updated localStorage cache with', allFldrs.length, 'fldrs');
+        }
+      } catch (e) {
+        console.error('Failed to update cache:', e);
+      }
+
       setMigratedCount(successCount);
       setMigrationComplete(true);
       

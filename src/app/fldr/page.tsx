@@ -14,10 +14,29 @@ export default function FldrPage() {
   const [filter, setFilter] = useState<FilterOption>('all')
 
   useEffect(() => {
+    // Try to load from localStorage first for instant display
+    const cached = localStorage.getItem('git-fldrs')
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        setFldrs(parsed)
+        setLoading(false)
+      } catch (e) {
+        console.error('Failed to parse cached fldrs:', e)
+      }
+    }
+
+    // Then fetch from API and update
     fetch('/api/fldrs')
       .then(res => res.json())
       .then(data => {
         setFldrs(data)
+        setLoading(false)
+        // Cache for next time
+        localStorage.setItem('git-fldrs', JSON.stringify(data))
+      })
+      .catch(err => {
+        console.error('Failed to fetch fldrs:', err)
         setLoading(false)
       })
   }, [])
