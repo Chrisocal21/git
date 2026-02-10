@@ -15,6 +15,7 @@ import {
   syncQueuedChanges,
   clearAllCache
 } from '@/lib/offlineStorage'
+import { logStorageInfo } from '@/lib/storageHealth'
 
 export default function FldrDetailPage() {
   const router = useRouter()
@@ -62,21 +63,33 @@ export default function FldrDetailPage() {
   useEffect(() => {
     if (params.id) {
       const fldrId = params.id as string
+      console.log(`🔍 Loading fldr: ${fldrId}`)
+      logStorageInfo()
       
       // Try to load from cache first (fallback 1: offlineStorage)
       let cached = getCachedFldr(fldrId)
       
       // Fallback 2: Check the main list cache
       if (!cached) {
+        console.log('⚠️ Not found in offline storage, checking list cache')
         try {
           const listCache = localStorage.getItem('git-fldrs')
           if (listCache) {
             const allFldrs = JSON.parse(listCache)
             cached = allFldrs.find((f: Fldr) => f.id === fldrId)
+            if (cached) {
+              console.log('✅ Found in list cache')
+            } else {
+              console.log('❌ Not found in list cache either')
+            }
+          } else {
+            console.log('❌ No list cache exists')
           }
         } catch (e) {
-          console.error('Failed to parse list cache:', e)
+          console.error('❌ Failed to parse list cache:', e)
         }
+      } else {
+        console.log('✅ Found in offline storage')
       }
       
       if (cached) {
@@ -93,8 +106,14 @@ export default function FldrDetailPage() {
       // Only sync happens on explicit save (in saveFldr function)
       if (!cached) {
         // No cached data - redirect to list
-        console.error('No cached data found for fldr:', fldrId)
-        router.push('/fldr')
+        console.error('💥 CRITICAL: No cached data found for fldr:', fldrId)
+        console.error('💥 This should not happen! Data may have been lost.')
+        logStorageInfo()
+        
+        // Give user a chance to see the error before redirect
+        setTimeout(() => {
+          router.push('/fldr')
+        }, 2000)
       }
     }
   }, [params.id, router])
