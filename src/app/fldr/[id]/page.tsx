@@ -243,6 +243,17 @@ export default function FldrDetailPage() {
     }))
   }
 
+  // Format dates in local timezone to avoid day-off errors
+  const formatDate = (date: string) => {
+    const [year, month, day] = date.split('-').map(Number)
+    const localDate = new Date(year, month - 1, day)
+    return localDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
   const updateQuickRef = (field: keyof QuickReference, value: string) => {
     if (!fldr) return
     const quickRef = fldr.quick_reference || {

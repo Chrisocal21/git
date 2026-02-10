@@ -93,7 +93,10 @@ export default function FldrPage() {
   }, [])
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    // Parse date string in local timezone to avoid day-off errors
+    const [year, month, day] = date.split('-').map(Number)
+    const localDate = new Date(year, month - 1, day)
+    return localDate.toLocaleDateString('en-US', { 
       month: 'short',
       day: 'numeric',
       year: 'numeric'
