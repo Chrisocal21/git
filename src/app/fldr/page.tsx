@@ -15,6 +15,10 @@ export default function FldrPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterOption>('upcoming')
   const [showDeleteButtons, setShowDeleteButtons] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isPulling, setIsPulling] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [touchStartY, setTouchStartY] = useState(0)
 
   useEffect(() => {
     // Check storage health first
@@ -91,6 +95,68 @@ export default function FldrPage() {
         setLoading(false)
       })
   }, [])
+
+  // Pull-to-refresh handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setTouchStartY(e.touches[0].clientY)
+      setIsPulling(true)
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling || window.scrollY > 0) return
+    
+    const currentY = e.touches[0].clientY
+    const distance = currentY - touchStartY
+    
+    if (distance > 0 && distance < 150) {
+      setPullDistance(distance)
+    }
+  }
+
+  const handleTouchEnd = async () => {
+    if (pullDistance > 80) {
+      setIsRefreshing(true)
+      await handleRefresh()
+    }
+    setIsPulling(false)
+    setPullDistance(0)
+    setTouchStartY(0)
+  }
+
+  const handleRefresh = async () => {
+    console.log('🔄 Pull-to-refresh triggered')
+    
+    // Check for service worker updates
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration()
+      if (registration) {
+        await registration.update()
+        console.log('✅ Service worker checked for updates')
+        
+        // If there's a waiting worker, activate it
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+          window.location.reload()
+          return
+        }
+      }
+    }
+    
+    // Fetch fresh data
+    try {
+      const res = await fetch('/api/fldrs', { cache: 'no-store' })
+      const data = await res.json()
+      setFldrs(data)
+      localStorage.setItem('git-fldrs', JSON.stringify(data))
+      console.log('✅ Data refreshed')
+    } catch (error) {
+      console.error('❌ Refresh failed:', error)
+    }
+    
+    setIsRefreshing(false)
+  }
 
   const formatDate = (date: string) => {
     // Parse date string in local timezone to avoid day-off errors
@@ -171,7 +237,35 @@ export default function FldrPage() {
   }
 
   return (
-    <div className="p-4 max-w-lg mx-auto pb-24">
+    <div 
+      className="p-4 max-w-lg mx-auto pb-24"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {(isPulling || isRefreshing) && (
+        <div 
+          className="fixed top-0 left-0 right-0 flex justify-center items-center transition-all"
+          style={{
+            height: isRefreshing ? '60px' : `${pullDistance}px`,
+            opacity: isRefreshing ? 1 : pullDistance / 100,
+          }}
+        >
+          <div className="bg-gray-800 rounded-full p-3 shadow-lg">
+            {isRefreshing ? (
+              <svg className="animate-spin h-5 w-5 text-[#3b82f6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">GIT</h1>
         <div className="flex items-center gap-2">

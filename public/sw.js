@@ -1,4 +1,4 @@
-const CACHE_NAME = 'git-cache-v2' // Increment version to force refresh
+const CACHE_NAME = 'git-cache-v3' // Increment version to force refresh
 const urlsToCache = [
   '/',
   '/fldr',
@@ -72,4 +72,11 @@ self.addEventListener('activate', (event) => {
       })
     ])
   )
+})
+
+// Message event - handle SKIP_WAITING
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
