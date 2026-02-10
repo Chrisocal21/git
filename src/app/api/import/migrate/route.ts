@@ -121,6 +121,8 @@ export async function POST(request: Request) {
         quick_reference: null,
         checklist: checklist.length > 0 ? checklist : null,
         people: null,
+        photos: null,
+        products: null,
         job_info: null,
         wrap_up: null,
         polished_messages: [],
