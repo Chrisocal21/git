@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr, FldrStatus } from '@/types/fldr'
 import { PlusIcon } from '@/components/Icons'
+import { FldrListSkeleton } from '@/components/SkeletonLoader'
 
 type FilterOption = 'all' | 'upcoming' | 'active' | 'complete'
 
@@ -68,9 +69,18 @@ export default function FldrPage() {
 
   if (loading) {
     return (
-      <div className="p-4">
-        <h1 className="text-2xl font-bold mb-4">GIT</h1>
-        <p className="text-gray-400">Loading...</p>
+      <div className="p-4 max-w-lg mx-auto pb-24">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">GIT</h1>
+          <button
+            disabled
+            className="p-2 bg-gray-700 rounded-lg opacity-50 cursor-not-allowed"
+            aria-label="Create new Fldr"
+          >
+            <PlusIcon className="w-5 h-5" />
+          </button>
+        </div>
+        <FldrListSkeleton />
       </div>
     )
   }

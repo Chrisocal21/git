@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { Fldr, QuickReference, JobInfo, ReferenceLink, Person } from '@/types/fldr'
 import { ChevronDownIcon } from '@/components/Icons'
 import CopyButton from '@/components/CopyButton'
+import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
 import { 
   getCachedFldr, 
   cacheFldr, 
@@ -438,12 +439,7 @@ export default function FldrDetailPage() {
   }
 
   if (loading || !fldr) {
-    return (
-      <div className="p-4">
-        <h1 className="text-2xl font-bold mb-4">GIT</h1>
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    )
+    return <FldrDetailSkeleton />
   }
 
   const formatDate = (date: string) => {
