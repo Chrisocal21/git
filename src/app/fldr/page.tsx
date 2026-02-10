@@ -53,23 +53,23 @@ export default function FldrPage() {
         // If we have cache and server data, merge them
         if (cachedData.length > 0 && data.length > 0) {
           console.log('Merging cache with server data')
-          // Prefer cached version (it may have unsaved changes)
-          const merged = cachedData.map((cachedFldr: Fldr) => {
-            return cachedFldr // Always keep cached version
-          })
           
-          // Add any new fldrs from server that aren't in cache
-          data.forEach((serverFldr: Fldr) => {
-            if (!cachedData.find((f: Fldr) => f.id === serverFldr.id)) {
-              merged.push(serverFldr)
-            }
-          })
+          // Create a Map to deduplicate by ID, preferring server data (source of truth)
+          const fldrMap = new Map<string, Fldr>()
+          
+          // Add cached data first (may have unsaved changes)
+          cachedData.forEach((f: Fldr) => fldrMap.set(f.id, f))
+          
+          // Overwrite with server data (D1 is source of truth)
+          data.forEach((f: Fldr) => fldrMap.set(f.id, f))
+          
+          const merged = Array.from(fldrMap.values())
           
           setFldrs(merged)
           // Only save to localStorage if we have data
           if (merged.length > 0) {
             localStorage.setItem('git-fldrs', JSON.stringify(merged))
-            console.log(`💾 Saved ${merged.length} fldrs to cache`)
+            console.log(`💾 Saved ${merged.length} fldrs to cache (deduped)`)
           }
         } else if (data.length > 0) {
           // No cache but server has data - use server data
