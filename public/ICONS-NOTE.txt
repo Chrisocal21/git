@@ -1,0 +1,8 @@
+// Icon generation note:
+// You'll need to convert the SVG icons to PNG format for PWA support
+// icon-192.svg -> icon-192.png
+// icon-512.svg -> icon-512.png
+// 
+// You can use an online tool or imagemagick:
+// magick icon-192.svg -background none icon-192.png
+// magick icon-512.svg -background none icon-512.png
