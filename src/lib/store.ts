@@ -64,4 +64,9 @@ export const fldrStore = {
     fldrs.splice(index, 1)
     return true
   },
+
+  // Add pre-made fldr (for migrations)
+  add: (fldr: Fldr): void => {
+    fldrs.push(fldr)
+  },
 }
