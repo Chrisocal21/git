@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Fldr, QuickReference, JobInfo, ReferenceLink, Person } from '@/types/fldr'
+import { Fldr, QuickReference, JobInfo, ReferenceLink, Person, Photo, Product } from '@/types/fldr'
 import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
@@ -29,6 +29,8 @@ export default function FldrDetailPage() {
     jobInfo: false,
     checklist: false,
     people: false,
+    photos: false,
+    products: false,
     notes: false,
   })
   const [generatingWrapUp, setGeneratingWrapUp] = useState(false)
@@ -420,7 +422,67 @@ export default function FldrDetailPage() {
     debouncedSave({ people })
   }
 
-  const enableModule = (module: 'checklist' | 'people' | 'job_info') => {
+  // Photo handlers
+  const addPhoto = (url: string) => {
+    if (!fldr) return
+    const photos = fldr.photos || []
+    const newPhoto: Photo = {
+      id: `photo_${Date.now()}`,
+      url,
+      caption: null,
+      uploaded_at: new Date().toISOString(),
+    }
+    const updated = [...photos, newPhoto]
+    setFldr({ ...fldr, photos: updated })
+    debouncedSave({ photos: updated })
+  }
+
+  const updatePhotoCaption = (index: number, caption: string) => {
+    if (!fldr?.photos) return
+    const photos = [...fldr.photos]
+    photos[index] = { ...photos[index], caption: caption || null }
+    setFldr({ ...fldr, photos })
+    debouncedSave({ photos })
+  }
+
+  const removePhoto = (index: number) => {
+    if (!fldr?.photos) return
+    const photos = fldr.photos.filter((_, i) => i !== index)
+    setFldr({ ...fldr, photos })
+    debouncedSave({ photos })
+  }
+
+  // Product handlers
+  const addProduct = () => {
+    if (!fldr) return
+    const products = fldr.products || []
+    const newProduct: Product = {
+      id: `product_${Date.now()}`,
+      name: '',
+      quantity: 1,
+      notes: null,
+    }
+    const updated = [...products, newProduct]
+    setFldr({ ...fldr, products: updated })
+    debouncedSave({ products: updated })
+  }
+
+  const updateProduct = (index: number, field: keyof Product, value: any) => {
+    if (!fldr?.products) return
+    const products = [...fldr.products]
+    products[index] = { ...products[index], [field]: field === 'quantity' ? Number(value) : (value || null) }
+    setFldr({ ...fldr, products })
+    debouncedSave({ products })
+  }
+
+  const removeProduct = (index: number) => {
+    if (!fldr?.products) return
+    const products = fldr.products.filter((_, i) => i !== index)
+    setFldr({ ...fldr, products })
+    debouncedSave({ products })
+  }
+
+  const enableModule = (module: 'checklist' | 'people' | 'job_info' | 'photos' | 'products') => {
     if (!fldr) return
     if (module === 'checklist') {
       setFldr({ ...fldr, checklist: [] })
@@ -430,6 +492,14 @@ export default function FldrDetailPage() {
       setFldr({ ...fldr, people: [] })
       debouncedSave({ people: [] })
       setExpandedCards(prev => ({ ...prev, people: true }))
+    } else if (module === 'photos') {
+      setFldr({ ...fldr, photos: [] })
+      debouncedSave({ photos: [] })
+      setExpandedCards(prev => ({ ...prev, photos: true }))
+    } else if (module === 'products') {
+      setFldr({ ...fldr, products: [] })
+      debouncedSave({ products: [] })
+      setExpandedCards(prev => ({ ...prev, products: true }))
     } else if (module === 'job_info') {
       const jobInfo: JobInfo = {
         client_name: null,
@@ -1194,6 +1264,148 @@ export default function FldrDetailPage() {
           </div>
         )}
 
+        {/* Photos Card - Only show if enabled */}
+        {fldr.photos !== null && (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <button
+              onClick={() => toggleCard('photos')}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+            >
+              <span className="font-semibold">Photos</span>
+              <ChevronDownIcon
+                className={`w-5 h-5 transition-transform ${
+                  expandedCards.photos ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {expandedCards.photos && (
+              <div className="px-4 pb-4 space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">{(fldr.photos || []).length} photos</span>
+                  <label className="text-xs text-[#3b82f6] hover:text-[#2563eb] cursor-pointer">
+                    + Add Photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          // For now, use a data URL - in production you'd upload to cloud storage
+                          const reader = new FileReader()
+                          reader.onload = (event) => {
+                            const url = event.target?.result as string
+                            addPhoto(url)
+                          }
+                          reader.readAsDataURL(file)
+                        }
+                        e.target.value = '' // Reset input
+                      }}
+                    />
+                  </label>
+                </div>
+                {(fldr.photos || []).map((photo, index) => (
+                  <div key={photo.id} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
+                    <div className="relative">
+                      <img
+                        src={photo.url}
+                        alt={photo.caption || 'Photo'}
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <button
+                        onClick={() => removePhoto(index)}
+                        className="absolute top-2 right-2 p-1 bg-red-600 hover:bg-red-700 rounded-full"
+                      >
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={photo.caption || ''}
+                      onChange={(e) => updatePhotoCaption(index, e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Add caption..."
+                    />
+                  </div>
+                ))}
+                {(fldr.photos || []).length === 0 && (
+                  <p className="text-xs text-gray-500 py-2">No photos yet</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Products Card - Only show if enabled */}
+        {fldr.products !== null && (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <button
+              onClick={() => toggleCard('products')}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+            >
+              <span className="font-semibold">Products</span>
+              <ChevronDownIcon
+                className={`w-5 h-5 transition-transform ${
+                  expandedCards.products ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {expandedCards.products && (
+              <div className="px-4 pb-4 space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">
+                    {(fldr.products || []).reduce((sum, p) => sum + p.quantity, 0)} total items
+                  </span>
+                  <button
+                    onClick={addProduct}
+                    className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
+                  >
+                    + Add Product
+                  </button>
+                </div>
+                {(fldr.products || []).map((product, index) => (
+                  <div key={product.id} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="text"
+                        value={product.name}
+                        onChange={(e) => updateProduct(index, 'name', e.target.value)}
+                        className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm font-medium"
+                        placeholder="Product name"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        value={product.quantity}
+                        onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
+                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm text-center"
+                      />
+                      <button
+                        onClick={() => removeProduct(index)}
+                        className="px-2 text-red-500 hover:text-red-400"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={product.notes || ''}
+                      onChange={(e) => updateProduct(index, 'notes', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Notes (optional)"
+                    />
+                  </div>
+                ))}
+                {(fldr.products || []).length === 0 && (
+                  <p className="text-xs text-gray-500 py-2">No products yet</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Notes Card */}
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
           <button
@@ -1275,8 +1487,24 @@ export default function FldrDetailPage() {
               + People
             </button>
           )}
+          {fldr.photos === null && (
+            <button
+              onClick={() => enableModule('photos')}
+              className="px-3 py-2 bg-[#0a0a0a] border border-[#3b82f6]/30 rounded-lg text-sm hover:border-[#3b82f6] transition-colors"
+            >
+              + Photos
+            </button>
+          )}
+          {fldr.products === null && (
+            <button
+              onClick={() => enableModule('products')}
+              className="px-3 py-2 bg-[#0a0a0a] border border-[#3b82f6]/30 rounded-lg text-sm hover:border-[#3b82f6] transition-colors"
+            >
+              + Products
+            </button>
+          )}
         </div>
-        {fldr.job_info !== null && fldr.checklist !== null && fldr.people !== null && (
+        {fldr.job_info !== null && fldr.checklist !== null && fldr.people !== null && fldr.photos !== null && fldr.products !== null && (
           <p className="text-xs text-gray-500">All modules enabled</p>
         )}
       </div>

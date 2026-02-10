@@ -36,6 +36,8 @@ export const fldrStore = {
       job_info: null,
       checklist: null,
       people: null,
+      photos: null,
+      products: null,
       notes: '',
       wrap_up: null,
       polished_messages: [],

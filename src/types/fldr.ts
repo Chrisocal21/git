@@ -41,6 +41,20 @@ export interface Person {
   email: string | null
 }
 
+export interface Photo {
+  id: string
+  url: string
+  caption: string | null
+  uploaded_at: string
+}
+
+export interface Product {
+  id: string
+  name: string
+  quantity: number
+  notes: string | null
+}
+
 export interface Fldr {
   // Core (required)
   id: string
@@ -57,6 +71,8 @@ export interface Fldr {
   job_info: JobInfo | null
   checklist: ChecklistItem[] | null
   people: Person[] | null
+  photos: Photo[] | null
+  products: Product[] | null
   
   // Notes (always available)
   notes: string
