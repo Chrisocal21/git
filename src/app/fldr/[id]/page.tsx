@@ -53,8 +53,22 @@ export default function FldrDetailPage() {
     if (params.id) {
       const fldrId = params.id as string
       
-      // Try to load from cache first
-      const cached = getCachedFldr(fldrId)
+      // Try to load from cache first (fallback 1: offlineStorage)
+      let cached = getCachedFldr(fldrId)
+      
+      // Fallback 2: Check the main list cache
+      if (!cached) {
+        try {
+          const listCache = localStorage.getItem('git-fldrs')
+          if (listCache) {
+            const allFldrs = JSON.parse(listCache)
+            cached = allFldrs.find((f: Fldr) => f.id === fldrId)
+          }
+        } catch (e) {
+          console.error('Failed to parse list cache:', e)
+        }
+      }
+      
       if (cached) {
         setFldr(cached)
         setLoading(false)
@@ -63,17 +77,28 @@ export default function FldrDetailPage() {
       // Then fetch from server (if online)
       if (isOnline()) {
         fetch(`/api/fldrs/${fldrId}`)
-          .then(res => res.json())
+          .then(res => {
+            if (!res.ok) throw new Error('Fldr not found on server')
+            return res.json()
+          })
           .then(data => {
             setFldr(data)
             cacheFldr(data)
             setLoading(false)
           })
-          .catch(() => {
-            if (!cached) {
+          .catch((err) => {
+            console.error('Failed to fetch fldr from server:', err)
+            // If we have cached data, use it
+            if (cached) {
+              setLoading(false)
+            } else {
+              // No cached data and server failed - redirect
               router.push('/fldr')
             }
           })
+      } else if (!cached) {
+        // Offline and no cache - redirect
+        router.push('/fldr')
       }
     }
   }, [params.id, router])
@@ -798,7 +823,7 @@ export default function FldrDetailPage() {
                       + Add
                     </button>
                   </div>
-                  {fldr.job_info?.reference_links.map((link, index) => (
+                  {(fldr.job_info?.reference_links || []).map((link, index) => (
                     <div key={index} className="space-y-2 mb-3 p-3 bg-[#0a0a0a] rounded-lg">
                       <input
                         type="text"
@@ -851,7 +876,7 @@ export default function FldrDetailPage() {
               <div className="px-4 pb-4 space-y-2">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs text-gray-400">
-                    {fldr.checklist.filter(i => i.completed).length} / {fldr.checklist.length} complete
+                    {(fldr.checklist || []).filter(i => i.completed).length} / {(fldr.checklist || []).length} complete
                   </span>
                   <button
                     onClick={addChecklistItem}
@@ -860,7 +885,7 @@ export default function FldrDetailPage() {
                     + Add Item
                   </button>
                 </div>
-                {fldr.checklist.map((item, index) => (
+                {(fldr.checklist || []).map((item, index) => (
                   <div key={index} className="flex items-center gap-2 group">
                     <input
                       type="checkbox"
@@ -884,8 +909,8 @@ export default function FldrDetailPage() {
                       ×
                     </button>
                   </div>
-                ))}
-                {fldr.checklist.length === 0 && (
+                ))}  
+                {(fldr.checklist || []).length === 0 && (
                   <p className="text-xs text-gray-500 py-2">No items yet</p>
                 )}
               </div>
@@ -910,7 +935,7 @@ export default function FldrDetailPage() {
             {expandedCards.people && (
               <div className="px-4 pb-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">{fldr.people.length} people</span>
+                  <span className="text-xs text-gray-400">{(fldr.people || []).length} people</span>
                   <button
                     onClick={addPerson}
                     className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
@@ -918,7 +943,7 @@ export default function FldrDetailPage() {
                     + Add Person
                   </button>
                 </div>
-                {fldr.people.map((person, index) => (
+                {(fldr.people || []).map((person, index) => (
                   <div key={index} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <input
