@@ -44,23 +44,24 @@ export async function PATCH(
   try {
     const updates = await request.json() as Partial<Fldr>
     
-    if (useD1) {
-      // Use D1 for persistent storage
-      const fldr = await updateFldr(params.id, updates)
-      if (!fldr) {
-        return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
-      }
-      // Also update in-memory store for consistency
-      fldrStore.update(params.id, updates)
-      return NextResponse.json(fldr)
-    } else {
-      // Fallback to in-memory store
-      const fldr = fldrStore.update(params.id, updates)
-      if (!fldr) {
-        return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
-      }
-      return NextResponse.json(fldr)
+    // Always update in-memory store first
+    const fldr = fldrStore.update(params.id, updates)
+    if (!fldr) {
+      return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
     }
+    
+    if (useD1) {
+      try {
+        // Try to sync to D1
+        await updateFldr(params.id, updates)
+        console.log('Fldr synced to D1:', params.id)
+      } catch (d1Error) {
+        console.error('D1 sync failed, using in-memory only:', d1Error)
+        // Continue anyway - data is in memory
+      }
+    }
+    
+    return NextResponse.json(fldr)
   } catch (error) {
     console.error('Error updating fldr:', error)
     return NextResponse.json(

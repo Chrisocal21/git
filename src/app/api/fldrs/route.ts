@@ -28,17 +28,20 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as NewFldr
+    const fldr = fldrStore.create(body) // Generate ID and validate
     
     if (useD1) {
-      // Use D1 for persistent storage
-      const fldr = fldrStore.create(body) // Still use store to generate ID and validate
-      await createFldr(fldr) // Then save to D1
-      return NextResponse.json(fldr, { status: 201 })
-    } else {
-      // Fallback to in-memory store
-      const fldr = fldrStore.create(body)
-      return NextResponse.json(fldr, { status: 201 })
+      try {
+        // Try to save to D1 for persistent storage
+        await createFldr(fldr)
+        console.log('Fldr saved to D1:', fldr.id)
+      } catch (d1Error) {
+        console.error('D1 save failed, using in-memory only:', d1Error)
+        // Continue anyway - data is in memory
+      }
     }
+    
+    return NextResponse.json(fldr, { status: 201 })
   } catch (error) {
     console.error('Error creating fldr:', error)
     return NextResponse.json(
