@@ -34,11 +34,17 @@ export async function POST(request: NextRequest) {
         results.success.push(fldr.id)
         console.log('✅ Migrated fldr to D1:', fldr.id)
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
         results.failed.push({
           id: fldr.id,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: errorMsg
         })
-        console.error('❌ Failed to migrate fldr:', fldr.id, error)
+        console.error('❌ Failed to migrate fldr:', fldr.id)
+        console.error('   Error details:', errorMsg)
+        // Log full error object for debugging
+        if (error instanceof Error && error.stack) {
+          console.error('   Stack:', error.stack)
+        }
       }
     }
 

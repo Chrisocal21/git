@@ -155,8 +155,9 @@ export async function getFldrById(id: string): Promise<Fldr | null> {
  */
 export async function createFldr(fldr: Fldr): Promise<Fldr> {
   const data = JSON.stringify(fldr);
+  // Use default timestamps from table schema
   await queryD1(
-    'INSERT INTO fldrs (id, data, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+    'INSERT INTO fldrs (id, data) VALUES (?, ?)',
     [fldr.id, data]
   );
   return fldr;
@@ -176,7 +177,7 @@ export async function updateFldr(id: string, updates: Partial<Fldr>): Promise<Fl
   
   // Update in database with current timestamp
   await queryD1(
-    'UPDATE fldrs SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE fldrs SET data = ?, updated_at = datetime(\'now\') WHERE id = ?',
     [data, id]
   );
   
