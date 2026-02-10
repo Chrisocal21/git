@@ -120,3 +120,71 @@ export async function fetchTripExpenses(tripId: string) {
     return { id: row.id, trip_id: row.trip_id, ...data };
   });
 }
+
+/**
+ * ===========================
+ * NEW FLDRS STORAGE FUNCTIONS
+ * ===========================
+ */
+
+import { Fldr } from '@/types/fldr'
+
+/**
+ * Fetch all fldrs from the database
+ */
+export async function getAllFldrs(): Promise<Fldr[]> {
+  const results = await queryD1('SELECT id, data FROM fldrs ORDER BY updated_at DESC');
+  return results.map(row => {
+    const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+    return data as Fldr;
+  });
+}
+
+/**
+ * Fetch a single fldr by ID
+ */
+export async function getFldrById(id: string): Promise<Fldr | null> {
+  const results = await queryD1('SELECT id, data FROM fldrs WHERE id = ?', [id]);
+  if (results.length === 0) return null;
+  const data = typeof results[0].data === 'string' ? JSON.parse(results[0].data) : results[0].data;
+  return data as Fldr;
+}
+
+/**
+ * Create a new fldr
+ */
+export async function createFldr(fldr: Fldr): Promise<Fldr> {
+  const data = JSON.stringify(fldr);
+  await queryD1('INSERT INTO fldrs (id, data) VALUES (?, ?)', [fldr.id, data]);
+  return fldr;
+}
+
+/**
+ * Update an existing fldr
+ */
+export async function updateFldr(id: string, updates: Partial<Fldr>): Promise<Fldr | null> {
+  // First, get the existing fldr
+  const existing = await getFldrById(id);
+  if (!existing) return null;
+  
+  // Merge updates
+  const updated = { ...existing, ...updates };
+  const data = JSON.stringify(updated);
+  
+  // Update in database with current timestamp
+  await queryD1(
+    'UPDATE fldrs SET data = ?, updated_at = unixepoch() WHERE id = ?',
+    [data, id]
+  );
+  
+  return updated;
+}
+
+/**
+ * Delete a fldr
+ */
+export async function deleteFldr(id: string): Promise<boolean> {
+  const results = await queryD1('DELETE FROM fldrs WHERE id = ?', [id]);
+  // Check if any rows were affected
+  return true; // D1 doesn't return affected rows in REST API
+}
