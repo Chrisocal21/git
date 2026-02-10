@@ -7,13 +7,13 @@ import { PlusIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 
-type FilterOption = 'all' | 'upcoming' | 'active' | 'complete'
+type FilterOption = 'all' | 'upcoming' | 'complete'
 
 export default function FldrPage() {
   const router = useRouter()
   const [fldrs, setFldrs] = useState<Fldr[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<FilterOption>('all')
+  const [filter, setFilter] = useState<FilterOption>('upcoming')
   const [showDeleteButtons, setShowDeleteButtons] = useState(false)
 
   useEffect(() => {
@@ -112,13 +112,21 @@ export default function FldrPage() {
     }
   }
 
-  const filteredFldrs = fldrs.filter(fldr => {
-    if (filter === 'all') return true
-    if (filter === 'upcoming') {
-      return fldr.status === 'incomplete' || fldr.status === 'ready'
-    }
-    return fldr.status === filter
-  })
+  const filteredFldrs = fldrs
+    .filter(fldr => {
+      if (filter === 'all') return true
+      if (filter === 'upcoming') {
+        // Show upcoming AND active jobs by default
+        return fldr.status === 'incomplete' || fldr.status === 'ready' || fldr.status === 'active'
+      }
+      return fldr.status === filter
+    })
+    .sort((a, b) => {
+      // Sort by start date ascending (earliest first)
+      const dateA = new Date(a.date_start).getTime()
+      const dateB = new Date(b.date_start).getTime()
+      return dateA - dateB
+    })
 
   const handleDelete = async (fldrId: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent navigation
@@ -207,17 +215,7 @@ export default function FldrPage() {
               : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
           }`}
         >
-          Upcoming ({fldrs.filter(f => f.status === 'incomplete' || f.status === 'ready').length})
-        </button>
-        <button
-          onClick={() => setFilter('active')}
-          className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-            filter === 'active'
-              ? 'bg-[#3b82f6] text-white'
-              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-          }`}
-        >
-          Active ({fldrs.filter(f => f.status === 'active').length})
+          Current ({fldrs.filter(f => f.status === 'incomplete' || f.status === 'ready' || f.status === 'active').length})
         </button>
         <button
           onClick={() => setFilter('complete')}
@@ -234,7 +232,7 @@ export default function FldrPage() {
       {filteredFldrs.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-400 mb-4">
-            {filter === 'all' ? 'No folders yet' : `No ${filter} folders`}
+            {filter === 'all' ? 'No folders yet' : filter === 'upcoming' ? 'No current jobs' : `No ${filter} folders`}
           </p>
           {filter === 'all' && (
             <button
