@@ -35,6 +35,11 @@ export default function FldrDetailPage() {
   const [hasUnsynced, setHasUnsynced] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [, setRefreshCounter] = useState(0)
+  const [editMode, setEditMode] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDateStart, setEditDateStart] = useState('')
+  const [editDateEnd, setEditDateEnd] = useState('')
+  const [editLocation, setEditLocation] = useState('')
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -76,6 +81,10 @@ export default function FldrDetailPage() {
       
       if (cached) {
         setFldr(cached)
+        setEditTitle(cached.title)
+        setEditDateStart(cached.date_start)
+        setEditDateEnd(cached.date_end || '')
+        setEditLocation(cached.location || '')
         setLoading(false)
       }
       
@@ -472,6 +481,36 @@ export default function FldrDetailPage() {
     }
   }
 
+  const enableEditMode = () => {
+    if (!fldr) return
+    setEditTitle(fldr.title)
+    setEditDateStart(fldr.date_start)
+    setEditDateEnd(fldr.date_end || '')
+    setEditLocation(fldr.location || '')
+    setEditMode(true)
+  }
+
+  const cancelEdit = () => {
+    setEditMode(false)
+  }
+
+  const saveBasicInfo = async () => {
+    if (!fldr || !editTitle.trim() || !editDateStart) return
+    
+    setSaving(true)
+    const updates = {
+      title: editTitle,
+      date_start: editDateStart,
+      date_end: editDateEnd || null,
+      location: editLocation || null,
+    }
+    
+    setFldr({ ...fldr, ...updates })
+    await saveFldr(updates)
+    setEditMode(false)
+    setSaving(false)
+  }
+
   if (loading || !fldr) {
     return <FldrDetailSkeleton />
   }
@@ -487,12 +526,22 @@ export default function FldrDetailPage() {
   return (
     <div className="p-4 max-w-lg mx-auto pb-20">
       <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => router.push('/fldr')}
-          className="text-[#3b82f6] hover:text-[#2563eb]"
-        >
-          ← Back
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/fldr')}
+            className="text-[#3b82f6] hover:text-[#2563eb]"
+          >
+            ← Back
+          </button>
+          {!editMode && (
+            <button
+              onClick={enableEditMode}
+              className="text-gray-400 hover:text-white text-sm"
+            >
+              ✏️ Edit
+            </button>
+          )}
+        </div>
         <h1 className="text-2xl font-bold">GIT</h1>
         <div className="flex flex-col items-end gap-1">
           <div className="flex items-center gap-2">
@@ -545,23 +594,94 @@ export default function FldrDetailPage() {
       )}
 
       <div className="mb-6">
-        <div className="flex items-start justify-between mb-2">
-          <h2 className="text-2xl font-bold">{fldr.title}</h2>
-          <div className={`px-2 py-1 rounded text-xs font-medium border ${
-            fldr.status === 'incomplete' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-            fldr.status === 'ready' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-            fldr.status === 'active' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-            'bg-gray-500/20 text-gray-400 border-gray-500/30'
-          }`}>
-            {fldr.status}
+        {editMode ? (
+          <div className="space-y-4 p-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
+                placeholder="Trip or event name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={editDateStart}
+                  onChange={(e) => setEditDateStart(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  End Date <span className="text-xs text-gray-500">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={editDateEnd}
+                  onChange={(e) => setEditDateEnd(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Location <span className="text-xs text-gray-500">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
+                placeholder="City, State"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={saveBasicInfo}
+                disabled={!editTitle.trim() || !editDateStart || saving}
+                className="flex-1 px-4 py-2 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={cancelEdit}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="text-gray-400">
-          {formatDate(fldr.date_start)}
-          {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
-        </div>
-        {fldr.location && (
-          <div className="text-gray-500 mt-1">{fldr.location}</div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between mb-2">
+              <h2 className="text-2xl font-bold">{fldr.title}</h2>
+              <div className={`px-2 py-1 rounded text-xs font-medium border ${
+                fldr.status === 'incomplete' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                fldr.status === 'ready' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                fldr.status === 'active' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                'bg-gray-500/20 text-gray-400 border-gray-500/30'
+              }`}>
+                {fldr.status}
+              </div>
+            </div>
+            <div className="text-gray-400">
+              {formatDate(fldr.date_start)}
+              {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
+            </div>
+            {fldr.location && (
+              <div className="text-gray-500 mt-1">{fldr.location}</div>
+            )}
+          </>
         )}
       </div>
 
