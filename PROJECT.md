@@ -556,12 +556,14 @@ ToneProfile {
 ### Phase 8: History Migration
 **Goal:** Bring in old job data
 
-- [ ] Connect to existing Cloudflare D1 with past jobs
-- [ ] Map old schema to new Fldr structure
-- [ ] Import historical jobs as completed Fldrs
-- [ ] Display in Fldr list (past jobs section or filter)
+- [x] Connect to existing Cloudflare D1 with past jobs
+- [x] Map old schema to new Fldr structure
+- [x] Import historical jobs as completed Fldrs
+- [x] Display in Fldr list (past jobs section or filter)
+- [x] Add manual job activation buttons
+- [x] Fix status logic for imported jobs
 
-**Milestone:** Old TripFldr job history accessible in new app
+**Milestone:** Old TripFldr job history accessible in new app ✅
 
 ---
 

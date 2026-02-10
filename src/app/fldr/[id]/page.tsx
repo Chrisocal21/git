@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Fldr, QuickReference, JobInfo, ReferenceLink, Person } from '@/types/fldr'
 import { ChevronDownIcon } from '@/components/Icons'
+import CopyButton from '@/components/CopyButton'
 import { 
   getCachedFldr, 
   cacheFldr, 
@@ -604,7 +605,10 @@ export default function FldrDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Hotel Address</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-gray-400">Hotel Address</label>
+                  <CopyButton text={fldr.quick_reference?.hotel_address || ''} label="Copy address" />
+                </div>
                 <textarea
                   value={fldr.quick_reference?.hotel_address || ''}
                   onChange={(e) => updateQuickRef('hotel_address', e.target.value)}
@@ -614,7 +618,10 @@ export default function FldrDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Onsite Address</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-gray-400">Onsite Address</label>
+                  <CopyButton text={fldr.quick_reference?.onsite_address || ''} label="Copy address" />
+                </div>
                 <textarea
                   value={fldr.quick_reference?.onsite_address || ''}
                   onChange={(e) => updateQuickRef('onsite_address', e.target.value)}
@@ -783,7 +790,10 @@ export default function FldrDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Phone</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs text-gray-400">Phone</label>
+                      <CopyButton text={fldr.job_info?.client_contact_phone || ''} label="Copy phone" />
+                    </div>
                     <input
                       type="tel"
                       value={fldr.job_info?.client_contact_phone || ''}
@@ -793,7 +803,10 @@ export default function FldrDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Email</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs text-gray-400">Email</label>
+                      <CopyButton text={fldr.job_info?.client_contact_email || ''} label="Copy email" />
+                    </div>
                     <input
                       type="email"
                       value={fldr.job_info?.client_contact_email || ''}
@@ -968,20 +981,26 @@ export default function FldrDetailPage() {
                       placeholder="Role"
                     />
                     <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="tel"
-                        value={person.phone || ''}
-                        onChange={(e) => updatePerson(index, 'phone', e.target.value)}
-                        className="px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                        placeholder="Phone"
-                      />
-                      <input
-                        type="email"
-                        value={person.email || ''}
-                        onChange={(e) => updatePerson(index, 'email', e.target.value)}
-                        className="px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                        placeholder="Email"
-                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="tel"
+                          value={person.phone || ''}
+                          onChange={(e) => updatePerson(index, 'phone', e.target.value)}
+                          className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="Phone"
+                        />
+                        <CopyButton text={person.phone || ''} label="Copy" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="email"
+                          value={person.email || ''}
+                          onChange={(e) => updatePerson(index, 'email', e.target.value)}
+                          className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="Email"
+                        />
+                        <CopyButton text={person.email || ''} label="Copy" />
+                      </div>
                     </div>
                   </div>
                 ))}
