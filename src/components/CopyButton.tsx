@@ -28,7 +28,7 @@ export default function CopyButton({ text, label = 'Copy' }: CopyButtonProps) {
       className="ml-2 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded transition-colors"
       title={label}
     >
-      {copied ? '✓' : '📋'}
+      {copied ? 'Copied' : 'Copy'}
     </button>
   )
 }

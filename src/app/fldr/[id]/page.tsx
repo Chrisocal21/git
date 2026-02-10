@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Fldr, QuickReference, JobInfo, ReferenceLink, Person } from '@/types/fldr'
-import { ChevronDownIcon } from '@/components/Icons'
+import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
 import { 
@@ -536,9 +536,10 @@ export default function FldrDetailPage() {
           {!editMode && (
             <button
               onClick={enableEditMode}
-              className="text-gray-400 hover:text-white text-sm"
+              className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors"
             >
-              ✏️ Edit
+              <PencilIcon className="w-4 h-4" />
+              <span>Edit</span>
             </button>
           )}
         </div>
@@ -693,7 +694,7 @@ export default function FldrDetailPage() {
             disabled={saving}
             className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {saving ? 'Activating...' : '▶️ Activate Job'}
+            {saving ? 'Activating...' : 'Activate Job'}
           </button>
         </div>
       )}
@@ -704,7 +705,7 @@ export default function FldrDetailPage() {
             disabled={saving}
             className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {saving ? 'Completing...' : '✓ Mark Complete'}
+            {saving ? 'Completing...' : 'Mark Complete'}
           </button>
           <button
             onClick={() => updateStatus('ready')}
@@ -1200,7 +1201,7 @@ export default function FldrDetailPage() {
                 disabled={!fldr.notes.trim() || generatingWrapUp}
                 className="w-full py-2 bg-[#0a0a0a] border border-[#3b82f6]/30 hover:border-[#3b82f6] disabled:border-[#2a2a2a] disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
               >
-                {generatingWrapUp ? 'Generating Wrap-up...' : '✨ Generate Wrap-up'}
+                {generatingWrapUp ? 'Generating Wrap-up...' : 'Generate Wrap-up'}
               </button>
               {fldr.wrap_up && (
                 <div>
