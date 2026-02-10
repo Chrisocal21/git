@@ -1,4 +1,4 @@
-const CACHE_NAME = 'git-cache-v3' // Increment version to force refresh
+const CACHE_NAME = 'git-cache-v4' // Increment version to force refresh
 const urlsToCache = [
   '/',
   '/fldr',
@@ -18,30 +18,15 @@ self.addEventListener('install', (event) => {
   )
 })
 
-// Fetch event - network first for API, cache for static assets
+// Fetch event - network first for everything, fallback to cache when offline
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   
-  // For API routes and data, always use network
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return new Response(JSON.stringify([]), {
-          headers: { 'Content-Type': 'application/json' }
-        })
-      })
-    )
-    return
-  }
-  
-  // For everything else, try cache first, then network
+  // Network first strategy: Always try network, fallback to cache
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) {
-        return response
-      }
-      return fetch(event.request).then(response => {
-        // Cache successful responses
+    fetch(event.request)
+      .then(response => {
+        // Cache successful responses for offline use
         if (response && response.status === 200) {
           const responseToCache = response.clone()
           caches.open(CACHE_NAME).then(cache => {
@@ -50,7 +35,22 @@ self.addEventListener('fetch', (event) => {
         }
         return response
       })
-    })
+      .catch(() => {
+        // Network failed, try cache
+        return caches.match(event.request).then(cachedResponse => {
+          if (cachedResponse) {
+            return cachedResponse
+          }
+          // For API routes, return empty array if no cache
+          if (url.pathname.startsWith('/api/')) {
+            return new Response(JSON.stringify([]), {
+              headers: { 'Content-Type': 'application/json' }
+            })
+          }
+          // For other requests, let it fail naturally
+          return new Response('Offline and no cache available', { status: 503 })
+        })
+      })
   )
 })
 
