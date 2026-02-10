@@ -545,14 +545,6 @@ export default function FldrDetailPage() {
     return <FldrDetailSkeleton />
   }
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  }
-
   return (
     <div className="p-4 max-w-lg mx-auto pb-20">
       <div className="flex items-center justify-between mb-6">
