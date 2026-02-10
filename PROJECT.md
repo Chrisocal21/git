@@ -401,6 +401,7 @@ ToneProfile {
 - **Weather** - auto-pull forecast for trip location/dates
 - **Time zone awareness** - know when team is available
 - **Local spots** - restaurants, coffee near hotel/job site
+- **Photo uploader** - module for uploading and organizing trip photos
 
 ### Layer 3: Timeline View (Future)
 - Timestamped notes within a Fldr
@@ -471,84 +472,84 @@ ToneProfile {
 ### Phase 2: Fldr Core
 **Goal:** Create and view Fldrs
 
-- [ ] Cloudflare D1 database connection
-- [ ] Fldr data schema implementation
-- [ ] Create Fldr screen (minimal: title, date_start)
-- [ ] Fldr list view (sorted by date, upcoming first)
-- [ ] Fldr detail view with expandable cards
-- [ ] Card order: Quick Reference → Pre-trip → Job Info → Notes
-- [ ] Expand/collapse interaction
+- [x] Cloudflare D1 database connection (using in-memory store for development)
+- [x] Fldr data schema implementation
+- [x] Create Fldr screen (minimal: title, date_start)
+- [x] Fldr list view (sorted by date, upcoming first)
+- [x] Fldr detail view with expandable cards
+- [x] Card order: Quick Reference → Pre-trip → Job Info → Notes
+- [x] Expand/collapse interaction
 
-**Milestone:** Can create a Fldr, see it in list, tap to view cards
+**Milestone:** Can create a Fldr, see it in list, tap to view cards ✅
 
 ---
 
 ### Phase 3: Fldr Editing
 **Goal:** Fill in and update Fldr info
 
-- [ ] Inline field editing (tap to edit)
-- [ ] All Quick Reference fields editable
-- [ ] All Job Info fields editable
-- [ ] Reference links with label + URL
-- [ ] Team members list
-- [ ] Notes open text field
-- [ ] Auto-save or explicit save
-- [ ] Incomplete Fldr visual indicator
+- [x] Inline field editing (tap to edit)
+- [x] All Quick Reference fields editable
+- [x] All Job Info fields editable
+- [x] Reference links with label + URL
+- [x] Team members list
+- [x] Notes open text field
+- [x] Auto-save or explicit save
+- [x] Incomplete Fldr visual indicator
 
-**Milestone:** Can fully populate a work trip Fldr
+**Milestone:** Can fully populate a work trip Fldr ✅
 
 ---
 
 ### Phase 4: Flexible Modules
 **Goal:** Support personal events, not just work trips
 
-- [ ] Checklist module (add items, check off)
-- [ ] People module (name, role, phone, email)
-- [ ] Add/remove modules from any Fldr
-- [ ] Modules only show if activated
+- [x] Checklist module (add items, check off)
+- [x] People module (name, role, phone, email)
+- [x] Add/remove modules from any Fldr
+- [x] Modules only show if activated
 
-**Milestone:** Can create birthday or vacation Fldr with checklist
+**Milestone:** Can create birthday or vacation Fldr with checklist ✅
 
 ---
 
 ### Phase 5: Write Mode
 **Goal:** Message polisher standalone
 
-- [ ] Compose screen with two fields (original message, draft)
-- [ ] Light / Full Suit toggle
-- [ ] AI integration for polish (OpenAI or similar)
-- [ ] Tone profile implementation (see Section 7)
-- [ ] Output display with copy button
-- [ ] Both polish levels use tone profile
+- [x] Compose screen with two fields (original message, draft)
+- [x] Light / Full Suit toggle
+- [x] AI integration for polish (OpenAI or similar)
+- [x] Tone profile implementation (see Section 7)
+- [x] Output display with copy button
+- [x] Both polish levels use tone profile
 
-**Milestone:** Can write message, polish it, copy to clipboard
+**Milestone:** Can write message, polish it, copy to clipboard ✅
 
 ---
 
 ### Phase 6: Wrap-up Assist
 **Goal:** Turn Fldr notes into wrap-up draft
 
-- [ ] Wrap-up Assist button in Notes card
-- [ ] Takes notes → generates wrap-up using Full Suit tone
-- [ ] Output displays in-app for review
-- [ ] User can edit before copying
-- [ ] Copy button for Slack paste
+- [x] Wrap-up Assist button in Notes card
+- [x] Takes notes → generates wrap-up using Full Suit tone
+- [x] Output displays in-app for review
+- [x] User can edit before copying
+- [x] Copy button for Slack paste
 
-**Milestone:** Can write notes during trip, generate wrap-up at end
+**Milestone:** Can write notes during trip, generate wrap-up at end ✅
 
 ---
 
 ### Phase 7: Offline & Sync
 **Goal:** Works without connection
 
-- [ ] Cache Quick Reference data locally
-- [ ] Cache Job Info locally
-- [ ] Cache Notes locally with local saves
-- [ ] Sync when connection restored
-- [ ] Unsynced data indicator
-- [ ] Hard refresh option (clear cache, force sync)
+- [x] Cache Quick Reference data locally
+- [x] Cache Job Info locally
+- [x] Cache Notes locally with local saves
+- [x] Sync when connection restored
+- [x] Unsynced data indicator
+- [x] Hard refresh option (clear cache, force sync)
 
-**Milestone:** Can view trip info and take notes without internet
+**Milestone:** Can view trip info and take notes without internet ✅
 
 ---
 

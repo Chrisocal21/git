@@ -8,6 +8,10 @@ Personal Operations System - A PWA for managing job trips, events, and communica
 # Install dependencies
 npm install
 
+# Set up environment variables
+cp .env.example .env
+# Edit .env and add your OpenAI API key
+
 # Run development server
 npm run dev
 
@@ -19,6 +23,15 @@ npm start
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Configuration
+
+**Write Mode (AI Polish):** Requires OpenAI API key in `.env`:
+```
+OPENAI_API_KEY=your_key_here
+```
+
+Without an API key, Write mode will return a mock polished response for testing.
 
 ## Tech Stack
 
@@ -47,6 +60,15 @@ public/
 
 ## Build Phases
 
-Currently on: **Phase 1 - Foundation** ✓
+Currently on: **Phase 5 - Write Mode** ✓
+
+**Completed:**
+- ✅ Phase 1: Foundation (PWA, nav, dark mode)
+- ✅ Phase 2: Fldr Core (create, list, detail views)
+- ✅ Phase 3: Fldr Editing (all fields, auto-save)
+- ✅ Phase 4: Flexible Modules (checklist, people, job info)
+- ✅ Phase 5: Write Mode (message polisher with tone profile)
+
+**Next:** Phase 6 - Wrap-up Assist
 
 See `PROJECT.md` for full build plan and specifications.
