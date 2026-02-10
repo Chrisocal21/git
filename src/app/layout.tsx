@@ -16,7 +16,6 @@ export const metadata: Metadata = {
   description: 'Personal Operations System',
   manifest: '/manifest.json',
   appleWebApp: {
-    capable: true,
     statusBarStyle: 'black-translucent',
     title: 'GIT',
   },
@@ -33,6 +32,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* PWA capability tags */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        {/* iOS still needs this for PWA to work - deprecation warning is expected */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+      </head>
       <body>
         <ServiceWorkerRegistration />
         <div className="min-h-screen pb-16">
