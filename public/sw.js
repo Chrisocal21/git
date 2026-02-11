@@ -1,4 +1,4 @@
-const CACHE_NAME = 'git-cache-v4' // Increment version to force refresh
+const CACHE_NAME = 'git-cache-v5' // Increment version to force refresh
 const urlsToCache = [
   '/',
   '/fldr',
@@ -22,6 +22,16 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   
+  // Skip non-http(s) requests (chrome-extension, etc.)
+  if (!url.protocol.startsWith('http')) {
+    return
+  }
+  
+  // Only cache GET requests (POST/PUT/DELETE can't be cached)
+  if (event.request.method !== 'GET') {
+    return
+  }
+  
   // Network first strategy: Always try network, fallback to cache
   event.respondWith(
     fetch(event.request)
@@ -31,6 +41,9 @@ self.addEventListener('fetch', (event) => {
           const responseToCache = response.clone()
           caches.open(CACHE_NAME).then(cache => {
             cache.put(event.request, responseToCache)
+          }).catch(err => {
+            // Silently ignore cache errors
+            console.log('Cache put failed:', err)
           })
         }
         return response

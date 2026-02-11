@@ -5,6 +5,10 @@ import { useState } from 'react'
 export default function ProdPage() {
   const [migrating, setMigrating] = useState(false)
   const [migrationResult, setMigrationResult] = useState<any>(null)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isPulling, setIsPulling] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [touchStartY, setTouchStartY] = useState(0)
 
   const handleMigrateToD1 = async () => {
     if (!confirm('Migrate all localStorage data to D1? This will push your existing fldrs to the cloud database.')) {
@@ -58,8 +62,86 @@ export default function ProdPage() {
     }
   }
 
+  // Pull-to-refresh handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setTouchStartY(e.touches[0].clientY)
+      setIsPulling(true)
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling || window.scrollY > 0) return
+    
+    const currentY = e.touches[0].clientY
+    const distance = currentY - touchStartY
+    
+    if (distance > 0 && distance < 150) {
+      setPullDistance(distance)
+    }
+  }
+
+  const handleTouchEnd = async () => {
+    if (pullDistance > 80) {
+      setIsRefreshing(true)
+      await handleRefresh()
+    }
+    setIsPulling(false)
+    setPullDistance(0)
+    setTouchStartY(0)
+  }
+
+  const handleRefresh = async () => {
+    console.log('🔄 Pull-to-refresh triggered on prod page')
+    
+    // Check for service worker updates
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration()
+      if (registration) {
+        await registration.update()
+        
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+          window.location.reload()
+          return
+        }
+      }
+    }
+    
+    setIsRefreshing(false)
+  }
+
   return (
-    <div className="p-6">
+    <div 
+      className="p-6"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {(isPulling || isRefreshing) && (
+        <div 
+          className="fixed top-0 left-0 right-0 flex justify-center items-center bg-[#0a0a0a] z-50 transition-all"
+          style={{
+            height: isRefreshing ? '60px' : `${Math.min(pullDistance, 80)}px`,
+            opacity: isRefreshing ? 1 : Math.min(pullDistance / 80, 1)
+          }}
+        >
+          {isRefreshing ? (
+            <div className="flex items-center gap-2 text-[#3b82f6]">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-sm font-medium">Refreshing...</span>
+            </div>
+          ) : (
+            <div className="text-[#3b82f6] text-sm font-medium">
+              {pullDistance > 80 ? 'Release to refresh' : 'Pull to refresh'}
+            </div>
+          )}
+        </div>
+      )}
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
       
       <div className="space-y-4 max-w-md">
