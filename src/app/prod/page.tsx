@@ -1,64 +1,163 @@
 'use client';
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Fldr, Product, ChecklistItem } from '@/types/fldr'
+import { useRouter } from 'next/navigation'
+
+type ProductWithJob = Product & { fldrId: string; fldrTitle: string; isCompleted?: boolean }
+type TaskWithJob = ChecklistItem & { fldrId: string; fldrTitle: string }
 
 export default function ProdPage() {
-  const [migrating, setMigrating] = useState(false)
-  const [migrationResult, setMigrationResult] = useState<any>(null)
+  const router = useRouter()
+  const [fldrs, setFldrs] = useState<Fldr[]>([])
+  const [loading, setLoading] = useState(true)
   const [pullDistance, setPullDistance] = useState(0)
   const [isPulling, setIsPulling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStartY, setTouchStartY] = useState(0)
 
-  const handleMigrateToD1 = async () => {
-    if (!confirm('Migrate all localStorage data to D1? This will push your existing fldrs to the cloud database.')) {
-      return
-    }
+  useEffect(() => {
+    loadFldrs()
+  }, [])
 
-    setMigrating(true)
-    setMigrationResult(null)
+  const loadFldrs = async () => {
+    try {
+      const res = await fetch('/api/fldrs')
+      const data = await res.json()
+      setFldrs(data)
+      localStorage.setItem('git-fldrs', JSON.stringify(data))
+    } catch (error) {
+      console.error('Failed to load fldrs:', error)
+      // Fallback to cache
+      const cached = localStorage.getItem('git-fldrs')
+      if (cached) {
+        setFldrs(JSON.parse(cached))
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Get active jobs (ready or active status)
+  const activeJobs = fldrs.filter(f => f.status === 'ready' || f.status === 'active')
+
+  // Aggregate all products from active jobs
+  const allProducts: ProductWithJob[] = activeJobs.flatMap(fldr => 
+    (fldr.products || []).map(product => ({
+      ...product,
+      fldrId: fldr.id,
+      fldrTitle: fldr.title,
+      isCompleted: false // We'll use this for UI state
+    }))
+  )
+
+  // Aggregate all tasks from active jobs
+  const allTasks: TaskWithJob[] = activeJobs.flatMap(fldr =>
+    (fldr.checklist || []).map((task, index) => ({
+      ...task,
+      fldrId: fldr.id,
+      fldrTitle: fldr.title
+    }))
+  )
+
+  // Update product
+  const updateProduct = async (fldrId: string, productId: string, updates: Partial<Product>) => {
+    const fldr = fldrs.find(f => f.id === fldrId)
+    if (!fldr || !fldr.products) return
+
+    const updatedProducts = fldr.products.map(p => 
+      p.id === productId ? { ...p, ...updates } : p
+    )
 
     try {
-      // Get all fldrs from localStorage
-      const cached = localStorage.getItem('git-fldrs')
-      if (!cached) {
-        alert('No data found in localStorage!')
-        setMigrating(false)
-        return
-      }
-
-      const fldrs = JSON.parse(cached)
-      console.log(`📤 Migrating ${fldrs.length} fldrs to D1...`)
-
-      const response = await fetch('/api/migrate-to-d1', {
-        method: 'POST',
+      await fetch(`/api/fldrs/${fldrId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fldrs }),
+        body: JSON.stringify({ products: updatedProducts })
       })
-
-      const result = await response.json()
-      setMigrationResult(result)
-
-      if (result.migrated > 0) {
-        alert(`✅ Successfully migrated ${result.migrated} fldrs to D1!`)
-      } else {
-        alert(`⚠️ Migration failed. Check console for details.`)
-      }
       
-      console.log('Migration result:', result)
-      
-      // Log detailed errors
-      if (result.results?.failed && result.results.failed.length > 0) {
-        console.error('❌ Failed migrations:')
-        result.results.failed.forEach((f: any) => {
-          console.error(`  - ${f.id}: ${f.error}`)
-        })
-      }
+      // Update local state
+      const updatedFldrs = fldrs.map(f => 
+        f.id === fldrId ? { ...f, products: updatedProducts } : f
+      )
+      setFldrs(updatedFldrs)
+      localStorage.setItem('git-fldrs', JSON.stringify(updatedFldrs))
     } catch (error) {
-      console.error('Migration error:', error)
-      alert('❌ Migration failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
-    } finally {
-      setMigrating(false)
+      console.error('Failed to update product:', error)
+    }
+  }
+
+  // Delete product
+  const deleteProduct = async (fldrId: string, productId: string) => {
+    const fldr = fldrs.find(f => f.id === fldrId)
+    if (!fldr || !fldr.products) return
+
+    const updatedProducts = fldr.products.filter(p => p.id !== productId)
+
+    try {
+      await fetch(`/api/fldrs/${fldrId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: updatedProducts })
+      })
+      
+      const updatedFldrs = fldrs.map(f => 
+        f.id === fldrId ? { ...f, products: updatedProducts } : f
+      )
+      setFldrs(updatedFldrs)
+      localStorage.setItem('git-fldrs', JSON.stringify(updatedFldrs))
+    } catch (error) {
+      console.error('Failed to delete product:', error)
+    }
+  }
+
+  // Toggle task completion
+  const toggleTask = async (fldrId: string, taskItem: string) => {
+    const fldr = fldrs.find(f => f.id === fldrId)
+    if (!fldr || !fldr.checklist) return
+
+    const updatedChecklist = fldr.checklist.map(t => 
+      t.item === taskItem ? { ...t, completed: !t.completed } : t
+    )
+
+    try {
+      await fetch(`/api/fldrs/${fldrId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checklist: updatedChecklist })
+      })
+      
+      const updatedFldrs = fldrs.map(f => 
+        f.id === fldrId ? { ...f, checklist: updatedChecklist } : f
+      )
+      setFldrs(updatedFldrs)
+      localStorage.setItem('git-fldrs', JSON.stringify(updatedFldrs))
+    } catch (error) {
+      console.error('Failed to toggle task:', error)
+    }
+  }
+
+  // Delete task
+  const deleteTask = async (fldrId: string, taskItem: string) => {
+    const fldr = fldrs.find(f => f.id === fldrId)
+    if (!fldr || !fldr.checklist) return
+
+    const updatedChecklist = fldr.checklist.filter(t => t.item !== taskItem)
+
+    try {
+      await fetch(`/api/fldrs/${fldrId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checklist: updatedChecklist })
+      })
+      
+      const updatedFldrs = fldrs.map(f => 
+        f.id === fldrId ? { ...f, checklist: updatedChecklist } : f
+      )
+      setFldrs(updatedFldrs)
+      localStorage.setItem('git-fldrs', JSON.stringify(updatedFldrs))
+    } catch (error) {
+      console.error('Failed to delete task:', error)
     }
   }
 
@@ -108,12 +207,25 @@ export default function ProdPage() {
       }
     }
     
+    await loadFldrs()
     setIsRefreshing(false)
+  }
+
+  const completedTasks = allTasks.filter(t => t.completed).length
+  const totalTasks = allTasks.length
+
+  if (loading) {
+    return (
+      <div className="p-4 max-w-4xl mx-auto">
+        <h1 className="text-2xl font-bold mb-6">Production</h1>
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    )
   }
 
   return (
     <div 
-      className="p-6"
+      className="p-4 max-w-4xl mx-auto pb-20"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -142,63 +254,142 @@ export default function ProdPage() {
           )}
         </div>
       )}
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
-      
-      <div className="space-y-4 max-w-md">
-        <a
-          href="/import"
-          className="block p-4 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-lg transition-colors"
-        >
-          <div className="font-semibold mb-1">Import History</div>
-          <div className="text-sm text-gray-400">
-            Import jobs from old TripFldr database
-          </div>
-        </a>
 
-        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-          <div className="font-semibold mb-1">Migrate to D1</div>
-          <div className="text-sm text-gray-400 mb-3">
-            Push existing localStorage data to cloud database
-          </div>
-          <button
-            onClick={handleMigrateToD1}
-            disabled={migrating}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-sm rounded-lg transition-colors"
-          >
-            {migrating ? 'Migrating...' : 'Migrate to D1'}
-          </button>
-          {migrationResult && (
-            <div className="mt-3 p-3 bg-gray-800 rounded text-xs">
-              <div className="text-green-400">✅ {migrationResult.migrated} migrated</div>
-              {migrationResult.failed > 0 && (
-                <div className="text-red-400">❌ {migrationResult.failed} failed</div>
-              )}
-            </div>
-          )}
+      <h1 className="text-2xl font-bold mb-6">Production</h1>
+
+      {/* Overview Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="p-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+          <div className="text-2xl font-bold text-[#3b82f6]">{activeJobs.length}</div>
+          <div className="text-xs text-gray-400">Active Jobs</div>
         </div>
-
-        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-          <div className="font-semibold mb-1">Clear Cache</div>
-          <div className="text-sm text-gray-400 mb-3">
-            Clear offline cache and sync queue
-          </div>
-          <button
-            onClick={() => {
-              if (confirm('Clear all offline cache? This cannot be undone.')) {
-                localStorage.clear();
-                window.location.reload();
-              }
-            }}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-sm rounded-lg transition-colors"
-          >
-            Clear All Cache
-          </button>
+        <div className="p-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+          <div className="text-2xl font-bold text-[#3b82f6]">{allProducts.length}</div>
+          <div className="text-xs text-gray-400">Products</div>
         </div>
-
-        <div className="text-xs text-gray-500 text-center pt-4">
-          GIT - Get It Together v1.0
+        <div className="p-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+          <div className="text-2xl font-bold text-[#3b82f6]">{completedTasks}/{totalTasks}</div>
+          <div className="text-xs text-gray-400">Tasks Done</div>
         </div>
       </div>
+
+      {activeJobs.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <div className="text-4xl mb-4">🎉</div>
+          <div className="text-lg font-medium mb-2">No active jobs</div>
+          <div className="text-sm">You're all caught up!</div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Tasks Section */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-4 flex items-center justify-between">
+              <span>Tasks</span>
+              <span className="text-sm text-gray-400">{completedTasks}/{totalTasks}</span>
+            </h2>
+            {allTasks.length === 0 ? (
+              <div className="text-sm text-gray-500 text-center py-4">No tasks</div>
+            ) : (
+              <div className="space-y-2">
+                {allTasks.map((task, idx) => (
+                  <div key={`${task.fldrId}-${idx}`} className="flex items-start gap-3 group hover:bg-[#2a2a2a] p-2 rounded transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={task.completed}
+                      onChange={() => toggleTask(task.fldrId, task.item)}
+                      className="mt-0.5 w-4 h-4 rounded border-[#2a2a2a] bg-[#0a0a0a] accent-[#3b82f6]"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm ${task.completed ? 'line-through text-gray-500' : ''}`}>
+                        {task.item}
+                      </div>
+                      <button
+                        onClick={() => router.push(`/fldr/${task.fldrId}`)}
+                        className="text-xs text-gray-500 hover:text-[#3b82f6] transition-colors"
+                      >
+                        {task.fldrTitle}
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this task?')) {
+                          deleteTask(task.fldrId, task.item)
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-400 text-sm transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Products Section */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-4 flex items-center justify-between">
+              <span>Products</span>
+              <span className="text-sm text-gray-400">{allProducts.reduce((sum, p) => sum + p.quantity, 0)} items</span>
+            </h2>
+            {allProducts.length === 0 ? (
+              <div className="text-sm text-gray-500 text-center py-4">No products</div>
+            ) : (
+              <div className="space-y-3">
+                {allProducts.map((product) => (
+                  <div key={`${product.fldrId}-${product.id}`} className="p-3 bg-[#0a0a0a] rounded-lg group hover:bg-[#151515] transition-colors">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={product.name}
+                          onChange={(e) => updateProduct(product.fldrId, product.id, { name: e.target.value })}
+                          className="w-full bg-transparent text-sm font-medium border-none focus:outline-none focus:ring-0 p-0"
+                          placeholder="Product name"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={product.quantity}
+                          onChange={(e) => updateProduct(product.fldrId, product.id, { quantity: parseInt(e.target.value) || 1 })}
+                          className="w-16 px-2 py-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#3b82f6]"
+                        />
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete this product?')) {
+                              deleteProduct(product.fldrId, product.id)
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-400 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                    {product.notes && (
+                      <input
+                        type="text"
+                        value={product.notes}
+                        onChange={(e) => updateProduct(product.fldrId, product.id, { notes: e.target.value })}
+                        className="w-full bg-transparent text-xs text-gray-400 border-none focus:outline-none focus:ring-0 p-0 mb-2"
+                        placeholder="Notes"
+                      />
+                    )}
+                    <button
+                      onClick={() => router.push(`/fldr/${product.fldrId}`)}
+                      className="text-xs text-gray-500 hover:text-[#3b82f6] transition-colors"
+                    >
+                      {product.fldrTitle}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
