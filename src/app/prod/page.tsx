@@ -41,24 +41,50 @@ export default function ProdPage() {
   // Get active jobs (ready or active status)
   const activeJobs = fldrs.filter(f => f.status === 'ready' || f.status === 'active')
 
+  console.log('🔍 Active Jobs Detail:', activeJobs.map(f => ({
+    title: f.title,
+    status: f.status,
+    products: f.products,
+    productsLength: f.products?.length,
+    productsType: typeof f.products
+  })))
+
   // Aggregate all products from active jobs
-  const allProducts: ProductWithJob[] = activeJobs.flatMap(fldr => 
-    (fldr.products || []).map(product => ({
+  const allProducts: ProductWithJob[] = activeJobs.flatMap(fldr => {
+    if (!fldr.products || fldr.products.length === 0) {
+      console.log(`❌ No products in ${fldr.title}`, { products: fldr.products })
+      return []
+    }
+    console.log(`✅ Found ${fldr.products.length} products in ${fldr.title}`, fldr.products)
+    return fldr.products.map(product => ({
       ...product,
       fldrId: fldr.id,
       fldrTitle: fldr.title,
-      isCompleted: false // We'll use this for UI state
+      isCompleted: false
     }))
-  )
+  })
 
   // Aggregate all tasks from active jobs
-  const allTasks: TaskWithJob[] = activeJobs.flatMap(fldr =>
-    (fldr.checklist || []).map((task, index) => ({
+  const allTasks: TaskWithJob[] = activeJobs.flatMap(fldr => {
+    if (!fldr.checklist || fldr.checklist.length === 0) {
+      return []
+    }
+    return fldr.checklist.map((task, index) => ({
       ...task,
       fldrId: fldr.id,
       fldrTitle: fldr.title
     }))
-  )
+  })
+
+  // Debug logging
+  console.log('📊 Prod Dashboard Stats:', {
+    totalFldrs: fldrs.length,
+    activeJobs: activeJobs.length,
+    activeJobTitles: activeJobs.map(f => f.title),
+    products: allProducts.length,
+    tasks: allTasks.length,
+    allStatuses: fldrs.map(f => ({ title: f.title, status: f.status, hasProducts: !!f.products?.length, hasTasks: !!f.checklist?.length }))
+  })
 
   // Update product
   const updateProduct = async (fldrId: string, productId: string, updates: Partial<Product>) => {
