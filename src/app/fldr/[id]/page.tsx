@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { Fldr, QuickReference, JobInfo, ReferenceLink, Person, Photo, Product } from '@/types/fldr'
 import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
 import CopyButton from '@/components/CopyButton'
@@ -17,6 +18,16 @@ import {
 } from '@/lib/offlineStorage'
 import { logStorageInfo } from '@/lib/storageHealth'
 
+// Dynamic import for map (client-side only, Leaflet doesn't support SSR)
+const FldrMap = dynamic(() => import('@/components/FldrMap'), { 
+  ssr: false,
+  loading: () => (
+    <div className="h-64 bg-white/5 rounded-lg flex items-center justify-center">
+      <div className="text-white/60">Loading map...</div>
+    </div>
+  )
+})
+
 export default function FldrDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -25,6 +36,7 @@ export default function FldrDetailPage() {
   const [saving, setSaving] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
     quickRef: false,
+    map: false,
     preTrip: false,
     jobInfo: false,
     checklist: false,
@@ -1018,6 +1030,45 @@ export default function FldrDetailPage() {
                   />
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Map Card */}
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <button
+            onClick={() => toggleCard('map')}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+          >
+            <span className="font-semibold">📍 Map</span>
+            <ChevronDownIcon
+              className={`w-5 h-5 transition-transform ${
+                expandedCards.map ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {expandedCards.map && (
+            <div className="px-4 pb-4">
+              <FldrMap
+                locations={[
+                  {
+                    label: 'Hotel',
+                    address: fldr.quick_reference?.hotel_address || '',
+                  },
+                  {
+                    label: 'Job Location',
+                    address: fldr.quick_reference?.onsite_address || '',
+                  },
+                  {
+                    label: 'Local Airport',
+                    address: fldr.quick_reference?.local_airport || '',
+                  },
+                  {
+                    label: 'Departure Airport',
+                    address: fldr.quick_reference?.departure_airport || '',
+                  },
+                ].filter(loc => loc.address.trim() !== '')}
+              />
             </div>
           )}
         </div>

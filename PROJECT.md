@@ -603,12 +603,52 @@ ToneProfile {
 
 ---
 
-### Future Phases (Not Now)
-- Maps integration
-- Weather for trip locations
+### Phase 10: Location Context (In Progress)
+**Goal:** Add maps and weather for trip locations
+
+- [x] Maps integration - tap address to open in maps app
+- [ ] Weather widget showing forecast for trip location/dates
+- [ ] Auto-detect location from Fldr address fields
+- [ ] Weather API integration (OpenWeather or similar)
+
+**Milestone:** Trip locations have visual context
+
+---
+
+### Future Phases
+
+**Next Up:**
+- **Waste/Loss Tracking Module** - Track materials lost/wasted during jobs
+  - Quantity lost
+  - Reason/context
+  - Cost impact (optional)
+  - Aggregated view across all jobs
+
+- **Notes Enhancements**
+  - Enlarge notes to full-screen editing mode
+  - Separate personal notes from job notes
+  - Global notes section (not tied to specific fldr)
+  - Rich text formatting (bold, bullets, etc.)
+
+- **Mini Workspace - Lightweight Docs/Sheets**
+  - Personal documents not tied to jobs
+  - Simple spreadsheet (20x20 grid, expandable)
+  - Plain text docs with basic formatting
+  - Navigate via Prod tab or side menu
+  - **Implementation Ideas:**
+    - Use simple table component with inline editing
+    - CSV export for backup
+    - Store as JSON in D1 (each cell as data)
+    - Mobile-friendly with horizontal scroll
+    - Add row/column buttons when needed
+    - Formula support later (sum, average basic operations)
+
+**Later:**
 - Timeline view for notes
 - Cross-trip memory
-- Prod mode buildout
+
+**On Hold:**
+- Prod mode buildout (basic version live, advanced features deferred)
 
 ---
 
