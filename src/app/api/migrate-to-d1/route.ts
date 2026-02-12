@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createFldr } from '@/lib/d1'
+import { upsertFldr } from '@/lib/d1'
 import { Fldr } from '@/types/fldr'
 
 const D1_ENABLED = process.env.D1_ENABLED === 'true'
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     for (const fldr of fldrs) {
       try {
-        await createFldr(fldr)
+        await upsertFldr(fldr)
         results.success.push(fldr.id)
         console.log('✅ Migrated fldr to D1:', fldr.id)
       } catch (error) {

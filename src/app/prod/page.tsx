@@ -22,17 +22,25 @@ export default function ProdPage() {
 
   const loadFldrs = async () => {
     try {
-      const res = await fetch('/api/fldrs')
-      const data = await res.json()
-      setFldrs(data)
-      localStorage.setItem('git-fldrs', JSON.stringify(data))
-    } catch (error) {
-      console.error('Failed to load fldrs:', error)
-      // Fallback to cache
+      // Load from cache immediately for instant display
       const cached = localStorage.getItem('git-fldrs')
       if (cached) {
-        setFldrs(JSON.parse(cached))
+        const cachedData = JSON.parse(cached)
+        setFldrs(cachedData)
+        setLoading(false)
       }
+
+      // Then fetch from API (D1 as source of truth)
+      const res = await fetch('/api/fldrs', { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        console.log('✅ Loaded from D1:', data.length, 'fldrs')
+        setFldrs(data)
+        localStorage.setItem('git-fldrs', JSON.stringify(data))
+      }
+    } catch (error) {
+      console.error('❌ Failed to load from API, using offline cache:', error)
+      // Already loaded from cache above
     } finally {
       setLoading(false)
     }

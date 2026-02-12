@@ -164,6 +164,19 @@ export async function createFldr(fldr: Fldr): Promise<Fldr> {
 }
 
 /**
+ * Upsert a fldr (insert or replace if exists)
+ */
+export async function upsertFldr(fldr: Fldr): Promise<Fldr> {
+  const data = JSON.stringify(fldr);
+  // INSERT OR REPLACE will update if ID exists, insert if new
+  await queryD1(
+    'INSERT OR REPLACE INTO fldrs (id, data, updated_at) VALUES (?, ?, datetime(\'now\'))',
+    [fldr.id, data]
+  );
+  return fldr;
+}
+
+/**
  * Update an existing fldr
  */
 export async function updateFldr(id: string, updates: Partial<Fldr>): Promise<Fldr | null> {
