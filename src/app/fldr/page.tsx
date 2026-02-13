@@ -55,27 +55,15 @@ export default function FldrPage() {
           return // Don't update - keep cached data
         }
         
-        // If we have cache and server data, merge them
+        // If we have cache and server data, use server as source of truth
         if (cachedData.length > 0 && data.length > 0) {
-          console.log('Merging cache with server data')
+          console.log('Server data received, using as source of truth (D1 enabled)')
           
-          // Create a Map to deduplicate by ID, preferring server data (source of truth)
-          const fldrMap = new Map<string, Fldr>()
-          
-          // Add cached data first (may have unsaved changes)
-          cachedData.forEach((f: Fldr) => fldrMap.set(f.id, f))
-          
-          // Overwrite with server data (D1 is source of truth)
-          data.forEach((f: Fldr) => fldrMap.set(f.id, f))
-          
-          const merged = Array.from(fldrMap.values())
-          
-          setFldrs(merged)
-          // Only save to localStorage if we have data
-          if (merged.length > 0) {
-            localStorage.setItem('git-fldrs', JSON.stringify(merged))
-            console.log(`💾 Saved ${merged.length} fldrs to cache (deduped)`)
-          }
+          // When D1 is enabled, server is the authoritative source
+          // Don't merge - use server data directly to avoid orphaned cache entries
+          setFldrs(data)
+          localStorage.setItem('git-fldrs', JSON.stringify(data))
+          console.log(`💾 Saved ${data.length} fldrs to cache (server is source of truth)`)
         } else if (data.length > 0) {
           // No cache but server has data - use server data
           console.log('📥 No cache, using server data')
