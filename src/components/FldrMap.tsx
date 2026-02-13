@@ -63,6 +63,7 @@ async function geocodeAddress(address: string): Promise<[number, number] | null>
 export default function FldrMap({ locations }: FldrMapProps) {
   const [geocodedLocations, setGeocodedLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
     async function geocodeAll() {
@@ -87,6 +88,10 @@ export default function FldrMap({ locations }: FldrMapProps) {
     }
   }, [locations])
 
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen)
+  }
+
   if (loading) {
     return (
       <div className="h-64 bg-white/5 rounded-lg flex items-center justify-center">
@@ -107,29 +112,48 @@ export default function FldrMap({ locations }: FldrMapProps) {
   const center = geocodedLocations[0].coordinates || [39.8283, -98.5795] // US center
 
   return (
-    <div className="h-96 rounded-lg overflow-hidden border border-white/10">
-      <MapContainer
-        center={center}
-        zoom={10}
-        scrollWheelZoom={true}
-        className="h-full w-full"
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-[#0a0a0a] p-4' : 'relative'}`}>
+      {/* Fullscreen toggle button */}
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-4 right-4 z-[1000] p-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] rounded-lg border border-white/10 transition-colors shadow-lg"
+        title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {geocodedLocations.map((loc, index) => (
-          <Marker key={index} position={loc.coordinates!}>
-            <Popup>
-              <div className="text-sm">
-                <div className="font-semibold">{loc.label}</div>
-                <div className="text-xs text-gray-600 mt-1">{loc.address}</div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-        <AutoFitBounds locations={geocodedLocations} />
-      </MapContainer>
+        {isFullscreen ? (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+        )}
+      </button>
+      
+      <div className={`${isFullscreen ? 'h-full' : 'h-96'} rounded-lg overflow-hidden border border-white/10`}>
+        <MapContainer
+          center={center}
+          zoom={10}
+          scrollWheelZoom={true}
+          className="h-full w-full"
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {geocodedLocations.map((loc, index) => (
+            <Marker key={index} position={loc.coordinates!}>
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-semibold">{loc.label}</div>
+                  <div className="text-xs text-gray-600 mt-1">{loc.address}</div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+          <AutoFitBounds locations={geocodedLocations} />
+        </MapContainer>
+      </div>
     </div>
   )
 }
