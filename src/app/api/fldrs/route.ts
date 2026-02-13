@@ -40,13 +40,16 @@ export async function POST(request: NextRequest) {
     const fldr = fldrStore.create(body) // Generate ID and validate
     
     if (D1_ENABLED && useD1) {
+      // Cloud-first: Save to D1 and fail if it fails
       try {
-        // Try to save to D1 for persistent storage
         await createFldr(fldr)
         console.log('✅ Fldr saved to D1:', fldr.id)
       } catch (d1Error) {
-        console.error('❌ D1 save failed, using in-memory only:', d1Error)
-        // Continue anyway - data is in memory
+        console.error('❌ D1 save failed:', d1Error)
+        return NextResponse.json(
+          { error: 'Failed to save to cloud storage' },
+          { status: 500 }
+        )
       }
     }
     

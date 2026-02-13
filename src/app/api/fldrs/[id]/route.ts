@@ -45,24 +45,30 @@ export async function PATCH(
   try {
     const updates = await request.json() as Partial<Fldr>
     
-    // Always update in-memory store first
-    const fldr = fldrStore.update(params.id, updates)
-    if (!fldr) {
-      return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
-    }
-    
     if (D1_ENABLED && useD1) {
+      // Cloud-first: Update D1 and fail if it fails
       try {
-        // Try to sync to D1
-        await updateFldr(params.id, updates)
-        console.log('✅ Fldr synced to D1:', params.id)
+        const fldr = await updateFldr(params.id, updates)
+        if (!fldr) {
+          return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
+        }
+        console.log('✅ Fldr updated in D1:', params.id)
+        return NextResponse.json(fldr)
       } catch (d1Error) {
-        console.error('❌ D1 sync failed, using in-memory only:', d1Error)
-        // Continue anyway - data is in memory
+        console.error('❌ D1 update failed:', d1Error)
+        return NextResponse.json(
+          { error: 'Failed to update cloud storage' },
+          { status: 500 }
+        )
       }
+    } else {
+      // Fallback to in-memory when D1 disabled
+      const fldr = fldrStore.update(params.id, updates)
+      if (!fldr) {
+        return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
+      }
+      return NextResponse.json(fldr)
     }
-    
-    return NextResponse.json(fldr)
   } catch (error) {
     console.error('Error updating fldr:', error)
     return NextResponse.json(

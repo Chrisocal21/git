@@ -30,24 +30,14 @@ export default function CreateFldrPage() {
     if (response.ok) {
       const fldr = await response.json()
       
-      // Cache the new fldr
+      // Cache the new fldr for offline access
       cacheFldr(fldr)
       
-      // Update localStorage cache
-      try {
-        const cached = localStorage.getItem('git-fldrs')
-        if (cached) {
-          const allFldrs = JSON.parse(cached)
-          allFldrs.push(fldr)
-          localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
-        } else {
-          localStorage.setItem('git-fldrs', JSON.stringify([fldr]))
-        }
-      } catch (e) {
-        console.error('Failed to update cache:', e)
-      }
-      
+      // Navigate to the new fldr - it will fetch from D1/server on load
       router.push(`/fldr/${fldr.id}`)
+    } else {
+      const error = await response.json()
+      alert(`Failed to create fldr: ${error.error || 'Unknown error'}`)
     }
   }
 
