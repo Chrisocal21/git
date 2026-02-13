@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { Fldr } from '@/types/fldr'
+import RichTextEditor from '@/components/RichTextEditor'
 
 type PolishLevel = 'light' | 'full_suit'
+type ViewMode = 'polish' | 'notes'
 
 export default function WritePage() {
+  const [viewMode, setViewMode] = useState<ViewMode>('polish')
   const [originalMessage, setOriginalMessage] = useState('')
   const [draft, setDraft] = useState('')
   const [polishLevel, setPolishLevel] = useState<PolishLevel>('light')
@@ -18,6 +21,11 @@ export default function WritePage() {
   const [isPulling, setIsPulling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStartY, setTouchStartY] = useState(0)
+  
+  // Notes editor state
+  const [notesContent, setNotesContent] = useState('')
+  const [isNoteSaving, setIsNoteSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
   useEffect(() => {
     // Fetch all fldrs for the dropdown
@@ -26,6 +34,45 @@ export default function WritePage() {
       .then(data => setFldrs(data))
       .catch(err => console.error('Failed to fetch fldrs:', err))
   }, [])
+
+  // Load notes content when a fldr is selected
+  useEffect(() => {
+    if (selectedFldrId && viewMode === 'notes') {
+      const fldr = fldrs.find(f => f.id === selectedFldrId)
+      if (fldr) {
+        setNotesContent(fldr.notes || '')
+      }
+    }
+  }, [selectedFldrId, fldrs, viewMode])
+
+  // Auto-save notes after 2 seconds of inactivity
+  useEffect(() => {
+    if (viewMode !== 'notes' || !selectedFldrId || !notesContent) return
+    
+    const timer = setTimeout(() => {
+      saveNotes()
+    }, 2000)
+    
+    return () => clearTimeout(timer)
+  }, [notesContent, selectedFldrId, viewMode])
+
+  const saveNotes = async () => {
+    if (!selectedFldrId) return
+    
+    setIsNoteSaving(true)
+    try {
+      await fetch(`/api/fldrs/${selectedFldrId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: notesContent }),
+      })
+      setLastSaved(new Date())
+    } catch (err) {
+      console.error('Failed to save notes:', err)
+    } finally {
+      setIsNoteSaving(false)
+    }
+  }
 
   const handlePolish = async () => {
     if (!draft.trim()) return
@@ -183,9 +230,95 @@ export default function WritePage() {
           )}
         </div>
       )}
+      
       <h1 className="text-2xl font-bold mb-6">GIT</h1>
 
-      {!showOutput ? (
+      {/* Mode tabs */}
+      <div className="flex gap-2 mb-6 border-b border-[#2a2a2a]">
+        <button
+          onClick={() => setViewMode('polish')}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+            viewMode === 'polish'
+              ? 'border-[#3b82f6] text-[#3b82f6]'
+              : 'border-transparent text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          Polish Message
+        </button>
+        <button
+          onClick={() => setViewMode('notes')}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+            viewMode === 'notes'
+              ? 'border-[#3b82f6] text-[#3b82f6]'
+              : 'border-transparent text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          Notes Editor
+        </button>
+      </div>
+
+      {viewMode === 'notes' ? (
+        <>
+          {/* Notes Editor Mode */}
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="notes-fldr" className="block text-sm font-medium mb-2">
+                Select Fldr
+              </label>
+              <select
+                id="notes-fldr"
+                value={selectedFldrId || ''}
+                onChange={(e) => setSelectedFldrId(e.target.value || null)}
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
+              >
+                <option value="">Select a fldr to edit notes...</option>
+                {fldrs.map(fldr => (
+                  <option key={fldr.id} value={fldr.id}>
+                    {fldr.title} - {new Date(fldr.date_start).toLocaleDateString()}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedFldrId ? (
+              <>
+                <div className="flex items-center justify-between text-xs text-gray-400">
+                  <div className="flex items-center gap-2">
+                    {isNoteSaving && (
+                      <>
+                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Saving...</span>
+                      </>
+                    )}
+                    {!isNoteSaving && lastSaved && (
+                      <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => saveNotes()}
+                    className="text-[#3b82f6] hover:text-[#2563eb] font-medium"
+                  >
+                    Save Now
+                  </button>
+                </div>
+                
+                <RichTextEditor
+                  value={notesContent}
+                  onChange={setNotesContent}
+                  placeholder="Start writing your notes here..."
+                />
+              </>
+            ) : (
+              <div className="p-8 text-center text-gray-400">
+                Select a fldr above to start editing notes
+              </div>
+            )}
+          </div>
+        </>
+      ) : !showOutput ? (
         <>
           <h2 className="text-xl font-semibold mb-4">Polish Message</h2>
 
