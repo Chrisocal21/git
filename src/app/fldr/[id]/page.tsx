@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { Fldr, FlightInfo, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, ReferenceLink, Person, Photo, Product } from '@/types/fldr'
+import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, ReferenceLink, Person, Photo, Product } from '@/types/fldr'
 import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
@@ -150,9 +150,8 @@ export default function FldrDetailPage() {
     try {
       // Check if fldr should be marked as ready/complete
       const updatedFldr = { ...fldr, ...updates }
-      const hasFlightInfo = updatedFldr.flight_info && (
-        updatedFldr.flight_info.departure_airport ||
-        updatedFldr.flight_info.arrival_airport
+      const hasFlightInfo = updatedFldr.flight_info && updatedFldr.flight_info.length > 0 && updatedFldr.flight_info.some(seg =>
+        seg.departure_airport || seg.arrival_airport
       )
       const hasHotelInfo = updatedFldr.hotel_info && (
         updatedFldr.hotel_info.name ||
@@ -287,56 +286,44 @@ export default function FldrDetailPage() {
     })
   }
 
-  const updateFlightInfo = (field: keyof FlightInfo, value: string) => {
-    if (!fldr) return
-    const flightInfo = fldr.flight_info || {
-      departure_airport: null,
-      departure_code: null,
-      departure_address: null,
-      departure_time: null,
-      arrival_airport: null,
-      arrival_code: null,
-      arrival_address: null,
-      arrival_time: null,
-      flight_number: null,
-      airline: null,
-      confirmation: null,
-      notes: null,
-    }
-    const updated = { ...flightInfo, [field]: value || null }
-    setFldr({ ...fldr, flight_info: updated })
-    debouncedSave({ flight_info: updated })
+  const updateFlightSegment = (segmentIndex: number, field: keyof FlightSegment, value: string) => {
+    if (!fldr || !fldr.flight_info) return
+    const segments = [...fldr.flight_info]
+    segments[segmentIndex] = { ...segments[segmentIndex], [field]: value || null }
+    setFldr({ ...fldr, flight_info: segments })
+    debouncedSave({ flight_info: segments })
   }
 
-  const updateDepartureAirport = (airport: { name: string; code: string; address: string }) => {
-    if (!fldr) return
-    const flightInfo = fldr.flight_info || {
-      departure_airport: null,
-      departure_code: null,
-      departure_address: null,
-      departure_time: null,
-      arrival_airport: null,
-      arrival_code: null,
-      arrival_address: null,
-      arrival_time: null,
-      flight_number: null,
-      airline: null,
-      confirmation: null,
-      notes: null,
-    }
-    const updated = {
-      ...flightInfo,
+  const updateSegmentDepartureAirport = (segmentIndex: number, airport: { name: string; code: string; address: string }) => {
+    if (!fldr || !fldr.flight_info) return
+    const segments = [...fldr.flight_info]
+    segments[segmentIndex] = {
+      ...segments[segmentIndex],
       departure_airport: airport.name,
       departure_code: airport.code,
       departure_address: airport.address,
     }
-    setFldr({ ...fldr, flight_info: updated })
-    debouncedSave({ flight_info: updated })
+    setFldr({ ...fldr, flight_info: segments })
+    debouncedSave({ flight_info: segments })
   }
 
-  const updateArrivalAirport = (airport: { name: string; code: string; address: string }) => {
-    if (!fldr) return
-    const flightInfo = fldr.flight_info || {
+  const updateSegmentArrivalAirport = (segmentIndex: number, airport: { name: string; code: string; address: string }) => {
+    if (!fldr || !fldr.flight_info) return
+    const segments = [...fldr.flight_info]
+    segments[segmentIndex] = {
+      ...segments[segmentIndex],
+      arrival_airport: airport.name,
+      arrival_code: airport.code,
+      arrival_address: airport.address,
+    }
+    setFldr({ ...fldr, flight_info: segments })
+    debouncedSave({ flight_info: segments })
+  }
+
+  const addFlightSegment = () => {
+    if (!fldr || !fldr.flight_info) return
+    const newSegment: FlightSegment = {
+      id: crypto.randomUUID(),
       departure_airport: null,
       departure_code: null,
       departure_address: null,
@@ -349,15 +336,18 @@ export default function FldrDetailPage() {
       airline: null,
       confirmation: null,
       notes: null,
+      segment_type: fldr.flight_info.length === 0 ? 'outbound' : 'connection',
     }
-    const updated = {
-      ...flightInfo,
-      arrival_airport: airport.name,
-      arrival_code: airport.code,
-      arrival_address: airport.address,
-    }
-    setFldr({ ...fldr, flight_info: updated })
-    debouncedSave({ flight_info: updated })
+    const segments = [...fldr.flight_info, newSegment]
+    setFldr({ ...fldr, flight_info: segments })
+    debouncedSave({ flight_info: segments })
+  }
+
+  const removeFlightSegment = (segmentIndex: number) => {
+    if (!fldr || !fldr.flight_info) return
+    const segments = fldr.flight_info.filter((_, i) => i !== segmentIndex)
+    setFldr({ ...fldr, flight_info: segments })
+    debouncedSave({ flight_info: segments })
   }
 
   const updateHotelInfo = (field: keyof HotelInfo, value: string) => {
@@ -624,22 +614,8 @@ export default function FldrDetailPage() {
   const enableModule = (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'checklist' | 'people' | 'job_info' | 'photos' | 'products') => {
     if (!fldr) return
     if (module === 'flight_info') {
-      const flightInfo: FlightInfo = {
-        departure_airport: null,
-        departure_code: null,
-        departure_address: null,
-        departure_time: null,
-        arrival_airport: null,
-        arrival_code: null,
-        arrival_address: null,
-        arrival_time: null,
-        flight_number: null,
-        airline: null,
-        confirmation: null,
-        notes: null,
-      }
-      setFldr({ ...fldr, flight_info: flightInfo })
-      debouncedSave({ flight_info: flightInfo })
+      setFldr({ ...fldr, flight_info: [] })
+      debouncedSave({ flight_info: [] })
       setExpandedCards(prev => ({ ...prev, flight: true }))
     } else if (module === 'hotel_info') {
       const hotelInfo: HotelInfo = {
@@ -720,11 +696,8 @@ export default function FldrDetailPage() {
     if (!fldr) return false
     
     if (module === 'flight_info' && fldr.flight_info) {
-      return !!(
-        fldr.flight_info.departure_airport ||
-        fldr.flight_info.arrival_airport ||
-        fldr.flight_info.airline ||
-        fldr.flight_info.flight_number
+      return fldr.flight_info.length > 0 && fldr.flight_info.some(seg => 
+        seg.departure_airport || seg.arrival_airport || seg.airline || seg.flight_number
       )
     } else if (module === 'hotel_info' && fldr.hotel_info) {
       return !!(fldr.hotel_info.name || fldr.hotel_info.address)
@@ -1259,23 +1232,33 @@ export default function FldrDetailPage() {
             )}
 
             {/* Flight Info */}
-            {fldr.flight_info && (fldr.flight_info.departure_code || fldr.flight_info.arrival_code) && (
+            {fldr.flight_info && fldr.flight_info.length > 0 && (
               <div className="p-3 bg-[#0a0a0a] rounded-lg">
-                <div className="font-semibold text-[#3b82f6] mb-2">Flight</div>
-                <div className="flex items-center gap-2">
-                  {fldr.flight_info.departure_code && (
-                    <span className="font-mono font-bold">{fldr.flight_info.departure_code}</span>
-                  )}
-                  <span className="text-gray-400">→</span>
-                  {fldr.flight_info.arrival_code && (
-                    <span className="font-mono font-bold">{fldr.flight_info.arrival_code}</span>
-                  )}
+                <div className="font-semibold text-[#3b82f6] mb-2">Flights ({fldr.flight_info.length} segments)</div>
+                <div className="space-y-2">
+                  {fldr.flight_info.map((segment, idx) => (
+                    <div key={segment.id} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">#{idx + 1}</span>
+                      {segment.departure_code && (
+                        <span className="font-mono font-bold text-sm">{segment.departure_code}</span>
+                      )}
+                      <span className="text-gray-400">→</span>
+                      {segment.arrival_code && (
+                        <span className="font-mono font-bold text-sm">{segment.arrival_code}</span>
+                      )}
+                      {segment.airline && (
+                        <span className="text-gray-400 text-xs">
+                          {segment.airline} {segment.flight_number || ''}
+                        </span>
+                      )}
+                      {segment.segment_type && segment.segment_type !== 'other' && (
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                          {segment.segment_type}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {fldr.flight_info.airline && (
-                  <div className="text-gray-400 text-xs mt-1">
-                    {fldr.flight_info.airline} {fldr.flight_info.flight_number}
-                  </div>
-                )}
               </div>
             )}
 
@@ -1364,143 +1347,205 @@ export default function FldrDetailPage() {
               </button>
             </div>
             {expandedCards.flight && (
-              <div className="px-4 pb-4 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Departure Airport</label>
-                    <AirportAutocomplete
-                      type="name"
-                      value={fldr.flight_info?.departure_airport || ''}
-                      onChange={(value) => updateFlightInfo('departure_airport', value)}
-                      onAirportSelect={updateDepartureAirport}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="Type airport name or code..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Code</label>
-                    <AirportAutocomplete
-                      type="code"
-                      value={fldr.flight_info?.departure_code || ''}
-                      onChange={(value) => updateFlightInfo('departure_code', value)}
-                      onAirportSelect={updateDepartureAirport}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="LAX"
-                    />
-                  </div>
+              <div className="px-4 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">
+                    {fldr.flight_info.length} {fldr.flight_info.length === 1 ? 'segment' : 'segments'}
+                  </span>
+                  <button
+                    onClick={addFlightSegment}
+                    className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
+                  >
+                    + Add Flight Segment
+                  </button>
                 </div>
-                {fldr.flight_info?.departure_address && (
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Departure Airport Address</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={fldr.flight_info.departure_address}
-                        readOnly
-                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
-                      />
-                      <CopyButton text={fldr.flight_info.departure_address} label="Copy address" />
-                    </div>
+
+                {fldr.flight_info.length === 0 && (
+                  <div className="p-4 bg-[#0a0a0a] rounded-lg text-center">
+                    <p className="text-sm text-gray-400 mb-2">No flight segments yet</p>
+                    <button
+                      onClick={addFlightSegment}
+                      className="text-sm text-[#3b82f6] hover:text-[#2563eb]"
+                    >
+                      Add First Segment
+                    </button>
                   </div>
                 )}
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Departure Time</label>
-                  <input
-                    type="datetime-local"
-                    value={fldr.flight_info?.departure_time || ''}
-                    onChange={(e) => updateFlightInfo('departure_time', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Arrival Airport</label>
-                    <AirportAutocomplete
-                      type="name"
-                      value={fldr.flight_info?.arrival_airport || ''}
-                      onChange={(value) => updateFlightInfo('arrival_airport', value)}
-                      onAirportSelect={updateArrivalAirport}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="Type airport name or code..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Code</label>
-                    <AirportAutocomplete
-                      type="code"
-                      value={fldr.flight_info?.arrival_code || ''}
-                      onChange={(value) => updateFlightInfo('arrival_code', value)}
-                      onAirportSelect={updateArrivalAirport}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="JFK"
-                    />
-                  </div>
-                </div>
-                {fldr.flight_info?.arrival_address && (
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Arrival Airport Address</label>
-                    <div className="flex items-center gap-2">
+
+                {fldr.flight_info.map((segment, index) => (
+                  <div key={segment.id} className="p-4 bg-[#0a0a0a] rounded-lg space-y-3 border border-[#2a2a2a]">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-[#3b82f6]">
+                          Segment {index + 1}
+                        </span>
+                        <select
+                          value={segment.segment_type || 'other'}
+                          onChange={(e) => updateFlightSegment(index, 'segment_type', e.target.value)}
+                          className="text-xs px-2 py-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded focus:outline-none focus:ring-1 focus:ring-[#3b82f6]"
+                        >
+                          <option value="outbound">Outbound</option>
+                          <option value="return">Return</option>
+                          <option value="connection">Connection/Layover</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      {fldr.flight_info && fldr.flight_info.length > 1 && (
+                        <button
+                          onClick={() => removeFlightSegment(index)}
+                          className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Departure Airport</label>
+                        <AirportAutocomplete
+                          type="name"
+                          value={segment.departure_airport || ''}
+                          onChange={(value) => updateFlightSegment(index, 'departure_airport', value)}
+                          onAirportSelect={(airport) => updateSegmentDepartureAirport(index, airport)}
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="Type airport name or code..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Code</label>
+                        <AirportAutocomplete
+                          type="code"
+                          value={segment.departure_code || ''}
+                          onChange={(value) => updateFlightSegment(index, 'departure_code', value)}
+                          onAirportSelect={(airport) => updateSegmentDepartureAirport(index, airport)}
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="LAX"
+                        />
+                      </div>
+                    </div>
+
+                    {segment.departure_address && (
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Departure Airport Address</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={segment.departure_address}
+                            readOnly
+                            className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
+                          />
+                          <CopyButton text={segment.departure_address} label="Copy address" />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Departure Time</label>
+                      <input
+                        type="datetime-local"
+                        value={segment.departure_time || ''}
+                        onChange={(e) => updateFlightSegment(index, 'departure_time', e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Arrival Airport</label>
+                        <AirportAutocomplete
+                          type="name"
+                          value={segment.arrival_airport || ''}
+                          onChange={(value) => updateFlightSegment(index, 'arrival_airport', value)}
+                          onAirportSelect={(airport) => updateSegmentArrivalAirport(index, airport)}
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="Type airport name or code..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Code</label>
+                        <AirportAutocomplete
+                          type="code"
+                          value={segment.arrival_code || ''}
+                          onChange={(value) => updateFlightSegment(index, 'arrival_code', value)}
+                          onAirportSelect={(airport) => updateSegmentArrivalAirport(index, airport)}
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="JFK"
+                        />
+                      </div>
+                    </div>
+
+                    {segment.arrival_address && (
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Arrival Airport Address</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={segment.arrival_address}
+                            readOnly
+                            className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
+                          />
+                          <CopyButton text={segment.arrival_address} label="Copy address" />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Arrival Time</label>
+                      <input
+                        type="datetime-local"
+                        value={segment.arrival_time || ''}
+                        onChange={(e) => updateFlightSegment(index, 'arrival_time', e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Airline</label>
+                        <input
+                          type="text"
+                          value={segment.airline || ''}
+                          onChange={(e) => updateFlightSegment(index, 'airline', e.target.value)}
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="Airline name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Flight Number</label>
+                        <input
+                          type="text"
+                          value={segment.flight_number || ''}
+                          onChange={(e) => updateFlightSegment(index, 'flight_number', e.target.value)}
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          placeholder="e.g. AA123"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
                       <input
                         type="text"
-                        value={fldr.flight_info.arrival_address}
-                        readOnly
-                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
+                        value={segment.confirmation || ''}
+                        onChange={(e) => updateFlightSegment(index, 'confirmation', e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                        placeholder="Confirmation code"
                       />
-                      <CopyButton text={fldr.flight_info.arrival_address} label="Copy address" />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                      <textarea
+                        value={segment.notes || ''}
+                        onChange={(e) => updateFlightSegment(index, 'notes', e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
+                        rows={2}
+                        placeholder="Additional flight notes..."
+                      />
                     </div>
                   </div>
-                )}
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Arrival Time</label>
-                  <input
-                    type="datetime-local"
-                    value={fldr.flight_info?.arrival_time || ''}
-                    onChange={(e) => updateFlightInfo('arrival_time', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Airline</label>
-                    <input
-                      type="text"
-                      value={fldr.flight_info?.airline || ''}
-                      onChange={(e) => updateFlightInfo('airline', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="Airline name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Flight Number</label>
-                    <input
-                      type="text"
-                      value={fldr.flight_info?.flight_number || ''}
-                      onChange={(e) => updateFlightInfo('flight_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="e.g. AA123"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
-                  <input
-                    type="text"
-                    value={fldr.flight_info?.confirmation || ''}
-                    onChange={(e) => updateFlightInfo('confirmation', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                    placeholder="Confirmation code"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
-                  <textarea
-                    value={fldr.flight_info?.notes || ''}
-                    onChange={(e) => updateFlightInfo('notes', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
-                    rows={2}
-                    placeholder="Additional flight notes..."
-                  />
-                </div>
+                ))}
               </div>
             )}
           </div>
@@ -1816,11 +1861,11 @@ export default function FldrDetailPage() {
                 locations={[
                   {
                     label: 'Departure Airport',
-                    address: fldr.flight_info?.departure_address || '',
+                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].departure_address) || '',
                   },
                   {
                     label: 'Arrival Airport',
-                    address: fldr.flight_info?.arrival_address || '',
+                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].arrival_address) || '',
                   },
                   {
                     label: 'Hotel',
@@ -1982,12 +2027,17 @@ export default function FldrDetailPage() {
                   )}
                   
                   {/* Flight Info */}
-                  {fldr.flight_info?.departure_code && fldr.flight_info?.arrival_code && (
+                  {fldr.flight_info && fldr.flight_info.length > 0 && (
                     <div className="text-xs">
-                      <span className="text-gray-500">Flight: </span>
+                      <span className="text-gray-500">Flights: </span>
                       <span className="text-white">
-                        {fldr.flight_info.departure_code} → {fldr.flight_info.arrival_code}
-                        {fldr.flight_info.airline && ` (${fldr.flight_info.airline})`}
+                        {fldr.flight_info.map((seg, idx) => (
+                          <span key={seg.id}>
+                            {idx > 0 && ' • '}
+                            {seg.departure_code} → {seg.arrival_code}
+                            {seg.airline && ` (${seg.airline})`}
+                          </span>
+                        ))}
                       </span>
                     </div>
                   )}

@@ -6,7 +6,8 @@ export interface ReferenceLink {
   url: string
 }
 
-export interface FlightInfo {
+export interface FlightSegment {
+  id: string
   departure_airport: string | null
   departure_code: string | null
   departure_address: string | null
@@ -19,6 +20,7 @@ export interface FlightInfo {
   airline: string | null
   confirmation: string | null
   notes: string | null
+  segment_type: 'outbound' | 'return' | 'connection' | 'other' | null
 }
 
 export interface HotelInfo {
@@ -104,7 +106,7 @@ export interface Fldr {
   attending: boolean // Whether user is personally attending this trip
   
   // Modules (all optional)
-  flight_info: FlightInfo | null
+  flight_info: FlightSegment[] | null
   hotel_info: HotelInfo | null
   venue_info: VenueInfo | null
   rental_car_info: RentalCarInfo | null
