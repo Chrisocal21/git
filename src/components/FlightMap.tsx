@@ -70,7 +70,44 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19,
+        className: 'map-tiles',
       }).addTo(map)
+
+      // Add dark mode styling
+      const style = document.createElement('style')
+      style.textContent = `
+        .map-tiles {
+          filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+        .leaflet-container {
+          background: #0a0a0a;
+        }
+        .leaflet-popup-content-wrapper {
+          background: #1a1a1a;
+          color: #fff;
+          border-radius: 8px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+          border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        .leaflet-popup-tip {
+          background: #1a1a1a;
+        }
+        .leaflet-popup-close-button {
+          color: #fff !important;
+          font-size: 20px !important;
+        }
+        .flight-path {
+          transition: all 0.3s ease;
+        }
+        .flight-path-selected {
+          filter: drop-shadow(0 0 6px currentColor);
+        }
+        @keyframes pulse-marker {
+          0%, 100% { r: 6; opacity: 0.85; }
+          50% { r: 8; opacity: 1; }
+        }
+      `
+      document.head.appendChild(style)
 
       mapRef.current = map
     }
@@ -107,61 +144,102 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
           // Draw line
           const line = L.polyline([from, to], {
             color: route.color,
-            weight: 3,
-            opacity: selectedRouteId ? 0.9 : 0.6,
+            weight: selectedRouteId ? 4 : 3,
+            opacity: selectedRouteId ? 1 : 0.7,
             dashArray: segment.segment_type === 'connection' ? '10, 10' : undefined,
+            className: 'flight-path',
           }).addTo(map)
+
+          // Add animated effect for selected route
+          if (selectedRouteId === route.fldrId) {
+            line.setStyle({ 
+              weight: 5, 
+              opacity: 1,
+              className: 'flight-path-selected'
+            })
+          }
 
           // Add hover effect
           line.on('mouseover', function(this: L.Polyline) {
-            this.setStyle({ weight: 5, opacity: 1 })
+            this.setStyle({ weight: 6, opacity: 1 })
           })
           line.on('mouseout', function(this: L.Polyline) {
-            this.setStyle({ weight: 3, opacity: selectedRouteId ? 0.9 : 0.6 })
+            const isSelected = selectedRouteId === route.fldrId
+            this.setStyle({ 
+              weight: isSelected ? 5 : (selectedRouteId ? 4 : 3), 
+              opacity: isSelected ? 1 : (selectedRouteId ? 1 : 0.7)
+            })
           })
 
-          // Add popup
+          // Add popup with enhanced styling
           const popupContent = `
-            <div style="color: #000; font-size: 12px;">
-              <strong>${route.fldrTitle}</strong><br/>
-              ${depCode} → ${arrCode}<br/>
-              ${segment.airline || 'Unknown airline'}
-              ${segment.flight_number ? ` • ${segment.flight_number}` : ''}
+            <div style="color: #fff; font-size: 13px; padding: 4px;">
+              <div style="font-weight: 600; color: ${route.color}; margin-bottom: 4px;">${route.fldrTitle}</div>
+              <div style="font-size: 14px; font-weight: 700; margin-bottom: 6px;">
+                ${depCode} → ${arrCode}
+              </div>
+              <div style="color: rgba(255,255,255,0.7); font-size: 12px;">
+                ${segment.airline || 'Unknown airline'}
+                ${segment.flight_number ? ` • ${segment.flight_number}` : ''}
+              </div>
+              ${segment.segment_type && segment.segment_type !== 'other' ? 
+                `<div style="margin-top: 6px; display: inline-block; padding: 2px 8px; background: ${route.color}20; color: ${route.color}; border-radius: 4px; font-size: 11px; text-transform: capitalize;">
+                  ${segment.segment_type.replace('_', ' ')}
+                </div>` : ''}
             </div>
           `
           line.bindPopup(popupContent)
 
           linesRef.current.push(line)
 
-          // Add markers at airports
+          // Add enhanced markers at airports
           const depMarker = L.circleMarker(from, {
-            radius: 5,
+            radius: selectedRouteId === route.fldrId ? 7 : 6,
             fillColor: route.color,
             color: '#fff',
             weight: 2,
             opacity: 1,
-            fillOpacity: 0.8,
+            fillOpacity: selectedRouteId === route.fldrId ? 1 : 0.85,
           }).addTo(map)
-          depMarker.bindPopup(`<div style="color: #000;"><strong>${depCode}</strong><br/>${segment.departure_airport || 'Unknown'}</div>`)
+          depMarker.bindPopup(`
+            <div style="color: #fff; padding: 4px;">
+              <div style="font-size: 16px; font-weight: 700; color: ${route.color}; margin-bottom: 2px;">${depCode}</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.8);">${segment.departure_airport || 'Unknown'}</div>
+              <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.6);">Departure</div>
+            </div>
+          `)
           markersRef.current.push(depMarker)
 
           const arrMarker = L.circleMarker(to, {
-            radius: 5,
+            radius: selectedRouteId === route.fldrId ? 7 : 6,
             fillColor: route.color,
             color: '#fff',
             weight: 2,
             opacity: 1,
-            fillOpacity: 0.8,
+            fillOpacity: selectedRouteId === route.fldrId ? 1 : 0.85,
           }).addTo(map)
-          arrMarker.bindPopup(`<div style="color: #000;"><strong>${arrCode}</strong><br/>${segment.arrival_airport || 'Unknown'}</div>`)
+          arrMarker.bindPopup(`
+            <div style="color: #fff; padding: 4px;">
+              <div style="font-size: 16px; font-weight: 700; color: ${route.color}; margin-bottom: 2px;">${arrCode}</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.8);">${segment.arrival_airport || 'Unknown'}</div>
+              <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.6);">Arrival</div>
+            </div>
+          `)
           markersRef.current.push(arrMarker)
         }
       })
     })
 
-    // Fit map to show all routes
+    // Fit map to show all routes with smooth animation
     if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [50, 50] })
+      map.fitBounds(bounds, { 
+        padding: [80, 80],
+        animate: true,
+        duration: 1.2,
+      })
+    } else {
+      // Default to USA center if no routes
+      map.setView([39.8283, -98.5795], 4)
     }
 
     return () => {
@@ -176,7 +254,7 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
   return (
     <div 
       id="flight-map" 
-      className="h-[calc(100vh-140px)] rounded-lg overflow-hidden border border-[#2a2a2a]"
+      className="w-full h-full absolute inset-0"
       style={{ background: '#1a1a1a' }}
     />
   )
