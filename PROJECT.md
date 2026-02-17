@@ -611,6 +611,14 @@ ToneProfile {
 - [ ] Auto-detect location from Fldr address fields
 - [ ] Weather API integration (OpenWeather or similar)
 
+**⚠️ PENDING SETUP:**
+- **Google Maps API Key Required** for address autocomplete
+  - Get key from: https://console.cloud.google.com/google/maps-apis/credentials
+  - Enable: Maps JavaScript API and Places API
+  - Add to `.env` as: `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_key_here`
+  - Restart dev server after adding
+  - **Status:** Key placeholder added to .env, needs actual key
+
 **Milestone:** Trip locations have visual context
 
 ---

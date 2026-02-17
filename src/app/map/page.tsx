@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { Fldr, FlightSegment } from '@/types/fldr'
 import { AirplaneIcon } from '@/components/Icons'
 
-// FlightRoute interface
+// FlightRoute interface (must match FlightMap component props)
 interface FlightRoute {
   fldrId: string
   fldrTitle: string
@@ -15,15 +15,17 @@ interface FlightRoute {
 }
 
 // Dynamic import for map (client-side only)
-// @ts-ignore - Module exists but TypeScript has caching issues
-const FlightMap = dynamic(() => import('@/components/FlightMap'), { 
-  ssr: false,
-  loading: () => (
-    <div className="h-[calc(100vh-140px)] bg-white/5 rounded-lg flex items-center justify-center">
-      <div className="text-white/60">Loading map...</div>
-    </div>
-  )
-})
+const FlightMap = dynamic<{ routes: FlightRoute[]; selectedRouteId: string | null }>(
+  () => import('../../components/FlightMap').then(mod => mod.default), 
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="h-[calc(100vh-140px)] bg-white/5 rounded-lg flex items-center justify-center">
+        <div className="text-white/60">Loading map...</div>
+      </div>
+    )
+  }
+)
 
 const ROUTE_COLORS = [
   '#3b82f6', // blue
@@ -171,7 +173,7 @@ export default function MapPage() {
     const airportCounts: Record<string, { code: string; name: string; count: number }> = {}
     
     routes.forEach(route => {
-      route.segments.forEach(segment => {
+      route.segments.forEach((segment: FlightSegment) => {
         // Count departure airport
         if (segment.departure_code) {
           if (!airportCounts[segment.departure_code]) {
@@ -372,7 +374,7 @@ export default function MapPage() {
               </div>
               <div className="bg-[#1a1a1a] rounded-lg p-2">
                 <div className="text-xl font-bold text-[#f59e0b]">
-                  {new Set(routes.flatMap(r => r.segments.flatMap(s => [s.departure_code, s.arrival_code]))).size}
+                  {new Set(routes.flatMap(r => r.segments.flatMap((s: FlightSegment) => [s.departure_code, s.arrival_code]))).size}
                 </div>
                 <div className="text-xs text-gray-400">Airports</div>
               </div>

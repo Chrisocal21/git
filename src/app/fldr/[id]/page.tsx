@@ -68,6 +68,7 @@ export default function FldrDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStartY, setTouchStartY] = useState(0)
   const [useRichEditor, setUseRichEditor] = useState(false)
+  const [isRoundTrip, setIsRoundTrip] = useState(false)
 
   useEffect(() => {
     // Check online status
@@ -85,6 +86,14 @@ export default function FldrDetailPage() {
       window.removeEventListener('offline', updateOnlineStatus)
     }
   }, [])
+
+  // Sync round trip checkbox state with flight segments
+  useEffect(() => {
+    if (fldr?.flight_info) {
+      const hasReturnSegment = fldr.flight_info.some(seg => seg.segment_type === 'return')
+      setIsRoundTrip(hasReturnSegment)
+    }
+  }, [fldr?.flight_info])
 
   useEffect(() => {
     if (params.id) {
@@ -142,6 +151,11 @@ export default function FldrDetailPage() {
           }]
           // Save the migrated structure
           cacheFldr(cached)
+        }
+        
+        // Ensure flight_info is either null or an array (never undefined)
+        if (cached.flight_info === undefined) {
+          cached.flight_info = null
         }
         
         setFldr(cached)
@@ -346,7 +360,9 @@ export default function FldrDetailPage() {
   }
 
   const addFlightSegment = () => {
-    if (!fldr || !fldr.flight_info) return
+    if (!fldr) return
+    // Initialize flight_info as empty array if it's null
+    const currentSegments = fldr.flight_info || []
     const newSegment: FlightSegment = {
       id: crypto.randomUUID(),
       departure_airport: null,
@@ -361,11 +377,57 @@ export default function FldrDetailPage() {
       airline: null,
       confirmation: null,
       notes: null,
-      segment_type: fldr.flight_info.length === 0 ? 'outbound' : 'connection',
+      segment_type: currentSegments.length === 0 ? 'outbound' : 'connection',
     }
-    const segments = [...fldr.flight_info, newSegment]
+    const segments = [...currentSegments, newSegment]
     setFldr({ ...fldr, flight_info: segments })
     debouncedSave({ flight_info: segments })
+  }
+
+  const toggleRoundTrip = async (checked: boolean) => {
+    if (!fldr || !fldr.flight_info) return
+    setIsRoundTrip(checked)
+    
+    if (checked) {
+      // Find the first outbound segment to use as basis for return flight
+      const outboundSegment = fldr.flight_info.find(seg => seg.segment_type === 'outbound') || fldr.flight_info[0]
+      
+      if (!outboundSegment) return
+      
+      // Check if return segment already exists
+      const hasReturnSegment = fldr.flight_info.some(seg => seg.segment_type === 'return')
+      
+      if (!hasReturnSegment) {
+        // Create return segment with reversed airports
+        const returnSegment: FlightSegment = {
+          id: crypto.randomUUID(),
+          departure_airport: outboundSegment.arrival_airport,
+          departure_code: outboundSegment.arrival_code,
+          departure_address: outboundSegment.arrival_address,
+          departure_time: null, // User fills in return time
+          arrival_airport: outboundSegment.departure_airport,
+          arrival_code: outboundSegment.departure_code,
+          arrival_address: outboundSegment.departure_address,
+          arrival_time: null, // User fills in arrival time
+          flight_number: null, // User fills in return flight number
+          airline: outboundSegment.airline, // Copy airline
+          confirmation: null, // User fills in return confirmation
+          notes: null,
+          segment_type: 'return',
+        }
+        
+        const segments = [...fldr.flight_info, returnSegment]
+        setFldr({ ...fldr, flight_info: segments })
+        // Save immediately (no debounce) so map sees the change
+        await saveFldr({ flight_info: segments })
+      }
+    } else {
+      // Remove return segment when unchecked
+      const segments = fldr.flight_info.filter(seg => seg.segment_type !== 'return')
+      setFldr({ ...fldr, flight_info: segments })
+      // Save immediately (no debounce) so map sees the change
+      await saveFldr({ flight_info: segments })
+    }
   }
 
   const removeFlightSegment = (segmentIndex: number) => {
@@ -1375,7 +1437,7 @@ export default function FldrDetailPage() {
               <div className="px-4 pb-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400">
-                    {fldr.flight_info.length} {fldr.flight_info.length === 1 ? 'segment' : 'segments'}
+                    {fldr.flight_info?.length || 0} {(fldr.flight_info?.length || 0) === 1 ? 'segment' : 'segments'}
                   </span>
                   <button
                     onClick={addFlightSegment}
@@ -1385,7 +1447,26 @@ export default function FldrDetailPage() {
                   </button>
                 </div>
 
-                {fldr.flight_info.length === 0 && (
+                {/* Round Trip Toggle */}
+                {fldr.flight_info && fldr.flight_info.length > 0 && (
+                  <div className="flex items-center gap-2 p-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="roundTrip"
+                      checked={isRoundTrip || fldr.flight_info.some(seg => seg.segment_type === 'return')}
+                      onChange={(e) => toggleRoundTrip(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 text-[#3b82f6] focus:ring-[#3b82f6] focus:ring-offset-0 bg-[#0a0a0a]"
+                    />
+                    <label htmlFor="roundTrip" className="text-sm text-white cursor-pointer">
+                      Round Trip
+                    </label>
+                    <span className="text-xs text-gray-500 ml-auto">
+                      Auto-creates return flight with reversed airports
+                    </span>
+                  </div>
+                )}
+
+                {(!fldr.flight_info || fldr.flight_info.length === 0) && (
                   <div className="p-4 bg-[#0a0a0a] rounded-lg text-center">
                     <p className="text-sm text-gray-400 mb-2">No flight segments yet</p>
                     <button
@@ -1397,7 +1478,7 @@ export default function FldrDetailPage() {
                   </div>
                 )}
 
-                {fldr.flight_info.map((segment, index) => (
+                {fldr.flight_info && fldr.flight_info.map((segment, index) => (
                   <div key={segment.id} className="p-4 bg-[#0a0a0a] rounded-lg space-y-3 border border-[#2a2a2a]">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
