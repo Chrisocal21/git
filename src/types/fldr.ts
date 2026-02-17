@@ -101,6 +101,7 @@ export interface Fldr {
   date_end: string | null
   location: string | null
   status: FldrStatus
+  attending: boolean // Whether user is personally attending this trip
   
   // Modules (all optional)
   flight_info: FlightInfo | null

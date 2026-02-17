@@ -117,6 +117,7 @@ export async function POST(request: Request) {
         date_start: trip.startDate || null,
         date_end: trip.endDate || null,
         status,
+        attending: false,
         notes: notesText || '',
         flight_info: null,
         hotel_info: null,

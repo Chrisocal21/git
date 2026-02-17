@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr, FldrStatus } from '@/types/fldr'
-import { PlusIcon } from '@/components/Icons'
+import { PlusIcon, AirplaneIcon, HomeIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 
@@ -340,6 +340,11 @@ export default function FldrPage() {
                       <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(fldr.status)}`}>
                         {fldr.status}
                       </span>
+                      {(fldr.attending ?? false) ? (
+                        <AirplaneIcon className="w-4 h-4 text-blue-400" title="Attending" />
+                      ) : (
+                        <HomeIcon className="w-4 h-4 text-gray-500" title="Not attending" />
+                      )}
                     </div>
                     <div className="text-sm text-gray-400">
                       {formatDate(fldr.date_start)}

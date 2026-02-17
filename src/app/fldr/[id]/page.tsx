@@ -9,6 +9,7 @@ import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
 import AirportAutocomplete from '@/components/AirportAutocomplete'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
+import RichTextEditor from '@/components/RichTextEditor'
 import { 
   getCachedFldr, 
   cacheFldr, 
@@ -37,6 +38,7 @@ export default function FldrDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
+    summary: true, // New unified view - open by default
     flight: false,
     hotel: false,
     venue: false,
@@ -65,6 +67,7 @@ export default function FldrDetailPage() {
   const [isPulling, setIsPulling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStartY, setTouchStartY] = useState(0)
+  const [useRichEditor, setUseRichEditor] = useState(false)
 
   useEffect(() => {
     // Check online status
@@ -301,6 +304,58 @@ export default function FldrDetailPage() {
       notes: null,
     }
     const updated = { ...flightInfo, [field]: value || null }
+    setFldr({ ...fldr, flight_info: updated })
+    debouncedSave({ flight_info: updated })
+  }
+
+  const updateDepartureAirport = (airport: { name: string; code: string; address: string }) => {
+    if (!fldr) return
+    const flightInfo = fldr.flight_info || {
+      departure_airport: null,
+      departure_code: null,
+      departure_address: null,
+      departure_time: null,
+      arrival_airport: null,
+      arrival_code: null,
+      arrival_address: null,
+      arrival_time: null,
+      flight_number: null,
+      airline: null,
+      confirmation: null,
+      notes: null,
+    }
+    const updated = {
+      ...flightInfo,
+      departure_airport: airport.name,
+      departure_code: airport.code,
+      departure_address: airport.address,
+    }
+    setFldr({ ...fldr, flight_info: updated })
+    debouncedSave({ flight_info: updated })
+  }
+
+  const updateArrivalAirport = (airport: { name: string; code: string; address: string }) => {
+    if (!fldr) return
+    const flightInfo = fldr.flight_info || {
+      departure_airport: null,
+      departure_code: null,
+      departure_address: null,
+      departure_time: null,
+      arrival_airport: null,
+      arrival_code: null,
+      arrival_address: null,
+      arrival_time: null,
+      flight_number: null,
+      airline: null,
+      confirmation: null,
+      notes: null,
+    }
+    const updated = {
+      ...flightInfo,
+      arrival_airport: airport.name,
+      arrival_code: airport.code,
+      arrival_address: airport.address,
+    }
     setFldr({ ...fldr, flight_info: updated })
     debouncedSave({ flight_info: updated })
   }
@@ -725,6 +780,17 @@ export default function FldrDetailPage() {
     }
   }
 
+  const updateAttending = async (attending: boolean) => {
+    if (!fldr) return
+    setSaving(true)
+    try {
+      setFldr({ ...fldr, attending })
+      await saveFldr({ attending })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const generateWrapUp = async () => {
     if (!fldr || !fldr.notes.trim()) return
     
@@ -1078,6 +1144,19 @@ export default function FldrDetailPage() {
             {fldr.location && (
               <div className="text-gray-500 mt-1">{fldr.location}</div>
             )}
+            {/* Attending checkbox */}
+            <div className="mt-3 flex items-center gap-2 p-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+              <input
+                type="checkbox"
+                id="attending-checkbox"
+                checked={fldr.attending ?? false}
+                onChange={(e) => updateAttending(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 text-[#3b82f6] focus:ring-[#3b82f6] focus:ring-offset-0 bg-[#0a0a0a] cursor-pointer"
+              />
+              <label htmlFor="attending-checkbox" className="text-sm text-gray-300 cursor-pointer select-none">
+                I am attending this trip
+              </label>
+            </div>
           </>
         )}
       </div>
@@ -1124,6 +1203,143 @@ export default function FldrDetailPage() {
         </div>
       )}
 
+      {/* Job Summary - Cross-module overview */}
+      <div className="mb-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+        <button
+          onClick={() => toggleCard('summary')}
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+        >
+          <span className="font-semibold">📋 Job Summary</span>
+          <ChevronDownIcon
+            className={`w-5 h-5 transition-transform ${
+              expandedCards.summary ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        {expandedCards.summary && (
+          <div className="px-4 pb-4 space-y-3 text-sm">
+            {/* Job Info */}
+            {fldr.job_info && (
+              <div className="p-3 bg-[#0a0a0a] rounded-lg">
+                <div className="font-semibold text-[#3b82f6] mb-2">Job Details</div>
+                {fldr.job_info.job_title && (
+                  <div><span className="text-gray-400">Title:</span> {fldr.job_info.job_title}</div>
+                )}
+                {fldr.job_info.client_name && (
+                  <div><span className="text-gray-400">Client:</span> {fldr.job_info.client_name}</div>
+                )}
+                {fldr.job_info.job_type && (
+                  <div><span className="text-gray-400">Type:</span> {fldr.job_info.job_type}</div>
+                )}
+                {fldr.job_info.client_contact_name && (
+                  <div><span className="text-gray-400">Contact:</span> {fldr.job_info.client_contact_name}</div>
+                )}
+                {fldr.job_info.client_contact_phone && (
+                  <div><span className="text-gray-400">Phone:</span> {fldr.job_info.client_contact_phone}</div>
+                )}
+                {fldr.job_info.client_contact_email && (
+                  <div><span className="text-gray-400">Email:</span> {fldr.job_info.client_contact_email}</div>
+                )}
+              </div>
+            )}
+
+            {/* Products */}
+            {fldr.products && fldr.products.length > 0 && (
+              <div className="p-3 bg-[#0a0a0a] rounded-lg">
+                <div className="font-semibold text-[#3b82f6] mb-2">
+                  Products ({fldr.products.reduce((sum, p) => sum + p.quantity, 0)} total items)
+                </div>
+                {fldr.products.map((product, idx) => (
+                  <div key={idx} className="flex justify-between">
+                    <span>{product.name}</span>
+                    <span className="text-gray-400">×{product.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Flight Info */}
+            {fldr.flight_info && (fldr.flight_info.departure_code || fldr.flight_info.arrival_code) && (
+              <div className="p-3 bg-[#0a0a0a] rounded-lg">
+                <div className="font-semibold text-[#3b82f6] mb-2">Flight</div>
+                <div className="flex items-center gap-2">
+                  {fldr.flight_info.departure_code && (
+                    <span className="font-mono font-bold">{fldr.flight_info.departure_code}</span>
+                  )}
+                  <span className="text-gray-400">→</span>
+                  {fldr.flight_info.arrival_code && (
+                    <span className="font-mono font-bold">{fldr.flight_info.arrival_code}</span>
+                  )}
+                </div>
+                {fldr.flight_info.airline && (
+                  <div className="text-gray-400 text-xs mt-1">
+                    {fldr.flight_info.airline} {fldr.flight_info.flight_number}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Hotel & Venue */}
+            {(fldr.hotel_info?.name || fldr.venue_info?.name) && (
+              <div className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
+                <div className="font-semibold text-[#3b82f6] mb-2">Locations</div>
+                {fldr.hotel_info?.name && (
+                  <div>
+                    <div className="text-gray-400 text-xs">Hotel</div>
+                    <div>{fldr.hotel_info.name}</div>
+                    {fldr.hotel_info.address && (
+                      <div className="text-gray-500 text-xs">{fldr.hotel_info.address}</div>
+                    )}
+                  </div>
+                )}
+                {fldr.venue_info?.name && (
+                  <div>
+                    <div className="text-gray-400 text-xs">Venue</div>
+                    <div>{fldr.venue_info.name}</div>
+                    {fldr.venue_info.address && (
+                      <div className="text-gray-500 text-xs">{fldr.venue_info.address}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Team & People */}
+            {(fldr.people && fldr.people.length > 0) && (
+              <div className="p-3 bg-[#0a0a0a] rounded-lg">
+                <div className="font-semibold text-[#3b82f6] mb-2">People ({fldr.people.length})</div>
+                {fldr.people.slice(0, 5).map((person, idx) => (
+                  <div key={idx} className="text-xs">
+                    {person.name} {person.role && `(${person.role})`}
+                  </div>
+                ))}
+                {fldr.people.length > 5 && (
+                  <div className="text-xs text-gray-500 mt-1">+{fldr.people.length - 5} more</div>
+                )}
+              </div>
+            )}
+
+            {/* Checklist Progress */}
+            {fldr.checklist && fldr.checklist.length > 0 && (
+              <div className="p-3 bg-[#0a0a0a] rounded-lg">
+                <div className="font-semibold text-[#3b82f6] mb-2">Checklist Progress</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#2a2a2a] rounded-full h-2">
+                    <div 
+                      className="bg-[#3b82f6] h-2 rounded-full transition-all"
+                      style={{ width: `${(fldr.checklist.filter(i => i.completed).length / fldr.checklist.length) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {fldr.checklist.filter(i => i.completed).length}/{fldr.checklist.length}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="space-y-3">
         {/* Flight Info Card - Only show if enabled */}
         {fldr.flight_info !== null && (
@@ -1156,8 +1372,7 @@ export default function FldrDetailPage() {
                       type="name"
                       value={fldr.flight_info?.departure_airport || ''}
                       onChange={(value) => updateFlightInfo('departure_airport', value)}
-                      onCodeChange={(code) => updateFlightInfo('departure_code', code)}
-                      onAddressChange={(address) => updateFlightInfo('departure_address', address)}
+                      onAirportSelect={updateDepartureAirport}
                       className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                       placeholder="Type airport name or code..."
                     />
@@ -1168,8 +1383,7 @@ export default function FldrDetailPage() {
                       type="code"
                       value={fldr.flight_info?.departure_code || ''}
                       onChange={(value) => updateFlightInfo('departure_code', value)}
-                      onNameChange={(name) => updateFlightInfo('departure_airport', name)}
-                      onAddressChange={(address) => updateFlightInfo('departure_address', address)}
+                      onAirportSelect={updateDepartureAirport}
                       className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                       placeholder="LAX"
                     />
@@ -1178,12 +1392,15 @@ export default function FldrDetailPage() {
                 {fldr.flight_info?.departure_address && (
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Departure Airport Address</label>
-                    <input
-                      type="text"
-                      value={fldr.flight_info.departure_address}
-                      readOnly
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={fldr.flight_info.departure_address}
+                        readOnly
+                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
+                      />
+                      <CopyButton text={fldr.flight_info.departure_address} label="Copy address" />
+                    </div>
                   </div>
                 )}
                 <div>
@@ -1202,8 +1419,7 @@ export default function FldrDetailPage() {
                       type="name"
                       value={fldr.flight_info?.arrival_airport || ''}
                       onChange={(value) => updateFlightInfo('arrival_airport', value)}
-                      onCodeChange={(code) => updateFlightInfo('arrival_code', code)}
-                      onAddressChange={(address) => updateFlightInfo('arrival_address', address)}
+                      onAirportSelect={updateArrivalAirport}
                       className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                       placeholder="Type airport name or code..."
                     />
@@ -1214,8 +1430,7 @@ export default function FldrDetailPage() {
                       type="code"
                       value={fldr.flight_info?.arrival_code || ''}
                       onChange={(value) => updateFlightInfo('arrival_code', value)}
-                      onNameChange={(name) => updateFlightInfo('arrival_airport', name)}
-                      onAddressChange={(address) => updateFlightInfo('arrival_address', address)}
+                      onAirportSelect={updateArrivalAirport}
                       className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                       placeholder="JFK"
                     />
@@ -1224,12 +1439,15 @@ export default function FldrDetailPage() {
                 {fldr.flight_info?.arrival_address && (
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Arrival Airport Address</label>
-                    <input
-                      type="text"
-                      value={fldr.flight_info.arrival_address}
-                      readOnly
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={fldr.flight_info.arrival_address}
+                        readOnly
+                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
+                      />
+                      <CopyButton text={fldr.flight_info.arrival_address} label="Copy address" />
+                    </div>
                   </div>
                 )}
                 <div>
@@ -1325,16 +1543,16 @@ export default function FldrDetailPage() {
                   />
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs text-gray-400">Address</label>
+                  <label className="block text-xs text-gray-400 mb-1">Address</label>
+                  <div className="flex items-center gap-2">
+                    <AddressAutocomplete
+                      value={fldr.hotel_info?.address || ''}
+                      onChange={(value) => updateHotelInfo('address', value)}
+                      className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Start typing hotel address..."
+                    />
                     <CopyButton text={fldr.hotel_info?.address || ''} label="Copy address" />
                   </div>
-                  <AddressAutocomplete
-                    value={fldr.hotel_info?.address || ''}
-                    onChange={(value) => updateHotelInfo('address', value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                    placeholder="Start typing hotel address..."
-                  />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Phone</label>
@@ -1426,16 +1644,16 @@ export default function FldrDetailPage() {
                   />
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs text-gray-400">Address</label>
+                  <label className="block text-xs text-gray-400 mb-1">Address</label>
+                  <div className="flex items-center gap-2">
+                    <AddressAutocomplete
+                      value={fldr.venue_info?.address || ''}
+                      onChange={(value) => updateVenueInfo('address', value)}
+                      className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Start typing venue address..."
+                    />
                     <CopyButton text={fldr.venue_info?.address || ''} label="Copy address" />
                   </div>
-                  <AddressAutocomplete
-                    value={fldr.venue_info?.address || ''}
-                    onChange={(value) => updateVenueInfo('address', value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                    placeholder="Start typing venue address..."
-                  />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Contact Name</label>
@@ -1708,6 +1926,73 @@ export default function FldrDetailPage() {
             </div>
             {expandedCards.jobInfo && (
               <div className="px-4 pb-4 space-y-3">
+                {/* Job Overview - Cross-module summary */}
+                <div className="p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg space-y-2">
+                  <div className="text-xs font-semibold text-gray-400 mb-2">Job Overview</div>
+                  
+                  {/* Products Summary */}
+                  {fldr.products && fldr.products.length > 0 && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">Products: </span>
+                      <span className="text-white">
+                        {fldr.products.map(p => `${p.name} (${p.quantity})`).join(', ')}
+                      </span>
+                      <span className="text-gray-500 ml-1">
+                        • Total: {fldr.products.reduce((sum, p) => sum + p.quantity, 0)} items
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Checklist Progress */}
+                  {fldr.checklist && fldr.checklist.length > 0 && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">Checklist: </span>
+                      <span className="text-white">
+                        {fldr.checklist.filter(i => i.completed).length} / {fldr.checklist.length} complete
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* People Count */}
+                  {fldr.people && fldr.people.length > 0 && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">People: </span>
+                      <span className="text-white">
+                        {fldr.people.map(p => p.name).join(', ')}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Location Info */}
+                  {(fldr.hotel_info?.name || fldr.venue_info?.name) && (
+                    <div className="text-xs">
+                      {fldr.hotel_info?.name && (
+                        <div>
+                          <span className="text-gray-500">Hotel: </span>
+                          <span className="text-white">{fldr.hotel_info.name}</span>
+                        </div>
+                      )}
+                      {fldr.venue_info?.name && (
+                        <div>
+                          <span className="text-gray-500">Venue: </span>
+                          <span className="text-white">{fldr.venue_info.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Flight Info */}
+                  {fldr.flight_info?.departure_code && fldr.flight_info?.arrival_code && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">Flight: </span>
+                      <span className="text-white">
+                        {fldr.flight_info.departure_code} → {fldr.flight_info.arrival_code}
+                        {fldr.flight_info.airline && ` (${fldr.flight_info.airline})`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Job Title</label>
                   <input
@@ -1774,30 +2059,30 @@ export default function FldrDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs text-gray-400">Phone</label>
+                    <label className="block text-xs text-gray-400 mb-1">Phone</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="tel"
+                        value={fldr.job_info?.client_contact_phone || ''}
+                        onChange={(e) => updateJobInfo('client_contact_phone', e.target.value)}
+                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                        placeholder="Phone"
+                      />
                       <CopyButton text={fldr.job_info?.client_contact_phone || ''} label="Copy phone" />
                     </div>
-                    <input
-                      type="tel"
-                      value={fldr.job_info?.client_contact_phone || ''}
-                      onChange={(e) => updateJobInfo('client_contact_phone', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="Phone"
-                    />
                   </div>
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs text-gray-400">Email</label>
+                    <label className="block text-xs text-gray-400 mb-1">Email</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        value={fldr.job_info?.client_contact_email || ''}
+                        onChange={(e) => updateJobInfo('client_contact_email', e.target.value)}
+                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                        placeholder="Email"
+                      />
                       <CopyButton text={fldr.job_info?.client_contact_email || ''} label="Copy email" />
                     </div>
-                    <input
-                      type="email"
-                      value={fldr.job_info?.client_contact_email || ''}
-                      onChange={(e) => updateJobInfo('client_contact_email', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="Email"
-                    />
                   </div>
                 </div>
                 <div>
@@ -1890,6 +2175,11 @@ export default function FldrDetailPage() {
                     + Add Item
                   </button>
                 </div>
+                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
+                  <p className="text-xs text-blue-400">
+                    ℹ️ Checklist progress automatically updates in Job Summary section
+                  </p>
+                </div>
                 {(fldr.checklist || []).map((item, index) => (
                   <div key={index} className="flex items-center gap-2 group">
                     <input
@@ -1956,6 +2246,11 @@ export default function FldrDetailPage() {
                     + Add Person
                   </button>
                 </div>
+                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
+                  <p className="text-xs text-blue-400">
+                    ℹ️ People added here automatically appear in Job Summary and Job Info sections
+                  </p>
+                </div>
                 {(fldr.people || []).map((person, index) => (
                   <div key={index} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
                     <div className="flex items-start justify-between gap-2">
@@ -1981,7 +2276,7 @@ export default function FldrDetailPage() {
                       placeholder="Role"
                     />
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
                         <input
                           type="tel"
                           value={person.phone || ''}
@@ -1989,9 +2284,9 @@ export default function FldrDetailPage() {
                           className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                           placeholder="Phone"
                         />
-                        <CopyButton text={person.phone || ''} label="Copy" />
+                        <CopyButton text={person.phone || ''} label="Copy phone" />
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
                         <input
                           type="email"
                           value={person.email || ''}
@@ -1999,7 +2294,7 @@ export default function FldrDetailPage() {
                           className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                           placeholder="Email"
                         />
-                        <CopyButton text={person.email || ''} label="Copy" />
+                        <CopyButton text={person.email || ''} label="Copy email" />
                       </div>
                     </div>
                   </div>
@@ -2129,6 +2424,11 @@ export default function FldrDetailPage() {
                     + Add Product
                   </button>
                 </div>
+                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
+                  <p className="text-xs text-blue-400">
+                    ℹ️ Products added here automatically appear in Job Summary and Job Info sections
+                  </p>
+                </div>
                 {(fldr.products || []).map((product, index) => (
                   <div key={product.id} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
                     <div className="flex items-start gap-2">
@@ -2185,14 +2485,31 @@ export default function FldrDetailPage() {
           </button>
           {expandedCards.notes && (
             <div className="px-4 pb-4 space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs text-gray-400">Notes</label>
+                <button
+                  onClick={() => setUseRichEditor(!useRichEditor)}
+                  className="text-xs px-3 py-1 bg-[#3b82f6] hover:bg-[#2563eb] rounded-md transition-colors"
+                >
+                  {useRichEditor ? 'Simple Editor' : 'Rich Text Editor'}
+                </button>
+              </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Notes</label>
-                <textarea
-                  value={fldr.notes}
-                  onChange={(e) => updateNotes(e.target.value)}
-                  className="w-full min-h-[120px] px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] resize-none"
-                  placeholder="Add notes..."
-                />
+                {useRichEditor ? (
+                  <RichTextEditor
+                    value={fldr.notes}
+                    onChange={(value) => updateNotes(value)}
+                    placeholder="Add notes..."
+                    className="min-h-[200px]"
+                  />
+                ) : (
+                  <textarea
+                    value={fldr.notes}
+                    onChange={(e) => updateNotes(e.target.value)}
+                    className="w-full min-h-[120px] px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] resize-none"
+                    placeholder="Add notes..."
+                  />
+                )}
               </div>
               <button
                 onClick={generateWrapUp}

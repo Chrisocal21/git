@@ -49,6 +49,7 @@ interface AirportAutocompleteProps {
   onCodeChange?: (code: string) => void
   onAddressChange?: (address: string) => void
   onNameChange?: (name: string) => void
+  onAirportSelect?: (airport: { name: string; code: string; address: string }) => void
   placeholder?: string
   className?: string
   type?: 'name' | 'code'
@@ -60,6 +61,7 @@ export default function AirportAutocomplete({
   onCodeChange,
   onAddressChange,
   onNameChange,
+  onAirportSelect,
   placeholder,
   className,
   type = 'name',
@@ -101,19 +103,29 @@ export default function AirportAutocomplete({
   }
 
   const selectAirport = (airport: Airport) => {
-    if (type === 'code') {
-      onChange(airport.code)
+    // If batch callback provided, use it instead of individual callbacks
+    if (onAirportSelect) {
+      onAirportSelect({
+        name: airport.name,
+        code: airport.code,
+        address: airport.address,
+      })
     } else {
-      onChange(airport.name)
-    }
-    if (onCodeChange) {
-      onCodeChange(airport.code)
-    }
-    if (onAddressChange) {
-      onAddressChange(airport.address)
-    }
-    if (onNameChange) {
-      onNameChange(airport.name)
+      // Fallback to individual callbacks for backward compatibility
+      if (type === 'code') {
+        onChange(airport.code)
+      } else {
+        onChange(airport.name)
+      }
+      if (onCodeChange) {
+        onCodeChange(airport.code)
+      }
+      if (onAddressChange) {
+        onAddressChange(airport.address)
+      }
+      if (onNameChange) {
+        onNameChange(airport.name)
+      }
     }
     setShowSuggestions(false)
     setSuggestions([])

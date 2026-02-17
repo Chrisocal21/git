@@ -32,6 +32,7 @@ export const fldrStore = {
       date_end: newFldr.date_end || null,
       location: newFldr.location || null,
       status: 'incomplete',
+      attending: false,
       flight_info: null,
       hotel_info: null,
       venue_info: null,
