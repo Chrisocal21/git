@@ -38,6 +38,7 @@ const AIRPORT_COORDS: Record<string, [number, number]> = {
   'BNA': [36.1263, -86.6681],
   'HOU': [29.6465, -95.2789],
   'OAK': [37.7126, -122.2197],
+  'FLL': [26.0726, -80.1528],
 }
 
 export interface FlightRoute {

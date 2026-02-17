@@ -76,9 +76,35 @@ export default function MapPage() {
   const processRoutes = (fldrsData: Fldr[]) => {
     const flightRoutes: FlightRoute[] = []
     let colorIndex = 0
+    let needsUpdate = false
 
-    fldrsData.forEach(fldr => {
-      // Handle migration: if flight_info is an object, skip it (will be migrated on detail page)
+    fldrsData.forEach((fldr, index) => {
+      // Handle migration: if flight_info is an object (old structure), convert to array
+      if (fldr.flight_info && !Array.isArray(fldr.flight_info)) {
+        console.log(`🔄 Migrating flight_info for fldr: ${fldr.title}`)
+        const oldFlightInfo = fldr.flight_info as any
+        // Convert to array with single segment
+        const migratedSegments: FlightSegment[] = [{
+          id: crypto.randomUUID(),
+          departure_airport: oldFlightInfo.departure_airport || null,
+          departure_code: oldFlightInfo.departure_code || null,
+          departure_address: oldFlightInfo.departure_address || null,
+          departure_time: oldFlightInfo.departure_time || null,
+          arrival_airport: oldFlightInfo.arrival_airport || null,
+          arrival_code: oldFlightInfo.arrival_code || null,
+          arrival_address: oldFlightInfo.arrival_address || null,
+          arrival_time: oldFlightInfo.arrival_time || null,
+          flight_number: oldFlightInfo.flight_number || null,
+          airline: oldFlightInfo.airline || null,
+          confirmation: oldFlightInfo.confirmation || null,
+          notes: oldFlightInfo.notes || null,
+          segment_type: 'outbound',
+        }]
+        fldrsData[index].flight_info = migratedSegments
+        needsUpdate = true
+      }
+
+      // Now process the (potentially migrated) flight_info
       if (fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0) {
         const hasValidSegments = fldr.flight_info.some(seg => 
           seg.departure_code && seg.arrival_code
@@ -96,6 +122,19 @@ export default function MapPage() {
         }
       }
     })
+
+    // If we migrated any data, save it back to cache
+    if (needsUpdate) {
+      console.log('💾 Saving migrated flight data to cache')
+      localStorage.setItem('git-fldrs', JSON.stringify(fldrsData))
+      
+      // Also update individual offline storage entries
+      fldrsData.forEach(fldr => {
+        if (fldr.flight_info && Array.isArray(fldr.flight_info)) {
+          localStorage.setItem(`git_offline_fldrs_${fldr.id}`, JSON.stringify(fldr))
+        }
+      })
+    }
 
     // Sort by date
     flightRoutes.sort((a, b) => 
