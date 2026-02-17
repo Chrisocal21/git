@@ -341,9 +341,9 @@ export default function FldrPage() {
                         {fldr.status}
                       </span>
                       {(fldr.attending ?? false) ? (
-                        <AirplaneIcon className="w-4 h-4 text-blue-400" title="Attending" />
+                        <AirplaneIcon className="w-4 h-4 text-blue-400" />
                       ) : (
-                        <HomeIcon className="w-4 h-4 text-gray-500" title="Not attending" />
+                        <HomeIcon className="w-4 h-4 text-gray-500" />
                       )}
                     </div>
                     <div className="text-sm text-gray-400">
