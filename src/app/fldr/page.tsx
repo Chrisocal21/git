@@ -350,6 +350,11 @@ export default function FldrPage() {
                         {fldr.location}
                       </div>
                     )}
+                    {fldr.job_info?.job_title && (
+                      <div className="text-sm text-[#3b82f6] mt-1 font-medium">
+                        {fldr.job_info.job_title}
+                      </div>
+                    )}
                   </div>
                   {showDeleteButtons && (
                     <button

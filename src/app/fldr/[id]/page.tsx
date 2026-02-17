@@ -3,10 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { Fldr, QuickReference, JobInfo, ReferenceLink, Person, Photo, Product } from '@/types/fldr'
+import { Fldr, FlightInfo, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, ReferenceLink, Person, Photo, Product } from '@/types/fldr'
 import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
+import AirportAutocomplete from '@/components/AirportAutocomplete'
+import AddressAutocomplete from '@/components/AddressAutocomplete'
 import { 
   getCachedFldr, 
   cacheFldr, 
@@ -35,7 +37,10 @@ export default function FldrDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
-    quickRef: false,
+    flight: false,
+    hotel: false,
+    venue: false,
+    rentalCar: false,
     map: false,
     preTrip: false,
     jobInfo: false,
@@ -142,10 +147,17 @@ export default function FldrDetailPage() {
     try {
       // Check if fldr should be marked as ready/complete
       const updatedFldr = { ...fldr, ...updates }
-      const hasQuickRef = updatedFldr.quick_reference && (
-        updatedFldr.quick_reference.flight_info ||
-        updatedFldr.quick_reference.hotel_name ||
-        updatedFldr.quick_reference.onsite_address
+      const hasFlightInfo = updatedFldr.flight_info && (
+        updatedFldr.flight_info.departure_airport ||
+        updatedFldr.flight_info.arrival_airport
+      )
+      const hasHotelInfo = updatedFldr.hotel_info && (
+        updatedFldr.hotel_info.name ||
+        updatedFldr.hotel_info.address
+      )
+      const hasVenueInfo = updatedFldr.venue_info && (
+        updatedFldr.venue_info.name ||
+        updatedFldr.venue_info.address
       )
       const hasJobInfo = updatedFldr.job_info && (
         updatedFldr.job_info.client_name ||
@@ -153,7 +165,7 @@ export default function FldrDetailPage() {
       )
       
       // Auto-update status if it's currently incomplete and has key info
-      if (updatedFldr.status === 'incomplete' && (hasQuickRef || hasJobInfo)) {
+      if (updatedFldr.status === 'incomplete' && (hasFlightInfo || hasHotelInfo || hasVenueInfo || hasJobInfo)) {
         updates.status = 'ready'
       }
       
@@ -272,24 +284,78 @@ export default function FldrDetailPage() {
     })
   }
 
-  const updateQuickRef = (field: keyof QuickReference, value: string) => {
+  const updateFlightInfo = (field: keyof FlightInfo, value: string) => {
     if (!fldr) return
-    const quickRef = fldr.quick_reference || {
-      flight_info: null,
-      hotel_name: null,
-      hotel_address: null,
-      onsite_address: null,
-      local_airport: null,
+    const flightInfo = fldr.flight_info || {
       departure_airport: null,
+      departure_code: null,
+      departure_address: null,
+      departure_time: null,
+      arrival_airport: null,
+      arrival_code: null,
+      arrival_address: null,
+      arrival_time: null,
+      flight_number: null,
+      airline: null,
+      confirmation: null,
+      notes: null,
     }
-    const updated = { ...quickRef, [field]: value || null }
-    setFldr({ ...fldr, quick_reference: updated })
-    debouncedSave({ quick_reference: updated })
+    const updated = { ...flightInfo, [field]: value || null }
+    setFldr({ ...fldr, flight_info: updated })
+    debouncedSave({ flight_info: updated })
+  }
+
+  const updateHotelInfo = (field: keyof HotelInfo, value: string) => {
+    if (!fldr) return
+    const hotelInfo = fldr.hotel_info || {
+      name: null,
+      address: null,
+      phone: null,
+      confirmation: null,
+      check_in: null,
+      check_out: null,
+      notes: null,
+    }
+    const updated = { ...hotelInfo, [field]: value || null }
+    setFldr({ ...fldr, hotel_info: updated })
+    debouncedSave({ hotel_info: updated })
+  }
+
+  const updateVenueInfo = (field: keyof VenueInfo, value: string) => {
+    if (!fldr) return
+    const venueInfo = fldr.venue_info || {
+      name: null,
+      address: null,
+      contact_name: null,
+      contact_phone: null,
+      notes: null,
+    }
+    const updated = { ...venueInfo, [field]: value || null }
+    setFldr({ ...fldr, venue_info: updated })
+    debouncedSave({ venue_info: updated })
+  }
+
+  const updateRentalCarInfo = (field: keyof RentalCarInfo, value: string) => {
+    if (!fldr) return
+    const rentalCarInfo = fldr.rental_car_info || {
+      company: null,
+      confirmation: null,
+      pickup_location: null,
+      pickup_time: null,
+      dropoff_location: null,
+      dropoff_time: null,
+      vehicle_type: null,
+      notes: null,
+    }
+    const updated = { ...rentalCarInfo, [field]: value || null }
+    setFldr({ ...fldr, rental_car_info: updated })
+    debouncedSave({ rental_car_info: updated })
   }
 
   const updateJobInfo = (field: keyof JobInfo, value: any) => {
     if (!fldr) return
     const jobInfo = fldr.job_info || {
+      job_title: null,
       client_name: null,
       item: null,
       quantity: null,
@@ -310,6 +376,7 @@ export default function FldrDetailPage() {
   const addReferenceLink = () => {
     if (!fldr) return
     const jobInfo = fldr.job_info || {
+      job_title: null,
       client_name: null,
       item: null,
       quantity: null,
@@ -342,6 +409,7 @@ export default function FldrDetailPage() {
   const addTeamMember = () => {
     if (!fldr) return
     const jobInfo = fldr.job_info || {
+      job_title: null,
       client_name: null,
       item: null,
       quantity: null,
@@ -498,9 +566,65 @@ export default function FldrDetailPage() {
     debouncedSave({ products })
   }
 
-  const enableModule = (module: 'checklist' | 'people' | 'job_info' | 'photos' | 'products') => {
+  const enableModule = (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'checklist' | 'people' | 'job_info' | 'photos' | 'products') => {
     if (!fldr) return
-    if (module === 'checklist') {
+    if (module === 'flight_info') {
+      const flightInfo: FlightInfo = {
+        departure_airport: null,
+        departure_code: null,
+        departure_address: null,
+        departure_time: null,
+        arrival_airport: null,
+        arrival_code: null,
+        arrival_address: null,
+        arrival_time: null,
+        flight_number: null,
+        airline: null,
+        confirmation: null,
+        notes: null,
+      }
+      setFldr({ ...fldr, flight_info: flightInfo })
+      debouncedSave({ flight_info: flightInfo })
+      setExpandedCards(prev => ({ ...prev, flight: true }))
+    } else if (module === 'hotel_info') {
+      const hotelInfo: HotelInfo = {
+        name: null,
+        address: null,
+        phone: null,
+        confirmation: null,
+        check_in: null,
+        check_out: null,
+        notes: null,
+      }
+      setFldr({ ...fldr, hotel_info: hotelInfo })
+      debouncedSave({ hotel_info: hotelInfo })
+      setExpandedCards(prev => ({ ...prev, hotel: true }))
+    } else if (module === 'venue_info') {
+      const venueInfo: VenueInfo = {
+        name: null,
+        address: null,
+        contact_name: null,
+        contact_phone: null,
+        notes: null,
+      }
+      setFldr({ ...fldr, venue_info: venueInfo })
+      debouncedSave({ venue_info: venueInfo })
+      setExpandedCards(prev => ({ ...prev, venue: true }))
+    } else if (module === 'rental_car_info') {
+      const rentalCarInfo: RentalCarInfo = {
+        company: null,
+        confirmation: null,
+        pickup_location: null,
+        pickup_time: null,
+        dropoff_location: null,
+        dropoff_time: null,
+        vehicle_type: null,
+        notes: null,
+      }
+      setFldr({ ...fldr, rental_car_info: rentalCarInfo })
+      debouncedSave({ rental_car_info: rentalCarInfo })
+      setExpandedCards(prev => ({ ...prev, rentalCar: true }))
+    } else if (module === 'checklist') {
       setFldr({ ...fldr, checklist: [] })
       debouncedSave({ checklist: [] })
       setExpandedCards(prev => ({ ...prev, checklist: true }))
@@ -518,6 +642,7 @@ export default function FldrDetailPage() {
       setExpandedCards(prev => ({ ...prev, products: true }))
     } else if (module === 'job_info') {
       const jobInfo: JobInfo = {
+        job_title: null,
         client_name: null,
         item: null,
         quantity: null,
@@ -534,6 +659,59 @@ export default function FldrDetailPage() {
       debouncedSave({ job_info: jobInfo })
       setExpandedCards(prev => ({ ...prev, jobInfo: true, preTrip: true }))
     }
+  }
+
+  const hasModuleData = (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'job_info' | 'checklist' | 'people' | 'photos' | 'products'): boolean => {
+    if (!fldr) return false
+    
+    if (module === 'flight_info' && fldr.flight_info) {
+      return !!(
+        fldr.flight_info.departure_airport ||
+        fldr.flight_info.arrival_airport ||
+        fldr.flight_info.airline ||
+        fldr.flight_info.flight_number
+      )
+    } else if (module === 'hotel_info' && fldr.hotel_info) {
+      return !!(fldr.hotel_info.name || fldr.hotel_info.address)
+    } else if (module === 'venue_info' && fldr.venue_info) {
+      return !!(fldr.venue_info.name || fldr.venue_info.address)
+    } else if (module === 'rental_car_info' && fldr.rental_car_info) {
+      return !!(fldr.rental_car_info.company || fldr.rental_car_info.pickup_location)
+    } else if (module === 'job_info' && fldr.job_info) {
+      return !!(
+        fldr.job_info.job_title ||
+        fldr.job_info.client_name ||
+        fldr.job_info.item
+      )
+    } else if (module === 'checklist' && fldr.checklist) {
+      return fldr.checklist.length > 0
+    } else if (module === 'people' && fldr.people) {
+      return fldr.people.length > 0
+    } else if (module === 'photos' && fldr.photos) {
+      return fldr.photos.length > 0
+    } else if (module === 'products' && fldr.products) {
+      return fldr.products.length > 0
+    }
+    
+    return false
+  }
+
+  const disableModule = (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'job_info' | 'checklist' | 'people' | 'photos' | 'products') => {
+    if (!fldr) return
+    
+    const hasData = hasModuleData(module)
+    
+    if (hasData) {
+      const confirmed = window.confirm(
+        `This module contains data. Are you sure you want to remove it? All data in this module will be permanently deleted.`
+      )
+      if (!confirmed) return
+    }
+    
+    // Remove the module
+    setFldr({ ...fldr, [module]: null })
+    debouncedSave({ [module]: null })
+    setExpandedCards(prev => ({ ...prev, [module.replace('_info', '')]: false }))
   }
 
   const updateStatus = async (newStatus: 'incomplete' | 'ready' | 'active' | 'complete') => {
@@ -947,92 +1125,459 @@ export default function FldrDetailPage() {
       )}
 
       <div className="space-y-3">
-        {/* Quick Reference Card */}
-        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-          <button
-            onClick={() => toggleCard('quickRef')}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-          >
-            <span className="font-semibold">Quick Reference</span>
-            <ChevronDownIcon
-              className={`w-5 h-5 transition-transform ${
-                expandedCards.quickRef ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-          {expandedCards.quickRef && (
-            <div className="px-4 pb-4 space-y-3">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Flight Info</label>
-                <textarea
-                  value={fldr.quick_reference?.flight_info || ''}
-                  onChange={(e) => updateQuickRef('flight_info', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
-                  rows={2}
-                  placeholder="Flight number, times..."
+        {/* Flight Info Card - Only show if enabled */}
+        {fldr.flight_info !== null && (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('flight')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Flight Info</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.flight ? 'rotate-180' : ''
+                  }`}
                 />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Hotel Name</label>
-                <input
-                  type="text"
-                  value={fldr.quick_reference?.hotel_name || ''}
-                  onChange={(e) => updateQuickRef('hotel_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                  placeholder="Hotel name"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs text-gray-400">Hotel Address</label>
-                  <CopyButton text={fldr.quick_reference?.hotel_address || ''} label="Copy address" />
-                </div>
-                <textarea
-                  value={fldr.quick_reference?.hotel_address || ''}
-                  onChange={(e) => updateQuickRef('hotel_address', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
-                  rows={2}
-                  placeholder="Full hotel address"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs text-gray-400">Onsite Address</label>
-                  <CopyButton text={fldr.quick_reference?.onsite_address || ''} label="Copy address" />
-                </div>
-                <textarea
-                  value={fldr.quick_reference?.onsite_address || ''}
-                  onChange={(e) => updateQuickRef('onsite_address', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
-                  rows={2}
-                  placeholder="Event location address"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Local Airport</label>
-                  <input
-                    type="text"
-                    value={fldr.quick_reference?.local_airport || ''}
-                    onChange={(e) => updateQuickRef('local_airport', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                    placeholder="e.g. LAX"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Departure Airport</label>
-                  <input
-                    type="text"
-                    value={fldr.quick_reference?.departure_airport || ''}
-                    onChange={(e) => updateQuickRef('departure_airport', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                    placeholder="e.g. JFK"
-                  />
-                </div>
-              </div>
+              </button>
+              <button
+                onClick={() => disableModule('flight_info')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
             </div>
-          )}
-        </div>
+            {expandedCards.flight && (
+              <div className="px-4 pb-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Departure Airport</label>
+                    <AirportAutocomplete
+                      type="name"
+                      value={fldr.flight_info?.departure_airport || ''}
+                      onChange={(value) => updateFlightInfo('departure_airport', value)}
+                      onCodeChange={(code) => updateFlightInfo('departure_code', code)}
+                      onAddressChange={(address) => updateFlightInfo('departure_address', address)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Type airport name or code..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Code</label>
+                    <AirportAutocomplete
+                      type="code"
+                      value={fldr.flight_info?.departure_code || ''}
+                      onChange={(value) => updateFlightInfo('departure_code', value)}
+                      onNameChange={(name) => updateFlightInfo('departure_airport', name)}
+                      onAddressChange={(address) => updateFlightInfo('departure_address', address)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="LAX"
+                    />
+                  </div>
+                </div>
+                {fldr.flight_info?.departure_address && (
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Departure Airport Address</label>
+                    <input
+                      type="text"
+                      value={fldr.flight_info.departure_address}
+                      readOnly
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Departure Time</label>
+                  <input
+                    type="datetime-local"
+                    value={fldr.flight_info?.departure_time || ''}
+                    onChange={(e) => updateFlightInfo('departure_time', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Arrival Airport</label>
+                    <AirportAutocomplete
+                      type="name"
+                      value={fldr.flight_info?.arrival_airport || ''}
+                      onChange={(value) => updateFlightInfo('arrival_airport', value)}
+                      onCodeChange={(code) => updateFlightInfo('arrival_code', code)}
+                      onAddressChange={(address) => updateFlightInfo('arrival_address', address)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Type airport name or code..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Code</label>
+                    <AirportAutocomplete
+                      type="code"
+                      value={fldr.flight_info?.arrival_code || ''}
+                      onChange={(value) => updateFlightInfo('arrival_code', value)}
+                      onNameChange={(name) => updateFlightInfo('arrival_airport', name)}
+                      onAddressChange={(address) => updateFlightInfo('arrival_address', address)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="JFK"
+                    />
+                  </div>
+                </div>
+                {fldr.flight_info?.arrival_address && (
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Arrival Airport Address</label>
+                    <input
+                      type="text"
+                      value={fldr.flight_info.arrival_address}
+                      readOnly
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm text-gray-400 cursor-not-allowed"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Arrival Time</label>
+                  <input
+                    type="datetime-local"
+                    value={fldr.flight_info?.arrival_time || ''}
+                    onChange={(e) => updateFlightInfo('arrival_time', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Airline</label>
+                    <input
+                      type="text"
+                      value={fldr.flight_info?.airline || ''}
+                      onChange={(e) => updateFlightInfo('airline', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Airline name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Flight Number</label>
+                    <input
+                      type="text"
+                      value={fldr.flight_info?.flight_number || ''}
+                      onChange={(e) => updateFlightInfo('flight_number', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="e.g. AA123"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
+                  <input
+                    type="text"
+                    value={fldr.flight_info?.confirmation || ''}
+                    onChange={(e) => updateFlightInfo('confirmation', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Confirmation code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                  <textarea
+                    value={fldr.flight_info?.notes || ''}
+                    onChange={(e) => updateFlightInfo('notes', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
+                    rows={2}
+                    placeholder="Additional flight notes..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* NOTE: Hotel, Venue, and Rental Car cards will be added next */}
+
+        {/* Hotel Info Card - Only show if enabled */}
+        {fldr.hotel_info !== null && (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('hotel')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Hotel Info</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.hotel ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('hotel_info')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+            {expandedCards.hotel && (
+              <div className="px-4 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Hotel Name</label>
+                  <input
+                    type="text"
+                    value={fldr.hotel_info?.name || ''}
+                    onChange={(e) => updateHotelInfo('name', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Hotel name"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs text-gray-400">Address</label>
+                    <CopyButton text={fldr.hotel_info?.address || ''} label="Copy address" />
+                  </div>
+                  <AddressAutocomplete
+                    value={fldr.hotel_info?.address || ''}
+                    onChange={(value) => updateHotelInfo('address', value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Start typing hotel address..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={fldr.hotel_info?.phone || ''}
+                    onChange={(e) => updateHotelInfo('phone', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Hotel phone number"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Check-in</label>
+                    <input
+                      type="datetime-local"
+                      value={fldr.hotel_info?.check_in || ''}
+                      onChange={(e) => updateHotelInfo('check_in', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Check-out</label>
+                    <input
+                      type="datetime-local"
+                      value={fldr.hotel_info?.check_out || ''}
+                      onChange={(e) => updateHotelInfo('check_out', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
+                  <input
+                    type="text"
+                    value={fldr.hotel_info?.confirmation || ''}
+                    onChange={(e) => updateHotelInfo('confirmation', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Confirmation code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                  <textarea
+                    value={fldr.hotel_info?.notes || ''}
+                    onChange={(e) => updateHotelInfo('notes', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
+                    rows={2}
+                    placeholder="Additional hotel notes..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Venue Info Card - Only show if enabled */}
+        {fldr.venue_info !== null && (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('venue')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Venue Info</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.venue ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('venue_info')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+            {expandedCards.venue && (
+              <div className="px-4 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Venue Name</label>
+                  <input
+                    type="text"
+                    value={fldr.venue_info?.name || ''}
+                    onChange={(e) => updateVenueInfo('name', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Event venue name"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs text-gray-400">Address</label>
+                    <CopyButton text={fldr.venue_info?.address || ''} label="Copy address" />
+                  </div>
+                  <AddressAutocomplete
+                    value={fldr.venue_info?.address || ''}
+                    onChange={(value) => updateVenueInfo('address', value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Start typing venue address..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Contact Name</label>
+                  <input
+                    type="text"
+                    value={fldr.venue_info?.contact_name || ''}
+                    onChange={(e) => updateVenueInfo('contact_name', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Venue contact person"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={fldr.venue_info?.contact_phone || ''}
+                    onChange={(e) => updateVenueInfo('contact_phone', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Venue contact phone"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                  <textarea
+                    value={fldr.venue_info?.notes || ''}
+                    onChange={(e) => updateVenueInfo('notes', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
+                    rows={2}
+                    placeholder="Additional venue notes..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rental Car Info Card - Only show if enabled */}
+        {fldr.rental_car_info !== null && (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('rentalCar')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Rental Car</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.rentalCar ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('rental_car_info')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+            {expandedCards.rentalCar && (
+              <div className="px-4 pb-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Company</label>
+                    <input
+                      type="text"
+                      value={fldr.rental_car_info?.company || ''}
+                      onChange={(e) => updateRentalCarInfo('company', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="e.g. Hertz"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Vehicle Type</label>
+                    <input
+                      type="text"
+                      value={fldr.rental_car_info?.vehicle_type || ''}
+                      onChange={(e) => updateRentalCarInfo('vehicle_type', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="e.g. SUV"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Pickup Location</label>
+                  <AddressAutocomplete
+                    value={fldr.rental_car_info?.pickup_location || ''}
+                    onChange={(value) => updateRentalCarInfo('pickup_location', value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Start typing pickup location..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Pickup Time</label>
+                  <input
+                    type="datetime-local"
+                    value={fldr.rental_car_info?.pickup_time || ''}
+                    onChange={(e) => updateRentalCarInfo('pickup_time', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Dropoff Location</label>
+                  <AddressAutocomplete
+                    value={fldr.rental_car_info?.dropoff_location || ''}
+                    onChange={(value) => updateRentalCarInfo('dropoff_location', value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Start typing dropoff location..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Dropoff Time</label>
+                  <input
+                    type="datetime-local"
+                    value={fldr.rental_car_info?.dropoff_time || ''}
+                    onChange={(e) => updateRentalCarInfo('dropoff_time', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
+                  <input
+                    type="text"
+                    value={fldr.rental_car_info?.confirmation || ''}
+                    onChange={(e) => updateRentalCarInfo('confirmation', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Confirmation code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                  <textarea
+                    value={fldr.rental_car_info?.notes || ''}
+                    onChange={(e) => updateRentalCarInfo('notes', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
+                    rows={2}
+                    placeholder="Additional rental car notes..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Map Card */}
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
@@ -1040,7 +1585,7 @@ export default function FldrDetailPage() {
             onClick={() => toggleCard('map')}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
           >
-            <span className="font-semibold">📍 Map</span>
+            <span className="font-semibold">Map</span>
             <ChevronDownIcon
               className={`w-5 h-5 transition-transform ${
                 expandedCards.map ? 'rotate-180' : ''
@@ -1052,20 +1597,24 @@ export default function FldrDetailPage() {
               <FldrMap
                 locations={[
                   {
-                    label: 'Hotel',
-                    address: fldr.quick_reference?.hotel_address || '',
-                  },
-                  {
-                    label: 'Job Location',
-                    address: fldr.quick_reference?.onsite_address || '',
-                  },
-                  {
-                    label: 'Local Airport',
-                    address: fldr.quick_reference?.local_airport || '',
-                  },
-                  {
                     label: 'Departure Airport',
-                    address: fldr.quick_reference?.departure_airport || '',
+                    address: fldr.flight_info?.departure_address || '',
+                  },
+                  {
+                    label: 'Arrival Airport',
+                    address: fldr.flight_info?.arrival_address || '',
+                  },
+                  {
+                    label: 'Hotel',
+                    address: fldr.hotel_info?.address || '',
+                  },
+                  {
+                    label: 'Venue',
+                    address: fldr.venue_info?.address || '',
+                  },
+                  {
+                    label: 'Rental Car Pickup',
+                    address: fldr.rental_car_info?.pickup_location || '',
                   },
                 ].filter(loc => loc.address.trim() !== '')}
               />
@@ -1138,19 +1687,37 @@ export default function FldrDetailPage() {
         {/* Job Info Card - Only show if job_info enabled */}
         {fldr.job_info !== null && (
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-            <button
-              onClick={() => toggleCard('jobInfo')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-            >
-              <span className="font-semibold">Job Info</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
-                  expandedCards.jobInfo ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('jobInfo')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Job Info</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.jobInfo ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('job_info')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
             {expandedCards.jobInfo && (
               <div className="px-4 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Job Title</label>
+                  <input
+                    type="text"
+                    value={fldr.job_info?.job_title || ''}
+                    onChange={(e) => updateJobInfo('job_title', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    placeholder="Job title or name"
+                  />
+                </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Client Name</label>
                   <input
@@ -1291,17 +1858,25 @@ export default function FldrDetailPage() {
         {/* Checklist Card - Only show if enabled */}
         {fldr.checklist !== null && (
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-            <button
-              onClick={() => toggleCard('checklist')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-            >
-              <span className="font-semibold">Checklist</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
-                  expandedCards.checklist ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('checklist')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Checklist</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.checklist ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('checklist')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
             {expandedCards.checklist && (
               <div className="px-4 pb-4 space-y-2">
                 <div className="flex items-center justify-between mb-3">
@@ -1351,17 +1926,25 @@ export default function FldrDetailPage() {
         {/* People Card - Only show if enabled */}
         {fldr.people !== null && (
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-            <button
-              onClick={() => toggleCard('people')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-            >
-              <span className="font-semibold">People</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
-                  expandedCards.people ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('people')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">People</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.people ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('people')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
             {expandedCards.people && (
               <div className="px-4 pb-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
@@ -1432,17 +2015,25 @@ export default function FldrDetailPage() {
         {/* Photos Card - Only show if enabled */}
         {fldr.photos !== null && (
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-            <button
-              onClick={() => toggleCard('photos')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-            >
-              <span className="font-semibold">Photos</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
-                  expandedCards.photos ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('photos')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Photos</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.photos ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('photos')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
             {expandedCards.photos && (
               <div className="px-4 pb-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
@@ -1506,17 +2097,25 @@ export default function FldrDetailPage() {
         {/* Products Card - Only show if enabled */}
         {fldr.products !== null && (
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-            <button
-              onClick={() => toggleCard('products')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-            >
-              <span className="font-semibold">Products</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
-                  expandedCards.products ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+            <div className="w-full px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => toggleCard('products')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+              >
+                <span className="font-semibold">Products</span>
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.products ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => disableModule('products')}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
             {expandedCards.products && (
               <div className="px-4 pb-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
@@ -1628,6 +2227,38 @@ export default function FldrDetailPage() {
       <div className="mt-6 p-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
         <h3 className="text-sm font-semibold mb-3 text-gray-400">Add Module</h3>
         <div className="flex flex-wrap gap-2">
+          {fldr.flight_info === null && (
+            <button
+              onClick={() => enableModule('flight_info')}
+              className="px-3 py-2 bg-[#0a0a0a] border border-[#3b82f6]/30 rounded-lg text-sm hover:border-[#3b82f6] transition-colors"
+            >
+              + Flight Info
+            </button>
+          )}
+          {fldr.hotel_info === null && (
+            <button
+              onClick={() => enableModule('hotel_info')}
+              className="px-3 py-2 bg-[#0a0a0a] border border-[#3b82f6]/30 rounded-lg text-sm hover:border-[#3b82f6] transition-colors"
+            >
+              + Hotel Info
+            </button>
+          )}
+          {fldr.venue_info === null && (
+            <button
+              onClick={() => enableModule('venue_info')}
+              className="px-3 py-2 bg-[#0a0a0a] border border-[#3b82f6]/30 rounded-lg text-sm hover:border-[#3b82f6] transition-colors"
+            >
+              + Venue Info
+            </button>
+          )}
+          {fldr.rental_car_info === null && (
+            <button
+              onClick={() => enableModule('rental_car_info')}
+              className="px-3 py-2 bg-[#0a0a0a] border border-[#3b82f6]/30 rounded-lg text-sm hover:border-[#3b82f6] transition-colors"
+            >
+              + Rental Car
+            </button>
+          )}
           {fldr.job_info === null && (
             <button
               onClick={() => enableModule('job_info')}
@@ -1669,7 +2300,7 @@ export default function FldrDetailPage() {
             </button>
           )}
         </div>
-        {fldr.job_info !== null && fldr.checklist !== null && fldr.people !== null && fldr.photos !== null && fldr.products !== null && (
+        {fldr.flight_info !== null && fldr.hotel_info !== null && fldr.venue_info !== null && fldr.rental_car_info !== null && fldr.job_info !== null && fldr.checklist !== null && fldr.people !== null && fldr.photos !== null && fldr.products !== null && (
           <p className="text-xs text-gray-500">All modules enabled</p>
         )}
       </div>

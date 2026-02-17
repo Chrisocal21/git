@@ -6,16 +6,52 @@ export interface ReferenceLink {
   url: string
 }
 
-export interface QuickReference {
-  flight_info: string | null
-  hotel_name: string | null
-  hotel_address: string | null
-  onsite_address: string | null
-  local_airport: string | null
+export interface FlightInfo {
   departure_airport: string | null
+  departure_code: string | null
+  departure_address: string | null
+  departure_time: string | null
+  arrival_airport: string | null
+  arrival_code: string | null
+  arrival_address: string | null
+  arrival_time: string | null
+  flight_number: string | null
+  airline: string | null
+  confirmation: string | null
+  notes: string | null
+}
+
+export interface HotelInfo {
+  name: string | null
+  address: string | null
+  phone: string | null
+  confirmation: string | null
+  check_in: string | null
+  check_out: string | null
+  notes: string | null
+}
+
+export interface VenueInfo {
+  name: string | null
+  address: string | null
+  contact_name: string | null
+  contact_phone: string | null
+  notes: string | null
+}
+
+export interface RentalCarInfo {
+  company: string | null
+  confirmation: string | null
+  pickup_location: string | null
+  pickup_time: string | null
+  dropoff_location: string | null
+  dropoff_time: string | null
+  vehicle_type: string | null
+  notes: string | null
 }
 
 export interface JobInfo {
+  job_title: string | null
   client_name: string | null
   item: string | null
   quantity: number | null
@@ -67,7 +103,10 @@ export interface Fldr {
   status: FldrStatus
   
   // Modules (all optional)
-  quick_reference: QuickReference | null
+  flight_info: FlightInfo | null
+  hotel_info: HotelInfo | null
+  venue_info: VenueInfo | null
+  rental_car_info: RentalCarInfo | null
   job_info: JobInfo | null
   checklist: ChecklistItem[] | null
   people: Person[] | null
