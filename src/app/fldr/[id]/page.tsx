@@ -119,6 +119,31 @@ export default function FldrDetailPage() {
       }
       
       if (cached) {
+        // Migrate old flight_info structure to new array structure
+        if (cached.flight_info && !Array.isArray(cached.flight_info)) {
+          console.log('🔄 Migrating old flight_info structure to array format')
+          const oldFlightInfo = cached.flight_info as any
+          // Convert old object structure to array with one segment
+          cached.flight_info = [{
+            id: crypto.randomUUID(),
+            departure_airport: oldFlightInfo.departure_airport || null,
+            departure_code: oldFlightInfo.departure_code || null,
+            departure_address: oldFlightInfo.departure_address || null,
+            departure_time: oldFlightInfo.departure_time || null,
+            arrival_airport: oldFlightInfo.arrival_airport || null,
+            arrival_code: oldFlightInfo.arrival_code || null,
+            arrival_address: oldFlightInfo.arrival_address || null,
+            arrival_time: oldFlightInfo.arrival_time || null,
+            flight_number: oldFlightInfo.flight_number || null,
+            airline: oldFlightInfo.airline || null,
+            confirmation: oldFlightInfo.confirmation || null,
+            notes: oldFlightInfo.notes || null,
+            segment_type: 'outbound',
+          }]
+          // Save the migrated structure
+          cacheFldr(cached)
+        }
+        
         setFldr(cached)
         setEditTitle(cached.title)
         setEditDateStart(cached.date_start)

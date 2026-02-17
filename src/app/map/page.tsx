@@ -78,7 +78,8 @@ export default function MapPage() {
     let colorIndex = 0
 
     fldrsData.forEach(fldr => {
-      if (fldr.flight_info && fldr.flight_info.length > 0) {
+      // Handle migration: if flight_info is an object, skip it (will be migrated on detail page)
+      if (fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0) {
         const hasValidSegments = fldr.flight_info.some(seg => 
           seg.departure_code && seg.arrival_code
         )
