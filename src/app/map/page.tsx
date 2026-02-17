@@ -137,7 +137,7 @@ export default function MapPage() {
           if (!airportCounts[segment.departure_code]) {
             airportCounts[segment.departure_code] = {
               code: segment.departure_code,
-              name: segment.departure_name || segment.departure_code,
+              name: segment.departure_airport || segment.departure_code,
               count: 0
             }
           }
@@ -149,7 +149,7 @@ export default function MapPage() {
           if (!airportCounts[segment.arrival_code]) {
             airportCounts[segment.arrival_code] = {
               code: segment.arrival_code,
-              name: segment.arrival_name || segment.arrival_code,
+              name: segment.arrival_airport || segment.arrival_code,
               count: 0
             }
           }
