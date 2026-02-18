@@ -72,6 +72,12 @@ export interface JobInfo {
   job_end_time: string | null
   break_start_time: string | null
   break_end_time: string | null
+  // Multi-day recurring schedule
+  use_daily_schedule: boolean
+  daily_start_time: string | null  // Time only (HH:MM)
+  daily_end_time: string | null    // Time only (HH:MM)
+  daily_break_start: string | null // Time only (HH:MM)
+  daily_break_end: string | null   // Time only (HH:MM)
 }
 
 export interface ChecklistItem {

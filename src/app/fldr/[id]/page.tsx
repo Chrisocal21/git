@@ -543,6 +543,11 @@ export default function FldrDetailPage() {
       job_end_time: null,
       break_start_time: null,
       break_end_time: null,
+      use_daily_schedule: false,
+      daily_start_time: null,
+      daily_end_time: null,
+      daily_break_start: null,
+      daily_break_end: null,
     }
     const updated = { ...jobInfo, [field]: value }
     setFldr({ ...fldr, job_info: updated })
@@ -569,6 +574,11 @@ export default function FldrDetailPage() {
       job_end_time: null,
       break_start_time: null,
       break_end_time: null,
+      use_daily_schedule: false,
+      daily_start_time: null,
+      daily_end_time: null,
+      daily_break_start: null,
+      daily_break_end: null,
     }
     const newLink: ReferenceLink = { label: '', url: '' }
     updateJobInfo('reference_links', [...jobInfo.reference_links, newLink])
@@ -607,6 +617,11 @@ export default function FldrDetailPage() {
       job_end_time: null,
       break_start_time: null,
       break_end_time: null,
+      use_daily_schedule: false,
+      daily_start_time: null,
+      daily_end_time: null,
+      daily_break_start: null,
+      daily_break_end: null,
     }
     updateJobInfo('team_members', [...jobInfo.team_members, ''])
   }
@@ -727,6 +742,7 @@ export default function FldrDetailPage() {
 
     // Add job event times
     if (fldr.job_info) {
+      // Show up time (always single event if provided)
       if (fldr.job_info.show_up_time) {
         events.push({
           dateTime: new Date(fldr.job_info.show_up_time),
@@ -738,42 +754,101 @@ export default function FldrDetailPage() {
           ].filter(d => d)
         })
       }
-      if (fldr.job_info.job_start_time) {
-        events.push({
-          dateTime: new Date(fldr.job_info.job_start_time),
-          type: 'job',
-          title: '🎯 Job Start',
-          details: [
-            fldr.job_info.job_title || fldr.job_info.client_name || '',
-            fldr.job_info.item ? `Item: ${fldr.job_info.item}` : '',
-          ].filter(d => d)
-        })
-      }
-      if (fldr.job_info.break_start_time) {
-        events.push({
-          dateTime: new Date(fldr.job_info.break_start_time),
-          type: 'job',
-          title: '☕ Break Start',
-          details: []
-        })
-      }
-      if (fldr.job_info.break_end_time) {
-        events.push({
-          dateTime: new Date(fldr.job_info.break_end_time),
-          type: 'job',
-          title: '🔄 Break End',
-          details: []
-        })
-      }
-      if (fldr.job_info.job_end_time) {
-        events.push({
-          dateTime: new Date(fldr.job_info.job_end_time),
-          type: 'job',
-          title: '✅ Job End',
-          details: [
-            fldr.job_info.job_title || fldr.job_info.client_name || '',
-          ].filter(d => d)
-        })
+
+      // Check if using daily schedule mode
+      if (fldr.job_info.use_daily_schedule && fldr.date_start && fldr.date_end) {
+        // Generate events for each day in the date range
+        const startDate = new Date(fldr.date_start)
+        const endDate = new Date(fldr.date_end)
+        
+        // Loop through each day
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0] // YYYY-MM-DD
+          
+          // Daily start time
+          if (fldr.job_info.daily_start_time) {
+            events.push({
+              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_start_time}`),
+              type: 'job',
+              title: '🎯 Job Start',
+              details: [
+                fldr.job_info.job_title || fldr.job_info.client_name || '',
+                fldr.job_info.item ? `Item: ${fldr.job_info.item}` : '',
+              ].filter(d => d)
+            })
+          }
+          
+          // Daily break start
+          if (fldr.job_info.daily_break_start) {
+            events.push({
+              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_break_start}`),
+              type: 'job',
+              title: '☕ Break Start',
+              details: []
+            })
+          }
+          
+          // Daily break end
+          if (fldr.job_info.daily_break_end) {
+            events.push({
+              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_break_end}`),
+              type: 'job',
+              title: '🔄 Break End',
+              details: []
+            })
+          }
+          
+          // Daily end time
+          if (fldr.job_info.daily_end_time) {
+            events.push({
+              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_end_time}`),
+              type: 'job',
+              title: '✅ Job End',
+              details: [
+                fldr.job_info.job_title || fldr.job_info.client_name || '',
+              ].filter(d => d)
+            })
+          }
+        }
+      } else {
+        // Single event times (original behavior)
+        if (fldr.job_info.job_start_time) {
+          events.push({
+            dateTime: new Date(fldr.job_info.job_start_time),
+            type: 'job',
+            title: '🎯 Job Start',
+            details: [
+              fldr.job_info.job_title || fldr.job_info.client_name || '',
+              fldr.job_info.item ? `Item: ${fldr.job_info.item}` : '',
+            ].filter(d => d)
+          })
+        }
+        if (fldr.job_info.break_start_time) {
+          events.push({
+            dateTime: new Date(fldr.job_info.break_start_time),
+            type: 'job',
+            title: '☕ Break Start',
+            details: []
+          })
+        }
+        if (fldr.job_info.break_end_time) {
+          events.push({
+            dateTime: new Date(fldr.job_info.break_end_time),
+            type: 'job',
+            title: '🔄 Break End',
+            details: []
+          })
+        }
+        if (fldr.job_info.job_end_time) {
+          events.push({
+            dateTime: new Date(fldr.job_info.job_end_time),
+            type: 'job',
+            title: '✅ Job End',
+            details: [
+              fldr.job_info.job_title || fldr.job_info.client_name || '',
+            ].filter(d => d)
+          })
+        }
       }
     }
 
@@ -1001,6 +1076,11 @@ export default function FldrDetailPage() {
         job_end_time: null,
         break_start_time: null,
         break_end_time: null,
+        use_daily_schedule: false,
+        daily_start_time: null,
+        daily_end_time: null,
+        daily_break_start: null,
+        daily_break_end: null,
       }
       setFldr({ ...fldr, job_info: jobInfo })
       debouncedSave({ job_info: jobInfo })
@@ -1733,36 +1813,10 @@ export default function FldrDetailPage() {
                     placeholder="Pre-engrave prep notes..."
                   />
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs text-gray-400">Team Members</label>
-                    <button
-                      onClick={addTeamMember}
-                      className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                  {fldr.job_info?.team_members.map((member, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={member}
-                        onChange={(e) => updateTeamMember(index, e.target.value)}
-                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                        placeholder="Name"
-                      />
-                      <button
-                        onClick={() => removeTeamMember(index)}
-                        className="px-3 text-red-500 hover:text-red-400"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  {(!fldr.job_info?.team_members || fldr.job_info.team_members.length === 0) && (
-                    <p className="text-xs text-gray-500">No team members yet</p>
-                  )}
+                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <p className="text-xs text-blue-400">
+                    ℹ️ Team/contact info is in the <strong>People</strong> module below
+                  </p>
                 </div>
               </div>
             )}
@@ -2596,53 +2650,120 @@ export default function FldrDetailPage() {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-gray-400 mb-2">Event Schedule</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Show Up Time</label>
-                      <input
-                        type="datetime-local"
-                        value={fldr.job_info?.show_up_time || ''}
-                        onChange={(e) => updateJobInfo('show_up_time', e.target.value || null)}
-                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Job Start Time</label>
-                      <input
-                        type="datetime-local"
-                        value={fldr.job_info?.job_start_time || ''}
-                        onChange={(e) => updateJobInfo('job_start_time', e.target.value || null)}
-                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Job End Time</label>
-                      <input
-                        type="datetime-local"
-                        value={fldr.job_info?.job_end_time || ''}
-                        onChange={(e) => updateJobInfo('job_end_time', e.target.value || null)}
-                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Break Start</label>
-                      <input
-                        type="datetime-local"
-                        value={fldr.job_info?.break_start_time || ''}
-                        onChange={(e) => updateJobInfo('break_start_time', e.target.value || null)}
-                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <label className="block text-xs text-gray-400 mb-1">Break End</label>
+                  
+                  {/* Show Up Time - always single datetime */}
+                  <div className="mb-3">
+                    <label className="block text-xs text-gray-400 mb-1">Show Up Time (one-time)</label>
                     <input
                       type="datetime-local"
-                      value={fldr.job_info?.break_end_time || ''}
-                      onChange={(e) => updateJobInfo('break_end_time', e.target.value || null)}
+                      value={fldr.job_info?.show_up_time || ''}
+                      onChange={(e) => updateJobInfo('show_up_time', e.target.value || null)}
                       className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                     />
                   </div>
+
+                  {/* Daily Schedule Toggle */}
+                  <div className="mb-3 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={fldr.job_info?.use_daily_schedule || false}
+                        onChange={(e) => updateJobInfo('use_daily_schedule', e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-xs text-blue-400">
+                        Use same times daily (for multi-day events)
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Conditional: Daily Schedule or Single Event Times */}
+                  {fldr.job_info?.use_daily_schedule ? (
+                    // Daily recurring times (time-only inputs)
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500 mb-2">Set times that repeat each day between job start/end dates:</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Daily Start Time</label>
+                          <input
+                            type="time"
+                            value={fldr.job_info?.daily_start_time || ''}
+                            onChange={(e) => updateJobInfo('daily_start_time', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Daily End Time</label>
+                          <input
+                            type="time"
+                            value={fldr.job_info?.daily_end_time || ''}
+                            onChange={(e) => updateJobInfo('daily_end_time', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Daily Break Start</label>
+                          <input
+                            type="time"
+                            value={fldr.job_info?.daily_break_start || ''}
+                            onChange={(e) => updateJobInfo('daily_break_start', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Daily Break End</label>
+                          <input
+                            type="time"
+                            value={fldr.job_info?.daily_break_end || ''}
+                            onChange={(e) => updateJobInfo('daily_break_end', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // Single event times (datetime-local inputs)
+                    <div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Job Start Time</label>
+                          <input
+                            type="datetime-local"
+                            value={fldr.job_info?.job_start_time || ''}
+                            onChange={(e) => updateJobInfo('job_start_time', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Job End Time</label>
+                          <input
+                            type="datetime-local"
+                            value={fldr.job_info?.job_end_time || ''}
+                            onChange={(e) => updateJobInfo('job_end_time', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Break Start</label>
+                          <input
+                            type="datetime-local"
+                            value={fldr.job_info?.break_start_time || ''}
+                            onChange={(e) => updateJobInfo('break_start_time', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Break End</label>
+                          <input
+                            type="datetime-local"
+                            value={fldr.job_info?.break_end_time || ''}
+                            onChange={(e) => updateJobInfo('break_end_time', e.target.value || null)}
+                            className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
