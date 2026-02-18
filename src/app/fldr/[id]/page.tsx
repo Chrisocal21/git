@@ -45,6 +45,7 @@ export default function FldrDetailPage() {
     rentalCar: false,
     map: false,
     preTrip: false,
+    itinerary: false,
     jobInfo: false,
     checklist: false,
     people: false,
@@ -166,9 +167,45 @@ export default function FldrDetailPage() {
         setLoading(false)
       }
       
-      // Don't fetch from server - we're using localStorage as primary storage
-      // Server memory resets on Vercel serverless, so it's unreliable
-      // Only sync happens on explicit save (in saveFldr function)
+      // Fetch from server to get latest data (especially notes from other devices)
+      // Try to fetch fresh data if online
+      if (isOnline()) {
+        console.log('🌐 Fetching latest data from server...')
+        fetch(`/api/fldrs/${fldrId}`, { cache: 'no-store' })
+          .then(res => {
+            if (res.ok) {
+              return res.json()
+            }
+            throw new Error('Failed to fetch')
+          })
+          .then(freshData => {
+            console.log('✅ Got fresh data from server, updating...')
+            setFldr(freshData)
+            cacheFldr(freshData)
+            
+            // Also update the list cache
+            try {
+              const listCache = localStorage.getItem('git-fldrs')
+              if (listCache) {
+                const allFldrs = JSON.parse(listCache)
+                const index = allFldrs.findIndex((f: Fldr) => f.id === fldrId)
+                if (index !== -1) {
+                  allFldrs[index] = freshData
+                  localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+                }
+              }
+            } catch (e) {
+              console.error('Failed to update list cache:', e)
+            }
+          })
+          .catch(err => {
+            console.log('⚠️ Server fetch failed, using cached data:', err)
+            // Keep using cached data
+          })
+      } else {
+        console.log('📴 Offline - using cached data only')
+      }
+      
       if (!cached) {
         // No cached data - redirect to list
         console.error('💥 CRITICAL: No cached data found for fldr:', fldrId)
@@ -501,6 +538,11 @@ export default function FldrDetailPage() {
       reference_links: [],
       team_members: [],
       pre_engrave_details: null,
+      show_up_time: null,
+      job_start_time: null,
+      job_end_time: null,
+      break_start_time: null,
+      break_end_time: null,
     }
     const updated = { ...jobInfo, [field]: value }
     setFldr({ ...fldr, job_info: updated })
@@ -522,6 +564,11 @@ export default function FldrDetailPage() {
       reference_links: [],
       team_members: [],
       pre_engrave_details: null,
+      show_up_time: null,
+      job_start_time: null,
+      job_end_time: null,
+      break_start_time: null,
+      break_end_time: null,
     }
     const newLink: ReferenceLink = { label: '', url: '' }
     updateJobInfo('reference_links', [...jobInfo.reference_links, newLink])
@@ -555,6 +602,11 @@ export default function FldrDetailPage() {
       reference_links: [],
       team_members: [],
       pre_engrave_details: null,
+      show_up_time: null,
+      job_start_time: null,
+      job_end_time: null,
+      break_start_time: null,
+      break_end_time: null,
     }
     updateJobInfo('team_members', [...jobInfo.team_members, ''])
   }
@@ -576,6 +628,174 @@ export default function FldrDetailPage() {
     if (!fldr) return
     setFldr({ ...fldr, notes: value })
     debouncedSave({ notes: value })
+  }
+
+  // Generate itinerary from all time-based data
+  const generateItinerary = () => {
+    if (!fldr) return []
+
+    interface ItineraryEvent {
+      dateTime: Date
+      type: string
+      title: string
+      details: string[]
+    }
+
+    const events: ItineraryEvent[] = []
+
+    // Add flight segments
+    if (fldr.flight_info && Array.isArray(fldr.flight_info)) {
+      fldr.flight_info.forEach(segment => {
+        if (segment.departure_time) {
+          events.push({
+            dateTime: new Date(segment.departure_time),
+            type: 'flight',
+            title: `✈️ Flight Departure${segment.segment_type === 'return' ? ' (Return)' : ''}`,
+            details: [
+              segment.airline && segment.flight_number ? `${segment.airline} ${segment.flight_number}` : segment.airline || segment.flight_number || '',
+              segment.departure_airport ? `From: ${segment.departure_airport}` : '',
+              segment.arrival_airport ? `To: ${segment.arrival_airport}` : '',
+              segment.confirmation ? `Confirmation: ${segment.confirmation}` : '',
+            ].filter(d => d)
+          })
+        }
+        if (segment.arrival_time) {
+          events.push({
+            dateTime: new Date(segment.arrival_time),
+            type: 'flight',
+            title: `🛬 Flight Arrival${segment.segment_type === 'return' ? ' (Return)' : ''}`,
+            details: [
+              segment.arrival_airport || '',
+            ].filter(d => d)
+          })
+        }
+      })
+    }
+
+    // Add hotel check-in/out
+    if (fldr.hotel_info) {
+      if (fldr.hotel_info.check_in) {
+        events.push({
+          dateTime: new Date(fldr.hotel_info.check_in),
+          type: 'hotel',
+          title: '🏨 Hotel Check-in',
+          details: [
+            fldr.hotel_info.name || '',
+            fldr.hotel_info.address || '',
+            fldr.hotel_info.confirmation ? `Confirmation: ${fldr.hotel_info.confirmation}` : '',
+          ].filter(d => d)
+        })
+      }
+      if (fldr.hotel_info.check_out) {
+        events.push({
+          dateTime: new Date(fldr.hotel_info.check_out),
+          type: 'hotel',
+          title: '🏨 Hotel Check-out',
+          details: [
+            fldr.hotel_info.name || '',
+          ].filter(d => d)
+        })
+      }
+    }
+
+    // Add rental car pickup/dropoff
+    if (fldr.rental_car_info) {
+      if (fldr.rental_car_info.pickup_time) {
+        events.push({
+          dateTime: new Date(fldr.rental_car_info.pickup_time),
+          type: 'rental',
+          title: '🚗 Rental Car Pickup',
+          details: [
+            fldr.rental_car_info.company || '',
+            fldr.rental_car_info.pickup_location || '',
+            fldr.rental_car_info.vehicle_type || '',
+            fldr.rental_car_info.confirmation ? `Confirmation: ${fldr.rental_car_info.confirmation}` : '',
+          ].filter(d => d)
+        })
+      }
+      if (fldr.rental_car_info.dropoff_time) {
+        events.push({
+          dateTime: new Date(fldr.rental_car_info.dropoff_time),
+          type: 'rental',
+          title: '🚗 Rental Car Dropoff',
+          details: [
+            fldr.rental_car_info.dropoff_location || '',
+          ].filter(d => d)
+        })
+      }
+    }
+
+    // Add job event times
+    if (fldr.job_info) {
+      if (fldr.job_info.show_up_time) {
+        events.push({
+          dateTime: new Date(fldr.job_info.show_up_time),
+          type: 'job',
+          title: '👤 Show Up Time',
+          details: [
+            fldr.job_info.job_title || fldr.job_info.client_name || '',
+            fldr.venue_info?.name && fldr.venue_info.address ? `Venue: ${fldr.venue_info.name}` : '',
+          ].filter(d => d)
+        })
+      }
+      if (fldr.job_info.job_start_time) {
+        events.push({
+          dateTime: new Date(fldr.job_info.job_start_time),
+          type: 'job',
+          title: '🎯 Job Start',
+          details: [
+            fldr.job_info.job_title || fldr.job_info.client_name || '',
+            fldr.job_info.item ? `Item: ${fldr.job_info.item}` : '',
+          ].filter(d => d)
+        })
+      }
+      if (fldr.job_info.break_start_time) {
+        events.push({
+          dateTime: new Date(fldr.job_info.break_start_time),
+          type: 'job',
+          title: '☕ Break Start',
+          details: []
+        })
+      }
+      if (fldr.job_info.break_end_time) {
+        events.push({
+          dateTime: new Date(fldr.job_info.break_end_time),
+          type: 'job',
+          title: '🔄 Break End',
+          details: []
+        })
+      }
+      if (fldr.job_info.job_end_time) {
+        events.push({
+          dateTime: new Date(fldr.job_info.job_end_time),
+          type: 'job',
+          title: '✅ Job End',
+          details: [
+            fldr.job_info.job_title || fldr.job_info.client_name || '',
+          ].filter(d => d)
+        })
+      }
+    }
+
+    // Sort by date/time
+    events.sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())
+
+    // Group by day
+    const groupedByDay: { [key: string]: ItineraryEvent[] } = {}
+    events.forEach(event => {
+      const dayKey = event.dateTime.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+      if (!groupedByDay[dayKey]) {
+        groupedByDay[dayKey] = []
+      }
+      groupedByDay[dayKey].push(event)
+    })
+
+    return groupedByDay
   }
 
   const updateWrapUp = (value: string) => {
@@ -776,6 +996,11 @@ export default function FldrDetailPage() {
         reference_links: [],
         team_members: [],
         pre_engrave_details: null,
+        show_up_time: null,
+        job_start_time: null,
+        job_end_time: null,
+        break_start_time: null,
+        break_end_time: null,
       }
       setFldr({ ...fldr, job_info: jobInfo })
       debouncedSave({ job_info: jobInfo })
@@ -1439,6 +1664,179 @@ export default function FldrDetailPage() {
       </div>
 
       <div className="space-y-3">
+        {/* Map Card */}
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <button
+            onClick={() => toggleCard('map')}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+          >
+            <span className="font-semibold">Map</span>
+            <ChevronDownIcon
+              className={`w-5 h-5 transition-transform ${
+                expandedCards.map ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {expandedCards.map && (
+            <div className="px-4 pb-4">
+              <FldrMap
+                locations={[
+                  {
+                    label: 'Departure Airport',
+                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].departure_address) || '',
+                  },
+                  {
+                    label: 'Arrival Airport',
+                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].arrival_address) || '',
+                  },
+                  {
+                    label: 'Hotel',
+                    address: fldr.hotel_info?.address || '',
+                  },
+                  {
+                    label: 'Venue',
+                    address: fldr.venue_info?.address || '',
+                  },
+                  {
+                    label: 'Rental Car Pickup',
+                    address: fldr.rental_car_info?.pickup_location || '',
+                  },
+                ].filter(loc => loc.address.trim() !== '')}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Pre-trip Info Card - Only show if job_info enabled */}
+        {fldr.job_info !== null && (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <button
+              onClick={() => toggleCard('preTrip')}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+            >
+              <span className="font-semibold">Pre-trip Info</span>
+              <ChevronDownIcon
+                className={`w-5 h-5 transition-transform ${
+                  expandedCards.preTrip ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {expandedCards.preTrip && (
+              <div className="px-4 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Pre-engrave Details</label>
+                  <textarea
+                    value={fldr.job_info?.pre_engrave_details || ''}
+                    onChange={(e) => updateJobInfo('pre_engrave_details', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
+                    rows={3}
+                    placeholder="Pre-engrave prep notes..."
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs text-gray-400">Team Members</label>
+                    <button
+                      onClick={addTeamMember}
+                      className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  {fldr.job_info?.team_members.map((member, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={member}
+                        onChange={(e) => updateTeamMember(index, e.target.value)}
+                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                        placeholder="Name"
+                      />
+                      <button
+                        onClick={() => removeTeamMember(index)}
+                        className="px-3 text-red-500 hover:text-red-400"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {(!fldr.job_info?.team_members || fldr.job_info.team_members.length === 0) && (
+                    <p className="text-xs text-gray-500">No team members yet</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Itinerary Card - Always shown, auto-generated from time data */}
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <button
+            onClick={() => toggleCard('itinerary')}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+          >
+            <span className="font-semibold">Itinerary</span>
+            <ChevronDownIcon
+              className={`w-5 h-5 transition-transform ${
+                expandedCards.itinerary ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {expandedCards.itinerary && (
+            <div className="px-4 pb-4">
+              {(() => {
+                const itinerary = generateItinerary()
+                const days = Object.keys(itinerary)
+                
+                if (days.length === 0) {
+                  return (
+                    <p className="text-sm text-gray-400 py-4 text-center">
+                      No scheduled events yet. Add flight times, hotel check-in/out, or rental car times to build your itinerary.
+                    </p>
+                  )
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {days.map((day, dayIndex) => (
+                      <div key={day} className={dayIndex > 0 ? 'border-t border-[#2a2a2a] pt-4' : ''}>
+                        <div className="text-sm font-semibold text-[#3b82f6] mb-3">
+                          {day}
+                        </div>
+                        <div className="space-y-3">
+                          {itinerary[day].map((event, eventIndex) => (
+                            <div key={eventIndex} className="pl-4 border-l-2 border-[#3b82f6]/30">
+                              <div className="flex items-baseline gap-2 mb-1">
+                                <span className="text-xs font-medium text-[#3b82f6]">
+                                  {event.dateTime.toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })}
+                                </span>
+                                <span className="text-sm font-medium text-white">
+                                  {event.title}
+                                </span>
+                              </div>
+                              {event.details.length > 0 && (
+                                <div className="text-xs text-gray-400 space-y-0.5 ml-16">
+                                  {event.details.map((detail, i) => (
+                                    <div key={i}>{detail}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+        </div>
+
         {/* Flight Info Card - Only show if enabled */}
         {fldr.flight_info !== null && (
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
@@ -1998,111 +2396,6 @@ export default function FldrDetailPage() {
           </div>
         )}
 
-        {/* Map Card */}
-        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-          <button
-            onClick={() => toggleCard('map')}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-          >
-            <span className="font-semibold">Map</span>
-            <ChevronDownIcon
-              className={`w-5 h-5 transition-transform ${
-                expandedCards.map ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-          {expandedCards.map && (
-            <div className="px-4 pb-4">
-              <FldrMap
-                locations={[
-                  {
-                    label: 'Departure Airport',
-                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].departure_address) || '',
-                  },
-                  {
-                    label: 'Arrival Airport',
-                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].arrival_address) || '',
-                  },
-                  {
-                    label: 'Hotel',
-                    address: fldr.hotel_info?.address || '',
-                  },
-                  {
-                    label: 'Venue',
-                    address: fldr.venue_info?.address || '',
-                  },
-                  {
-                    label: 'Rental Car Pickup',
-                    address: fldr.rental_car_info?.pickup_location || '',
-                  },
-                ].filter(loc => loc.address.trim() !== '')}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Pre-trip Info Card - Only show if job_info enabled */}
-        {fldr.job_info !== null && (
-          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-            <button
-              onClick={() => toggleCard('preTrip')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-            >
-              <span className="font-semibold">Pre-trip Info</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
-                  expandedCards.preTrip ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-            {expandedCards.preTrip && (
-              <div className="px-4 pb-4 space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Pre-engrave Details</label>
-                  <textarea
-                    value={fldr.job_info?.pre_engrave_details || ''}
-                    onChange={(e) => updateJobInfo('pre_engrave_details', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm resize-none"
-                    rows={3}
-                    placeholder="Pre-engrave prep notes..."
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs text-gray-400">Team Members</label>
-                    <button
-                      onClick={addTeamMember}
-                      className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                  {fldr.job_info?.team_members.map((member, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={member}
-                        onChange={(e) => updateTeamMember(index, e.target.value)}
-                        className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                        placeholder="Name"
-                      />
-                      <button
-                        onClick={() => removeTeamMember(index)}
-                        className="px-3 text-red-500 hover:text-red-400"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  {(!fldr.job_info?.team_members || fldr.job_info.team_members.length === 0) && (
-                    <p className="text-xs text-gray-500">No team members yet</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Job Info Card - Only show if job_info enabled */}
         {fldr.job_info !== null && (
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
@@ -2300,6 +2593,56 @@ export default function FldrDetailPage() {
                     rows={3}
                     placeholder="Event context, special instructions..."
                   />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-400 mb-2">Event Schedule</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Show Up Time</label>
+                      <input
+                        type="datetime-local"
+                        value={fldr.job_info?.show_up_time || ''}
+                        onChange={(e) => updateJobInfo('show_up_time', e.target.value || null)}
+                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Job Start Time</label>
+                      <input
+                        type="datetime-local"
+                        value={fldr.job_info?.job_start_time || ''}
+                        onChange={(e) => updateJobInfo('job_start_time', e.target.value || null)}
+                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Job End Time</label>
+                      <input
+                        type="datetime-local"
+                        value={fldr.job_info?.job_end_time || ''}
+                        onChange={(e) => updateJobInfo('job_end_time', e.target.value || null)}
+                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Break Start</label>
+                      <input
+                        type="datetime-local"
+                        value={fldr.job_info?.break_start_time || ''}
+                        onChange={(e) => updateJobInfo('break_start_time', e.target.value || null)}
+                        className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <label className="block text-xs text-gray-400 mb-1">Break End</label>
+                    <input
+                      type="datetime-local"
+                      value={fldr.job_info?.break_end_time || ''}
+                      onChange={(e) => updateJobInfo('break_end_time', e.target.value || null)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                    />
+                  </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">

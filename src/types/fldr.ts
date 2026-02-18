@@ -67,6 +67,11 @@ export interface JobInfo {
   reference_links: ReferenceLink[]
   team_members: string[]
   pre_engrave_details: string | null
+  show_up_time: string | null
+  job_start_time: string | null
+  job_end_time: string | null
+  break_start_time: string | null
+  break_end_time: string | null
 }
 
 export interface ChecklistItem {
