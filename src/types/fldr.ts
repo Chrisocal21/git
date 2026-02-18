@@ -49,6 +49,8 @@ export interface RentalCarInfo {
   dropoff_location: string | null
   dropoff_time: string | null
   vehicle_type: string | null
+  insurance_policy_number: string | null
+  travel_reservation: string | null
   notes: string | null
 }
 

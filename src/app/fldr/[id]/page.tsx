@@ -89,7 +89,7 @@ export default function FldrDetailPage() {
 
   // Sync round trip checkbox state with flight segments
   useEffect(() => {
-    if (fldr?.flight_info) {
+    if (fldr?.flight_info && Array.isArray(fldr.flight_info)) {
       const hasReturnSegment = fldr.flight_info.some(seg => seg.segment_type === 'return')
       setIsRoundTrip(hasReturnSegment)
     }
@@ -477,6 +477,8 @@ export default function FldrDetailPage() {
       dropoff_location: null,
       dropoff_time: null,
       vehicle_type: null,
+      insurance_policy_number: null,
+      travel_reservation: null,
       notes: null,
     }
     const updated = { ...rentalCarInfo, [field]: value || null }
@@ -737,6 +739,8 @@ export default function FldrDetailPage() {
         dropoff_location: null,
         dropoff_time: null,
         vehicle_type: null,
+        insurance_policy_number: null,
+        travel_reservation: null,
         notes: null,
       }
       setFldr({ ...fldr, rental_car_info: rentalCarInfo })
@@ -782,7 +786,7 @@ export default function FldrDetailPage() {
   const hasModuleData = (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'job_info' | 'checklist' | 'people' | 'photos' | 'products'): boolean => {
     if (!fldr) return false
     
-    if (module === 'flight_info' && fldr.flight_info) {
+    if (module === 'flight_info' && fldr.flight_info && Array.isArray(fldr.flight_info)) {
       return fldr.flight_info.length > 0 && fldr.flight_info.some(seg => 
         seg.departure_airport || seg.arrival_airport || seg.airline || seg.flight_number
       )
@@ -1324,24 +1328,48 @@ export default function FldrDetailPage() {
                 <div className="font-semibold text-[#3b82f6] mb-2">Flights ({fldr.flight_info.length} segments)</div>
                 <div className="space-y-2">
                   {fldr.flight_info.map((segment, idx) => (
-                    <div key={segment.id} className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">#{idx + 1}</span>
-                      {segment.departure_code && (
-                        <span className="font-mono font-bold text-sm">{segment.departure_code}</span>
-                      )}
-                      <span className="text-gray-400">→</span>
-                      {segment.arrival_code && (
-                        <span className="font-mono font-bold text-sm">{segment.arrival_code}</span>
-                      )}
-                      {segment.airline && (
-                        <span className="text-gray-400 text-xs">
-                          {segment.airline} {segment.flight_number || ''}
-                        </span>
-                      )}
-                      {segment.segment_type && segment.segment_type !== 'other' && (
-                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
-                          {segment.segment_type}
-                        </span>
+                    <div key={segment.id} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">#{idx + 1}</span>
+                        {segment.departure_code && (
+                          <span className="font-mono font-bold text-sm">{segment.departure_code}</span>
+                        )}
+                        <span className="text-gray-400">→</span>
+                        {segment.arrival_code && (
+                          <span className="font-mono font-bold text-sm">{segment.arrival_code}</span>
+                        )}
+                        {segment.airline && (
+                          <span className="text-gray-400 text-xs">
+                            {segment.airline} {segment.flight_number || ''}
+                          </span>
+                        )}
+                        {segment.segment_type && segment.segment_type !== 'other' && (
+                          <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                            {segment.segment_type}
+                          </span>
+                        )}
+                      </div>
+                      {(segment.departure_time || segment.arrival_time) && (
+                        <div className="text-xs text-gray-400 ml-7 flex gap-3">
+                          {segment.departure_time && (
+                            <span>🛫 {new Date(segment.departure_time).toLocaleString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              hour: 'numeric', 
+                              minute: '2-digit',
+                              hour12: true 
+                            })}</span>
+                          )}
+                          {segment.arrival_time && (
+                            <span>🛬 {new Date(segment.arrival_time).toLocaleString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              hour: 'numeric', 
+                              minute: '2-digit',
+                              hour12: true 
+                            })}</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1884,6 +1912,28 @@ export default function FldrDetailPage() {
                       onChange={(e) => updateRentalCarInfo('vehicle_type', e.target.value)}
                       className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                       placeholder="e.g. SUV"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Insurance Policy Number</label>
+                    <input
+                      type="text"
+                      value={fldr.rental_car_info?.insurance_policy_number || ''}
+                      onChange={(e) => updateRentalCarInfo('insurance_policy_number', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Insurance policy number"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Travel Reservation</label>
+                    <input
+                      type="text"
+                      value={fldr.rental_car_info?.travel_reservation || ''}
+                      onChange={(e) => updateRentalCarInfo('travel_reservation', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Travel reservation number"
                     />
                   </div>
                 </div>
