@@ -647,7 +647,7 @@ export default function FldrDetailPage() {
 
   // Generate itinerary from all time-based data
   const generateItinerary = () => {
-    if (!fldr) return []
+    if (!fldr) return {}
 
     interface ItineraryEvent {
       dateTime: Date
