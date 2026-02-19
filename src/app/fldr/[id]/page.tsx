@@ -226,7 +226,7 @@ export default function FldrDetailPage() {
     try {
       // Check if fldr should be marked as ready/complete
       const updatedFldr = { ...fldr, ...updates }
-      const hasFlightInfo = updatedFldr.flight_info && updatedFldr.flight_info.length > 0 && updatedFldr.flight_info.some(seg =>
+      const hasFlightInfo = updatedFldr.flight_info && Array.isArray(updatedFldr.flight_info) && updatedFldr.flight_info.length > 0 && updatedFldr.flight_info.some(seg =>
         seg.departure_airport || seg.arrival_airport
       )
       const hasHotelInfo = updatedFldr.hotel_info && (
@@ -363,7 +363,7 @@ export default function FldrDetailPage() {
   }
 
   const updateFlightSegment = (segmentIndex: number, field: keyof FlightSegment, value: string) => {
-    if (!fldr || !fldr.flight_info) return
+    if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
     const segments = [...fldr.flight_info]
     segments[segmentIndex] = { ...segments[segmentIndex], [field]: value || null }
     setFldr({ ...fldr, flight_info: segments })
@@ -371,7 +371,7 @@ export default function FldrDetailPage() {
   }
 
   const updateSegmentDepartureAirport = (segmentIndex: number, airport: { name: string; code: string; address: string }) => {
-    if (!fldr || !fldr.flight_info) return
+    if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
     const segments = [...fldr.flight_info]
     segments[segmentIndex] = {
       ...segments[segmentIndex],
@@ -384,7 +384,7 @@ export default function FldrDetailPage() {
   }
 
   const updateSegmentArrivalAirport = (segmentIndex: number, airport: { name: string; code: string; address: string }) => {
-    if (!fldr || !fldr.flight_info) return
+    if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
     const segments = [...fldr.flight_info]
     segments[segmentIndex] = {
       ...segments[segmentIndex],
@@ -422,7 +422,7 @@ export default function FldrDetailPage() {
   }
 
   const toggleRoundTrip = async (checked: boolean) => {
-    if (!fldr || !fldr.flight_info) return
+    if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
     setIsRoundTrip(checked)
     
     if (checked) {
@@ -468,7 +468,7 @@ export default function FldrDetailPage() {
   }
 
   const removeFlightSegment = (segmentIndex: number) => {
-    if (!fldr || !fldr.flight_info) return
+    if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
     const segments = fldr.flight_info.filter((_, i) => i !== segmentIndex)
     setFldr({ ...fldr, flight_info: segments })
     debouncedSave({ flight_info: segments })
@@ -1628,7 +1628,7 @@ export default function FldrDetailPage() {
             )}
 
             {/* Flight Info */}
-            {fldr.flight_info && fldr.flight_info.length > 0 && (
+            {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
               <div className="p-3 bg-[#0a0a0a] rounded-lg">
                 <div className="font-semibold text-[#3b82f6] mb-2">Flights ({fldr.flight_info.length} segments)</div>
                 <div className="space-y-2">
@@ -1928,12 +1928,12 @@ export default function FldrDetailPage() {
                 </div>
 
                 {/* Round Trip Toggle */}
-                {fldr.flight_info && fldr.flight_info.length > 0 && (
+                {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
                   <div className="flex items-center gap-2 p-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
                     <input
                       type="checkbox"
                       id="roundTrip"
-                      checked={isRoundTrip || fldr.flight_info.some(seg => seg.segment_type === 'return')}
+                      checked={isRoundTrip || (Array.isArray(fldr.flight_info) && fldr.flight_info.some(seg => seg.segment_type === 'return'))}
                       onChange={(e) => toggleRoundTrip(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 text-[#3b82f6] focus:ring-[#3b82f6] focus:ring-offset-0 bg-[#0a0a0a]"
                     />
@@ -1946,7 +1946,7 @@ export default function FldrDetailPage() {
                   </div>
                 )}
 
-                {(!fldr.flight_info || fldr.flight_info.length === 0) && (
+                {(!fldr.flight_info || !Array.isArray(fldr.flight_info) || fldr.flight_info.length === 0) && (
                   <div className="p-4 bg-[#0a0a0a] rounded-lg text-center">
                     <p className="text-sm text-gray-400 mb-2">No flight segments yet</p>
                     <button
@@ -1958,7 +1958,7 @@ export default function FldrDetailPage() {
                   </div>
                 )}
 
-                {fldr.flight_info && fldr.flight_info.map((segment, index) => (
+                {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.map((segment, index) => (
                   <div key={segment.id} className="p-4 bg-[#0a0a0a] rounded-lg space-y-3 border border-[#2a2a2a]">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -1976,7 +1976,7 @@ export default function FldrDetailPage() {
                           <option value="other">Other</option>
                         </select>
                       </div>
-                      {fldr.flight_info && fldr.flight_info.length > 1 && (
+                      {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 1 && (
                         <button
                           onClick={() => removeFlightSegment(index)}
                           className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
@@ -2530,7 +2530,7 @@ export default function FldrDetailPage() {
                   )}
                   
                   {/* Flight Info */}
-                  {fldr.flight_info && fldr.flight_info.length > 0 && (
+                  {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
                     <div className="text-xs">
                       <span className="text-gray-500">Flights: </span>
                       <span className="text-white">

@@ -157,6 +157,24 @@ export default function FldrPage() {
     })
   }
 
+  const isCurrentEvent = (fldr: Fldr) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const [startYear, startMonth, startDay] = fldr.date_start.split('-').map(Number)
+    const startDate = new Date(startYear, startMonth - 1, startDay)
+    startDate.setHours(0, 0, 0, 0)
+    
+    if (fldr.date_end) {
+      const [endYear, endMonth, endDay] = fldr.date_end.split('-').map(Number)
+      const endDate = new Date(endYear, endMonth - 1, endDay)
+      endDate.setHours(0, 0, 0, 0)
+      return today >= startDate && today <= endDate
+    }
+    
+    return today.getTime() === startDate.getTime()
+  }
+
   const getStatusColor = (status: FldrStatus) => {
     switch (status) {
       case 'incomplete': return 'bg-yellow-900/30 text-yellow-400 border-yellow-500'
@@ -327,52 +345,59 @@ export default function FldrPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredFldrs.map((fldr) => (
-            <div key={fldr.id} className="relative">
-              <button
-                onClick={() => router.push(`/fldr/${fldr.id}`)}
-                className="w-full p-4 rounded-lg text-left transition-all bg-[#1a1a1a] border-2 border-transparent hover:border-gray-700"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-lg">{fldr.title}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(fldr.status)}`}>
-                        {fldr.status}
-                      </span>
-                      {(fldr.attending ?? false) ? (
-                        <AirplaneIcon className="w-4 h-4 text-blue-400" />
-                      ) : (
-                        <HomeIcon className="w-4 h-4 text-gray-500" />
+          {filteredFldrs.map((fldr) => {
+            const isCurrent = isCurrentEvent(fldr)
+            return (
+              <div key={fldr.id} className="relative">
+                <button
+                  onClick={() => router.push(`/fldr/${fldr.id}`)}
+                  className={`w-full p-4 rounded-lg text-left transition-all bg-[#1a1a1a] border-2 ${
+                    isCurrent 
+                      ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:border-blue-500/70 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]' 
+                      : 'border-transparent hover:border-gray-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-lg">{fldr.title}</h3>
+                        <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(fldr.status)}`}>
+                          {fldr.status}
+                        </span>
+                        {(fldr.attending ?? false) ? (
+                          <AirplaneIcon className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <HomeIcon className="w-4 h-4 text-gray-500" />
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {formatDate(fldr.date_start)}
+                        {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
+                      </div>
+                      {fldr.location && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          {fldr.location}
+                        </div>
+                      )}
+                      {fldr.job_info?.job_title && (
+                        <div className="text-sm text-[#3b82f6] mt-1 font-medium">
+                          {fldr.job_info.job_title}
+                        </div>
                       )}
                     </div>
-                    <div className="text-sm text-gray-400">
-                      {formatDate(fldr.date_start)}
-                      {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
-                    </div>
-                    {fldr.location && (
-                      <div className="text-sm text-gray-500 mt-1">
-                        {fldr.location}
-                      </div>
-                    )}
-                    {fldr.job_info?.job_title && (
-                      <div className="text-sm text-[#3b82f6] mt-1 font-medium">
-                        {fldr.job_info.job_title}
-                      </div>
+                    {showDeleteButtons && (
+                      <button
+                        onClick={(e) => handleDelete(fldr.id, e)}
+                        className="ml-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+                      >
+                        Delete
+                      </button>
                     )}
                   </div>
-                  {showDeleteButtons && (
-                    <button
-                      onClick={(e) => handleDelete(fldr.id, e)}
-                      className="ml-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </button>
-            </div>
-          ))}
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

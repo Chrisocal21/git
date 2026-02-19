@@ -112,7 +112,7 @@ export default function FldrMap({ locations }: FldrMapProps) {
   const center = geocodedLocations[0].coordinates || [39.8283, -98.5795] // US center
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-[#0a0a0a] p-4' : 'relative'}`}>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-[#0a0a0a]' : 'relative'}`}>
       {/* Fullscreen toggle button */}
       <button
         onClick={toggleFullscreen}
@@ -130,11 +130,12 @@ export default function FldrMap({ locations }: FldrMapProps) {
         )}
       </button>
       
-      <div className={`${isFullscreen ? 'h-full' : 'h-96'} rounded-lg overflow-hidden border border-white/10`}>
+      <div className={`${isFullscreen ? 'w-full h-full' : 'h-96'} rounded-lg overflow-hidden border border-white/10`}>
         <MapContainer
           center={center}
           zoom={10}
           scrollWheelZoom={true}
+          style={{ height: '100%', width: '100%' }}
           className="h-full w-full"
         >
           <TileLayer
