@@ -75,6 +75,7 @@ export default function FldrDetailPage() {
   const [weatherData, setWeatherData] = useState<any>(null)
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [weatherError, setWeatherError] = useState<string | null>(null)
+  const [locationTime, setLocationTime] = useState<string | null>(null)
 
   useEffect(() => {
     // Update online status
@@ -347,6 +348,44 @@ export default function FldrDetailPage() {
 
     fetchWeather()
   }, [fldr?.location, fldr?.venue_info?.address, fldr?.hotel_info?.address])
+
+  // Fetch location time when fldr location is available
+  useEffect(() => {
+    const fetchLocationTime = async () => {
+      if (!fldr?.location) {
+        setLocationTime(null)
+        return
+      }
+
+      try {
+        // WorldTimeAPI is free but doesn't support direct location lookup
+        // Instead, we'll use the browser's built-in timezone detection
+        // For now, just show the time if we have location data
+        // This is a simplified version - for production, you'd want to map locations to timezones
+        
+        const updateTime = () => {
+          // For now, just use the local time with location label
+          // In production, you'd want to determine the actual timezone from the location
+          const time = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })
+          setLocationTime(time)
+        }
+
+        updateTime()
+        const interval = setInterval(updateTime, 60000) // Update every minute
+
+        return () => clearInterval(interval)
+      } catch (error) {
+        console.error('Location time fetch error:', error)
+        setLocationTime(null)
+      }
+    }
+
+    fetchLocationTime()
+  }, [fldr?.location])
 
   const saveFldr = useCallback(async (updates: Partial<Fldr>) => {
     if (!fldr) return
@@ -1431,6 +1470,60 @@ export default function FldrDetailPage() {
     setTouchStartY(0)
   }
 
+  const duplicateJob = async () => {
+    if (!fldr) return
+    
+    const confirmed = window.confirm('Duplicate this job? You can update dates and details after.')
+    if (!confirmed) return
+    
+    setSaving(true)
+    
+    try {
+      // Create new fldr with duplicated data
+      const newFldr: Omit<Fldr, 'id' | 'created_at' | 'updated_at'> = {
+        title: `${fldr.title} (Copy)`,
+        date_start: fldr.date_start,
+        date_end: fldr.date_end,
+        location: fldr.location,
+        status: 'incomplete',
+        attending: fldr.attending,
+        flight_info: fldr.flight_info ? JSON.parse(JSON.stringify(fldr.flight_info)) : null,
+        hotel_info: fldr.hotel_info ? JSON.parse(JSON.stringify(fldr.hotel_info)) : null,
+        venue_info: fldr.venue_info ? JSON.parse(JSON.stringify(fldr.venue_info)) : null,
+        rental_car_info: fldr.rental_car_info ? JSON.parse(JSON.stringify(fldr.rental_car_info)) : null,
+        job_info: fldr.job_info ? JSON.parse(JSON.stringify(fldr.job_info)) : null,
+        checklist: fldr.checklist ? JSON.parse(JSON.stringify(fldr.checklist)).map((item: ChecklistItem) => ({ ...item, completed: false })) : null,
+        people: fldr.people ? JSON.parse(JSON.stringify(fldr.people)) : null,
+        photos: null, // Don't copy photos
+        products: fldr.products ? JSON.parse(JSON.stringify(fldr.products)) : null,
+        notes: fldr.notes || '',
+        wrap_up: null, // Don't copy wrap-up
+        polished_messages: []
+      }
+      
+      const response = await fetch('/api/fldrs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newFldr)
+      })
+      
+      if (response.ok) {
+        const createdFldr = await response.json()
+        console.log('✅ Job duplicated successfully')
+        
+        // Navigate to the new fldr
+        router.push(`/fldr/${createdFldr.id}`)
+      } else {
+        throw new Error('Failed to duplicate job')
+      }
+    } catch (error) {
+      console.error('❌ Duplicate job failed:', error)
+      alert('Failed to duplicate job. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleRefresh = async () => {
     console.log('🔄 Pull-to-refresh triggered on detail page')
     
@@ -1528,13 +1621,26 @@ export default function FldrDetailPage() {
             ← Back
           </button>
           {!editMode && (
-            <button
-              onClick={enableEditMode}
-              className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors"
-            >
-              <PencilIcon className="w-4 h-4" />
-              <span>Edit</span>
-            </button>
+            <>
+              <button
+                onClick={enableEditMode}
+                className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                <PencilIcon className="w-4 h-4" />
+                <span>Edit</span>
+              </button>
+              <button
+                onClick={duplicateJob}
+                disabled={saving}
+                className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors disabled:opacity-50"
+                title="Duplicate this job"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>Duplicate</span>
+              </button>
+            </>
           )}
         </div>
         <h1 className="text-2xl font-bold">GIT</h1>
@@ -1666,7 +1772,17 @@ export default function FldrDetailPage() {
               {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
             </div>
             {fldr.location && (
-              <div className="text-gray-500 mt-1">{fldr.location}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="text-gray-500">{fldr.location}</div>
+                {locationTime && (
+                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{locationTime}</span>
+                  </div>
+                )}
+              </div>
             )}
             {/* Attending checkbox */}
             <div className="mt-3 flex items-center gap-2 p-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">

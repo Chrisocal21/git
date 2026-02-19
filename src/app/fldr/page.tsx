@@ -7,6 +7,7 @@ import { PlusIcon, AirplaneIcon, HomeIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
+import SanDiegoClock from '@/components/SanDiegoClock'
 
 type FilterOption = 'all' | 'upcoming' | 'complete'
 
@@ -324,6 +325,7 @@ export default function FldrPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">GIT</h1>
         <div className="flex items-center gap-2">
+          <SanDiegoClock />
           <button
             onClick={() => setShowDeleteButtons(!showDeleteButtons)}
             className={`px-3 py-2 rounded-lg text-sm transition-colors ${
