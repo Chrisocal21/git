@@ -70,6 +70,7 @@ export default function FldrDetailPage() {
   const [touchStartY, setTouchStartY] = useState(0)
   const [useRichEditor, setUseRichEditor] = useState(false)
   const [isRoundTrip, setIsRoundTrip] = useState(false)
+  const [expandedPhotoIndex, setExpandedPhotoIndex] = useState<number | null>(null)
 
   useEffect(() => {
     // Update online status
@@ -3179,7 +3180,8 @@ export default function FldrDetailPage() {
                       <img
                         src={photo.url}
                         alt={photo.caption || 'Photo'}
-                        className="w-full h-48 object-cover rounded-lg"
+                        className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setExpandedPhotoIndex(index)}
                       />
                       <button
                         onClick={() => removePhoto(index)}
@@ -3439,6 +3441,39 @@ export default function FldrDetailPage() {
           <p className="text-xs text-gray-500">All modules enabled</p>
         )}
       </div>
+
+      {/* Photo Expansion Modal */}
+      {expandedPhotoIndex !== null && fldr?.photos && fldr.photos[expandedPhotoIndex] && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setExpandedPhotoIndex(null)}
+        >
+          <div className="relative max-w-full max-h-full">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpandedPhotoIndex(null)
+              }}
+              className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full z-10"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img
+              src={fldr.photos[expandedPhotoIndex].url}
+              alt={fldr.photos[expandedPhotoIndex].caption || 'Photo'}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {fldr.photos[expandedPhotoIndex].caption && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-4 rounded-b-lg">
+                <p className="text-sm text-center">{fldr.photos[expandedPhotoIndex].caption}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
