@@ -660,4 +660,132 @@ ToneProfile {
 
 ---
 
+## Recent Enhancements (February 2026)
+> **What this section covers:** Latest features and improvements added to the app
+
+### Current Event Visual Indicator ✅
+**Problem:** Hard to identify which job is happening right now when viewing the list  
+**Solution:** Jobs where the current date falls within the date range now display with:
+- Blue left border (2px solid `#3b82f6`)
+- Subtle blue shadow for visual prominence
+- Makes "active now" jobs stand out at a glance
+
+**Implementation:** `isCurrentEvent()` function checks if today's date is between `date_start` and `date_end`
+
+---
+
+### Photo Storage Optimization ✅
+**Problem:** Photos added on mobile weren't syncing to desktop - root cause was photos (1633KB as base64) exceeding D1's 1MB row limit  
+**Impact:** 
+- Server returned 500 errors on photo save
+- localStorage hit QuotaExceededError
+- Photos appeared to save locally but failed to sync to cloud
+
+**Solution - Aggressive Image Compression:**
+- Resize to max 800x800 pixels (maintains aspect ratio)
+- Convert to WebP format with 0.6 quality (falls back to JPEG if needed)
+- Reduces typical photo from 1600KB → 150-250KB (~85% reduction)
+- Console logs compression ratio for monitoring
+
+**Files Modified:**
+- [src/app/fldr/[id]/page.tsx](src/app/fldr/[id]/page.tsx) - Added Canvas API compression on upload
+- [src/lib/d1.ts](src/lib/d1.ts) - Added size warnings at 500KB, errors at 1MB
+- [src/app/api/fldrs/[id]/route.ts](src/app/api/fldrs/[id]/route.ts) - Added debug logging
+
+**Technical Constraints:**
+- D1 hard limit: 1MB per row
+- Base64 encoding adds ~33% size overhead
+- localStorage total limit: ~5-10MB across all data
+- Production consideration: Cloud storage (R2/S3) needed for high-volume photo storage
+
+---
+
+### Enhanced Sync & Refresh Mechanisms ✅
+
+**Auto-Sync on Reconnect:**
+- Listens for `window 'online'` event
+- Automatically syncs queued changes when connection restored
+- Console logs sync progress
+
+**Pull-to-Refresh (Mobile):**
+- Swipe down gesture on detail page triggers refresh
+- Visual feedback during pull
+- Fetches latest data from D1
+- Native mobile UX pattern
+
+**Auto-Refresh on Tab Focus (Desktop):**
+- Listens for `window 'focus'` event
+- Refreshes data when switching back to browser tab
+- Ensures desktop stays in sync with mobile edits
+
+**Manual Refresh Button:**
+- Always available in header
+- Force refresh on demand
+- Useful for debugging or immediate sync verification
+
+**Removed Sync Status Banner:**
+- Previous implementation caused UX issues:
+  - Banner appeared after failed saves
+  - "Sync Now" button would fetch from D1 (empty) and overwrite local edits
+  - Confusing to users
+- Replaced with auto-sync approach (more reliable, less user intervention)
+
+---
+
+### Photo Expansion Modal ✅
+**Feature:** Click any photo to view full-screen  
+**Functionality:**
+- Modal overlay with centered photo
+- Max size: 90vh with object-contain (preserves aspect ratio)
+- Close button (X) in top-right corner
+- Click outside photo to close
+- Caption displays at bottom if present
+- Hover effect on thumbnails indicates they're clickable
+
+**UX Improvements:**
+- Thumbnails show at 48px height (192px in Tailwind)
+- Full-screen view shows original quality
+- Responsive on mobile and desktop
+- Smooth opacity transition on hover
+
+---
+
+### Debug Logging & Monitoring ✅
+**Comprehensive Console Logging:**
+- Photo save flow tracking:
+  - `📷 Compressed: XXkb → XXkb` - compression ratio
+  - `📷 Saving photos: N photos` - count before save
+  - `📊 Photos JSON size: XX KB` - total payload size
+  - `✅ Server save successful!` or `❌ Server save failed: 500`
+- Sync queue operations
+- Auto-sync triggers and results
+- Storage quota monitoring
+
+**Storage Health Checks:**
+- Size warnings at 500KB (caution threshold)
+- Errors at 1MB (D1 hard limit)
+- Helps identify issues before they cause failures
+
+---
+
+### Technical Debt & Known Issues
+
+**Production Recommendations:**
+1. **Move photos to cloud storage (R2/S3)**
+   - Current: Base64 in D1 JSON blob (inefficient, hits row limits)
+   - Better: Store URLs, actual images in object storage
+   - Benefits: No size limits, faster loads, CDN support
+
+2. **localStorage limits**
+   - Current: ~5-10MB total across all cached data
+   - Monitor: Can hit QuotaExceededError with many large fldrs
+   - Solution: Selective caching, expire old data, or IndexedDB migration
+
+3. **Photo quality vs size tradeoff**
+   - Current: WebP 0.6 quality is aggressive compression
+   - May need adjustment based on user feedback
+   - Consider: Progressive quality (higher for important photos)
+
+---
+
 *End of Handoff Document*
