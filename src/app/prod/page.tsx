@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Fldr, Product, ChecklistItem } from '@/types/fldr'
 import { useRouter } from 'next/navigation'
+import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
 
 type ProductWithJob = Product & { fldrId: string; fldrTitle: string; isCompleted?: boolean }
 type TaskWithJob = ChecklistItem & { fldrId: string; fldrTitle: string }
@@ -15,10 +16,40 @@ export default function ProdPage() {
   const [isPulling, setIsPulling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStartY, setTouchStartY] = useState(0)
+  const [online, setOnline] = useState(true)
 
   useEffect(() => {
     loadFldrs()
   }, [])
+
+  // Check online status and auto-sync when coming back online
+  useEffect(() => {
+    const updateOnlineStatus = async () => {
+      const nowOnline = isOnline()
+      const wasOffline = !online
+      
+      setOnline(nowOnline)
+      
+      // Auto-sync when coming back online
+      if (nowOnline && wasOffline && hasUnsyncedChanges()) {
+        console.log('📡 Back online - auto-syncing queued changes from prod page...')
+        const success = await syncQueuedChanges()
+        if (success) {
+          console.log('✅ Auto-sync complete! Refreshing prod page...')
+          await loadFldrs()
+        }
+      }
+    }
+    
+    updateOnlineStatus()
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+    
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+    }
+  }, [online])
 
   const loadFldrs = async () => {
     try {

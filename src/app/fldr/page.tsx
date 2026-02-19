@@ -6,6 +6,7 @@ import { Fldr, FldrStatus } from '@/types/fldr'
 import { PlusIcon, AirplaneIcon, HomeIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
+import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
 
 type FilterOption = 'all' | 'upcoming' | 'complete'
 
@@ -19,6 +20,46 @@ export default function FldrPage() {
   const [isPulling, setIsPulling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStartY, setTouchStartY] = useState(0)
+  const [online, setOnline] = useState(true)
+
+  // Check online status and auto-sync when coming back online
+  useEffect(() => {
+    const updateOnlineStatus = async () => {
+      const nowOnline = isOnline()
+      const wasOffline = !online
+      
+      setOnline(nowOnline)
+      
+      // Auto-sync when coming back online
+      if (nowOnline && wasOffline && hasUnsyncedChanges()) {
+        console.log('📡 Back online - auto-syncing queued changes from list page...')
+        const success = await syncQueuedChanges()
+        if (success) {
+          console.log('✅ Auto-sync complete! Refreshing list...')
+          // Refresh the list after syncing
+          try {
+            const res = await fetch('/api/fldrs', { cache: 'no-store' })
+            if (res.ok) {
+              const data = await res.json()
+              setFldrs(data)
+              localStorage.setItem('git-fldrs', JSON.stringify(data))
+            }
+          } catch (error) {
+            console.error('Failed to refresh after auto-sync:', error)
+          }
+        }
+      }
+    }
+    
+    updateOnlineStatus()
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+    
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+    }
+  }, [online])
 
   useEffect(() => {
     // Check storage health first

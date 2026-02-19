@@ -72,10 +72,39 @@ export default function FldrDetailPage() {
   const [isRoundTrip, setIsRoundTrip] = useState(false)
 
   useEffect(() => {
-    // Check online status
-    const updateOnlineStatus = () => {
-      setOnline(isOnline())
+    // Check online status and auto-sync when coming back online
+    const updateOnlineStatus = async () => {
+      const nowOnline = isOnline()
+      const wasOffline = !online
+      
+      setOnline(nowOnline)
       setHasUnsynced(hasUnsyncedChanges())
+      
+      // Auto-sync when coming back online
+      if (nowOnline && wasOffline && hasUnsyncedChanges()) {
+        console.log('📡 Back online - auto-syncing queued changes...')
+        setSaving(true)
+        const success = await syncQueuedChanges()
+        if (success) {
+          setHasUnsynced(false)
+          console.log('✅ Auto-sync complete!')
+          
+          // Refresh from server to get latest data
+          if (fldr) {
+            try {
+              const response = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
+              if (response.ok) {
+                const updated = await response.json()
+                setFldr(updated)
+                cacheFldr(updated)
+              }
+            } catch (error) {
+              console.error('Failed to refresh after auto-sync:', error)
+            }
+          }
+        }
+        setSaving(false)
+      }
     }
     
     updateOnlineStatus()
@@ -86,7 +115,7 @@ export default function FldrDetailPage() {
       window.removeEventListener('online', updateOnlineStatus)
       window.removeEventListener('offline', updateOnlineStatus)
     }
-  }, [])
+  }, [online, fldr])
 
   // Sync round trip checkbox state with flight segments
   useEffect(() => {
