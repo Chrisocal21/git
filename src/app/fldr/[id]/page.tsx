@@ -1534,35 +1534,6 @@ export default function FldrDetailPage() {
         </div>
       </div>
 
-      {/* Sync status bar */}
-      {hasUnsynced && (
-        <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <span className="text-sm text-yellow-500">Unsynced changes</span>
-          </div>
-          <div className="flex gap-2">
-            {online && (
-              <button
-                onClick={handleSync}
-                className="px-3 py-1 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/50 rounded text-xs font-medium transition-colors"
-              >
-                Sync Now
-              </button>
-            )}
-            <button
-              onClick={handleHardRefresh}
-              disabled={!online}
-              className="px-3 py-1 bg-[#1a1a1a] hover:bg-[#2a2a2a] border border-[#2a2a2a] hover:border-yellow-500/50 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Hard Refresh
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="mb-6">
         {editMode ? (
           <div className="space-y-4 p-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
@@ -3150,15 +3121,54 @@ export default function FldrDetailPage() {
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) {
-                          // For now, use a data URL - in production you'd upload to cloud storage
                           const reader = new FileReader()
                           reader.onload = (event) => {
-                            const url = event.target?.result as string
-                            addPhoto(url)
+                            const img = new Image()
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas')
+                              const ctx = canvas.getContext('2d')
+                              
+                              // Smaller max size for better compression (fits D1 1MB limit)
+                              const maxSize = 800
+                              let width = img.width
+                              let height = img.height
+                              
+                              // Scale down proportionally
+                              if (width > height) {
+                                if (width > maxSize) {
+                                  height = (height * maxSize) / width
+                                  width = maxSize
+                                }
+                              } else {
+                                if (height > maxSize) {
+                                  width = (width * maxSize) / height
+                                  height = maxSize
+                                }
+                              }
+                              
+                              canvas.width = width
+                              canvas.height = height
+                              ctx?.drawImage(img, 0, 0, width, height)
+                              
+                              // Use WebP for better compression (falls back to JPEG if not supported)
+                              let compressedUrl = canvas.toDataURL('image/webp', 0.6)
+                              
+                              // Fallback to JPEG if WebP not supported
+                              if (!compressedUrl.startsWith('data:image/webp')) {
+                                compressedUrl = canvas.toDataURL('image/jpeg', 0.6)
+                              }
+                              
+                              const originalSize = (event.target?.result as string).length
+                              const compressedSize = compressedUrl.length
+                              console.log(`📷 Compressed: ${(originalSize/1024).toFixed(0)}KB → ${(compressedSize/1024).toFixed(0)}KB`)
+                              
+                              addPhoto(compressedUrl)
+                            }
+                            img.src = event.target?.result as string
                           }
                           reader.readAsDataURL(file)
                         }
-                        e.target.value = '' // Reset input
+                        e.target.value = ''
                       }}
                     />
                   </label>
