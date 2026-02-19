@@ -44,6 +44,7 @@ export default function FldrDetailPage() {
     venue: false,
     rentalCar: false,
     map: false,
+    weather: false,
     preTrip: false,
     itinerary: false,
     jobInfo: false,
@@ -71,6 +72,9 @@ export default function FldrDetailPage() {
   const [useRichEditor, setUseRichEditor] = useState(false)
   const [isRoundTrip, setIsRoundTrip] = useState(false)
   const [expandedPhotoIndex, setExpandedPhotoIndex] = useState<number | null>(null)
+  const [weatherData, setWeatherData] = useState<any>(null)
+  const [weatherLoading, setWeatherLoading] = useState(false)
+  const [weatherError, setWeatherError] = useState<string | null>(null)
 
   useEffect(() => {
     // Update online status
@@ -302,6 +306,47 @@ export default function FldrDetailPage() {
       }
     }
   }, [params.id, router])
+
+  // Fetch weather data when fldr location is available
+  useEffect(() => {
+    const fetchWeather = async () => {
+      if (!fldr) return
+      
+      // Determine location from available fields
+      const location = fldr.location || 
+                      fldr.venue_info?.address || 
+                      fldr.hotel_info?.address
+      
+      if (!location) {
+        setWeatherData(null)
+        setWeatherError(null)
+        return
+      }
+
+      setWeatherLoading(true)
+      setWeatherError(null)
+
+      try {
+        const response = await fetch(`/api/weather?location=${encodeURIComponent(location)}`)
+        
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to fetch weather')
+        }
+
+        const data = await response.json()
+        setWeatherData(data)
+      } catch (error) {
+        console.error('Weather fetch error:', error)
+        setWeatherError(error instanceof Error ? error.message : 'Failed to load weather')
+        setWeatherData(null)
+      } finally {
+        setWeatherLoading(false)
+      }
+    }
+
+    fetchWeather()
+  }, [fldr?.location, fldr?.venue_info?.address, fldr?.hotel_info?.address])
 
   const saveFldr = useCallback(async (updates: Partial<Fldr>) => {
     if (!fldr) return
@@ -1893,6 +1938,143 @@ export default function FldrDetailPage() {
                   },
                 ].filter(loc => loc.address.trim() !== '')}
               />
+            </div>
+          )}
+        </div>
+
+        {/* Weather Card */}
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <button
+            onClick={() => toggleCard('weather')}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+          >
+            <span className="font-semibold">Weather</span>
+            <ChevronDownIcon
+              className={`w-5 h-5 transition-transform ${
+                expandedCards.weather ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {expandedCards.weather && (
+            <div className="px-4 pb-4">
+              {weatherLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-gray-400 text-sm">Loading weather...</div>
+                </div>
+              )}
+              
+              {weatherError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <p className="text-xs text-red-400">
+                    {weatherError === 'OpenWeather API key not configured' ? (
+                      <>⚠️ Weather requires API key. Add <code className="bg-black/30 px-1 rounded">NEXT_PUBLIC_OPENWEATHER_API_KEY</code> to .env</>
+                    ) : weatherError.includes('not activated') || weatherError.includes('invalid') ? (
+                      <>
+                        ⏳ API key not activated yet. New OpenWeather keys can take up to 2 hours to activate.
+                        <br />
+                        <a 
+                          href="https://home.openweathermap.org/api_keys" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300 underline mt-1 inline-block"
+                        >
+                          Check activation status →
+                        </a>
+                      </>
+                    ) : (
+                      <>⚠️ {weatherError}</>
+                    )}
+                  </p>
+                </div>
+              )}
+              
+              {!weatherLoading && !weatherError && !weatherData && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <p className="text-xs text-yellow-400">
+                    ℹ️ Add a location to see weather forecast
+                  </p>
+                </div>
+              )}
+              
+              {weatherData && (
+                <div className="space-y-4">
+                  {/* Location Info */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-white">
+                        {weatherData.location.name}
+                        {weatherData.location.state && `, ${weatherData.location.state}`}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {weatherData.location.country}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-white">
+                        {weatherData.current.temp}°F
+                      </div>
+                      <div className="text-xs text-gray-400 capitalize">
+                        {weatherData.current.description}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5-Day Forecast */}
+                  <div>
+                    <div className="text-xs text-gray-400 mb-2">5-Day Forecast</div>
+                    <div className="grid grid-cols-5 gap-2">
+                      {weatherData.daily.map((day: any, index: number) => {
+                        const date = new Date(day.date)
+                        const dayName = index === 0 ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' })
+                        const isEventDay = fldr.date_start && fldr.date_end && 
+                          day.date >= fldr.date_start.split('T')[0] && 
+                          day.date <= fldr.date_end.split('T')[0]
+                        
+                        return (
+                          <div 
+                            key={day.date} 
+                            className={`p-2 rounded-lg text-center ${
+                              isEventDay 
+                                ? 'bg-[#3b82f6]/20 border border-[#3b82f6]/30' 
+                                : 'bg-[#0a0a0a] border border-[#2a2a2a]'
+                            }`}
+                          >
+                            <div className="text-xs text-gray-400 mb-1">{dayName}</div>
+                            <img 
+                              src={`https://openweathermap.org/img/wn/${day.icon}.png`}
+                              alt={day.description}
+                              className="w-10 h-10 mx-auto"
+                            />
+                            <div className="text-sm font-semibold">{day.high}°</div>
+                            <div className="text-xs text-gray-500">{day.low}°</div>
+                            {day.pop > 0 && (
+                              <div className="text-xs text-blue-400 mt-1">
+                                {day.pop}%
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Additional Details */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2 bg-[#0a0a0a] rounded-lg text-center">
+                      <div className="text-xs text-gray-400">Humidity</div>
+                      <div className="text-sm font-semibold">{weatherData.current.humidity}%</div>
+                    </div>
+                    <div className="p-2 bg-[#0a0a0a] rounded-lg text-center">
+                      <div className="text-xs text-gray-400">Wind</div>
+                      <div className="text-sm font-semibold">{weatherData.current.wind_speed} mph</div>
+                    </div>
+                    <div className="p-2 bg-[#0a0a0a] rounded-lg text-center">
+                      <div className="text-xs text-gray-400">Feels Like</div>
+                      <div className="text-sm font-semibold">{weatherData.current.feels_like}°F</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

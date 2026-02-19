@@ -603,13 +603,13 @@ ToneProfile {
 
 ---
 
-### Phase 10: Location Context (In Progress)
+### Phase 10: Location Context ✅
 **Goal:** Add maps and weather for trip locations
 
 - [x] Maps integration - tap address to open in maps app
-- [ ] Weather widget showing forecast for trip location/dates
-- [ ] Auto-detect location from Fldr address fields
-- [ ] Weather API integration (OpenWeather or similar)
+- [x] Weather widget showing forecast for trip location/dates
+- [x] Auto-detect location from Fldr address fields
+- [x] Weather API integration (OpenWeather 5-day forecast)
 
 **⚠️ PENDING SETUP:**
 - **Google Maps API Key Required** for address autocomplete
@@ -619,7 +619,13 @@ ToneProfile {
   - Restart dev server after adding
   - **Status:** Key placeholder added to .env, needs actual key
 
-**Milestone:** Trip locations have visual context
+- **OpenWeather API Key Required** for weather forecasts
+  - Get free key from: https://home.openweathermap.org/api_keys
+  - Add to `.env` as: `NEXT_PUBLIC_OPENWEATHER_API_KEY=your_key_here`
+  - Restart dev server after adding
+  - **Status:** Key placeholder added to .env, needs actual key
+
+**Milestone:** Trip locations have visual context ✅
 
 ---
 
@@ -747,6 +753,44 @@ ToneProfile {
 - Full-screen view shows original quality
 - Responsive on mobile and desktop
 - Smooth opacity transition on hover
+
+---
+
+### Weather Forecast Integration ✅
+**Feature:** Real-time weather forecasts for event locations  
+**Data Source:** OpenWeather API (5-day forecast, free tier)
+
+**Functionality:**
+- Automatic location detection from fldr fields (location, venue address, hotel address)
+- Weather card displays collapsible forecast below map
+- 5-day forecast with temperature highs/lows
+- Event days highlighted in blue (matches current date range)
+- Precipitation probability displayed when > 0%
+- Additional details: humidity, wind speed, feels-like temperature
+- Weather icons from OpenWeather
+
+**API Integration:**
+- New route: [src/app/api/weather/route.ts](src/app/api/weather/route.ts)
+- Two-step fetch: Geocoding (location → coordinates) → Weather forecast
+- Properly formatted daily summaries (noon forecast for each day)
+- Error handling for missing API key or location not found
+
+**Setup Required:**
+1. Get free API key from: https://home.openweathermap.org/api_keys
+2. Add to `.env`: `NEXT_PUBLIC_OPENWEATHER_API_KEY=your_key_here`
+3. Restart dev server
+
+**User Experience:**
+- Auto-loads when location is available
+- Shows helpful message when location missing or API key not configured
+- Loading state while fetching
+- Graceful error handling
+- Updates when location changes
+
+**Files Modified:**
+- [src/app/fldr/[id]/page.tsx](src/app/fldr/[id]/page.tsx) - Weather card UI and fetch logic
+- [src/app/api/weather/route.ts](src/app/api/weather/route.ts) - Weather API proxy
+- [.env](.env) - Added NEXT_PUBLIC_OPENWEATHER_API_KEY placeholder
 
 ---
 
