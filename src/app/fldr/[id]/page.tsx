@@ -1269,6 +1269,69 @@ export default function FldrDetailPage() {
     }
   }
 
+  // Pull-to-refresh handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setTouchStartY(e.touches[0].clientY)
+      setIsPulling(true)
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling || window.scrollY > 0) return
+    
+    const currentY = e.touches[0].clientY
+    const distance = currentY - touchStartY
+    
+    if (distance > 0 && distance < 150) {
+      setPullDistance(distance)
+    }
+  }
+
+  const handleTouchEnd = async () => {
+    if (pullDistance > 80) {
+      setIsRefreshing(true)
+      await handleRefresh()
+    }
+    setIsPulling(false)
+    setPullDistance(0)
+    setTouchStartY(0)
+  }
+
+  const handleRefresh = async () => {
+    if (!fldr) return
+    console.log('🔄 Pull-to-refresh: Fetching latest from server...')
+    
+    try {
+      const response = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
+      if (response.ok) {
+        const updated = await response.json()
+        console.log('✅ Refreshed from server, photos:', updated.photos?.length || 0)
+        setFldr(updated)
+        cacheFldr(updated)
+        
+        // Update list cache too
+        try {
+          const listCache = localStorage.getItem('git-fldrs')
+          if (listCache) {
+            const allFldrs = JSON.parse(listCache)
+            const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+            if (index !== -1) {
+              allFldrs[index] = updated
+              localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+            }
+          }
+        } catch (e) {
+          console.error('Failed to update list cache:', e)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   const enableEditMode = () => {
     if (!fldr) return
     setEditTitle(fldr.title)
