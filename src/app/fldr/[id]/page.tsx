@@ -128,6 +128,47 @@ export default function FldrDetailPage() {
     }
   }, [params.id])
 
+  // Auto-refresh when tab comes into focus (for desktop)
+  useEffect(() => {
+    const handleFocus = async () => {
+      if (!fldr || !isOnline()) return
+      console.log('👀 Tab focused - refreshing from server...')
+      
+      try {
+        const response = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
+        if (response.ok) {
+          const updated = await response.json()
+          console.log('✅ Refreshed from server (focus), photos:', updated.photos?.length || 0)
+          setFldr(updated)
+          cacheFldr(updated)
+          
+          // Update list cache too
+          try {
+            const listCache = localStorage.getItem('git-fldrs')
+            if (listCache) {
+              const allFldrs = JSON.parse(listCache)
+              const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+              if (index !== -1) {
+                allFldrs[index] = updated
+                localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+              }
+            }
+          } catch (e) {
+            console.error('Failed to update list cache:', e)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh on focus:', error)
+      }
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [fldr])
+
   // Sync round trip checkbox state with flight segments
   useEffect(() => {
     if (fldr?.flight_info && Array.isArray(fldr.flight_info)) {
@@ -268,6 +309,11 @@ export default function FldrDetailPage() {
     console.log('💾 saveFldr called with updates:', Object.keys(updates))
     if (updates.photos) {
       console.log('📷 Saving photos:', updates.photos.length, 'photos')
+      const photosSize = JSON.stringify(updates.photos).length
+      console.log('📊 Photos JSON size:', (photosSize / 1024).toFixed(2), 'KB')
+      if (photosSize > 500000) {
+        console.warn('⚠️ WARNING: Photos data is large -', (photosSize / 1024).toFixed(2), 'KB')
+      }
     }
     
     try {
@@ -345,6 +391,16 @@ export default function FldrDetailPage() {
               }
             } catch (e) {
               console.error('Failed to update list cache:', e)
+            }
+          } else {
+            // Server returned an error
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+            console.error('❌ Server save failed:', response.status, errorData)
+            // Add to sync queue on server error
+            addToSyncQueue(fldr.id, updates)
+            setHasUnsynced(true)
+            if (updates.photos) {
+              console.log('📷 Photo save failed on server, added to sync queue')
             }
           }
         } catch (error) {
@@ -1443,6 +1499,27 @@ export default function FldrDetailPage() {
               <div className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
               <span className="text-xs text-gray-400">{online ? 'Online' : 'Offline'}</span>
             </div>
+            {/* Refresh button */}
+            {online && !isRefreshing && (
+              <button
+                onClick={async () => {
+                  setIsRefreshing(true)
+                  await handleRefresh()
+                }}
+                className="text-gray-400 hover:text-[#3b82f6] transition-colors"
+                title="Refresh from server"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            )}
+            {isRefreshing && (
+              <svg className="animate-spin h-4 w-4 text-[#3b82f6]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
           </div>
           {saving && (
             <span className="text-xs text-yellow-400">Saving...</span>

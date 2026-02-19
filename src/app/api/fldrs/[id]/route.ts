@@ -139,6 +139,13 @@ export async function PATCH(
   try {
     const updates = await request.json() as Partial<Fldr>
     
+    console.log('📥 PATCH request for fldr:', params.id, 'updates:', Object.keys(updates))
+    if (updates.photos) {
+      console.log('📷 Photos in request:', updates.photos.length)
+      const totalSize = JSON.stringify(updates.photos).length
+      console.log('📊 Photos data size:', (totalSize / 1024).toFixed(2), 'KB')
+    }
+    
     if (D1_ENABLED && useD1) {
       // Cloud-first: Update D1 and fail if it fails
       try {
@@ -146,7 +153,7 @@ export async function PATCH(
         if (!fldr) {
           return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
         }
-        console.log('✅ Fldr updated in D1:', params.id)
+        console.log('✅ Fldr updated in D1:', params.id, 'photos:', fldr.photos?.length || 0)
         return NextResponse.json(fldr)
       } catch (d1Error) {
         console.error('❌ D1 update failed:', d1Error)

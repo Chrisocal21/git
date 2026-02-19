@@ -188,6 +188,19 @@ export async function updateFldr(id: string, updates: Partial<Fldr>): Promise<Fl
   const updated = { ...existing, ...updates };
   const data = JSON.stringify(updated);
   
+  const sizeKB = (data.length / 1024).toFixed(2);
+  console.log(`📊 D1 updateFldr - Total data size: ${sizeKB} KB, photos: ${updated.photos?.length || 0}`);
+  
+  // D1 has a 1MB limit per row - warn if we're getting close
+  if (data.length > 500000) { // 500KB warning
+    console.warn(`⚠️ WARNING: Fldr data size is ${sizeKB} KB - approaching D1 1MB limit!`);
+  }
+  
+  if (data.length > 1000000) { // 1MB hard limit
+    console.error(`❌ ERROR: Fldr data size is ${sizeKB} KB - exceeds D1 1MB limit!`);
+    throw new Error(`Data size ${sizeKB} KB exceeds D1 1MB row limit`);
+  }
+  
   // Update in database with current timestamp
   await queryD1(
     'UPDATE fldrs SET data = ?, updated_at = datetime(\'now\') WHERE id = ?',
