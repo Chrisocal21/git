@@ -24,15 +24,16 @@ export default function FldrPage() {
 
   // Check online status and auto-sync when coming back online
   useEffect(() => {
-    const updateOnlineStatus = async () => {
-      const nowOnline = isOnline()
-      const wasOffline = !online
+    const updateOnlineStatus = () => {
+      setOnline(isOnline())
+    }
+    
+    const handleOnline = async () => {
+      console.log('📡 Connection restored - checking for queued changes...')
+      setOnline(true)
       
-      setOnline(nowOnline)
-      
-      // Auto-sync when coming back online
-      if (nowOnline && wasOffline && hasUnsyncedChanges()) {
-        console.log('📡 Back online - auto-syncing queued changes from list page...')
+      if (hasUnsyncedChanges()) {
+        console.log('📡 Auto-syncing queued changes from list page...')
         const success = await syncQueuedChanges()
         if (success) {
           console.log('✅ Auto-sync complete! Refreshing list...')
@@ -48,18 +49,25 @@ export default function FldrPage() {
             console.error('Failed to refresh after auto-sync:', error)
           }
         }
+      } else {
+        console.log('✅ No queued changes to sync')
       }
     }
     
+    const handleOffline = () => {
+      console.log('📴 Connection lost')
+      setOnline(false)
+    }
+    
     updateOnlineStatus()
-    window.addEventListener('online', updateOnlineStatus)
-    window.addEventListener('offline', updateOnlineStatus)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
     
     return () => {
-      window.removeEventListener('online', updateOnlineStatus)
-      window.removeEventListener('offline', updateOnlineStatus)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
-  }, [online])
+  }, [])
 
   useEffect(() => {
     // Check storage health first

@@ -72,17 +72,19 @@ export default function FldrDetailPage() {
   const [isRoundTrip, setIsRoundTrip] = useState(false)
 
   useEffect(() => {
-    // Check online status and auto-sync when coming back online
-    const updateOnlineStatus = async () => {
-      const nowOnline = isOnline()
-      const wasOffline = !online
-      
-      setOnline(nowOnline)
+    // Update online status
+    const updateOnlineStatus = () => {
+      setOnline(isOnline())
       setHasUnsynced(hasUnsyncedChanges())
+    }
+    
+    // Auto-sync when coming back online
+    const handleOnline = async () => {
+      console.log('📡 Connection restored - checking for queued changes...')
+      setOnline(true)
       
-      // Auto-sync when coming back online
-      if (nowOnline && wasOffline && hasUnsyncedChanges()) {
-        console.log('📡 Back online - auto-syncing queued changes...')
+      if (hasUnsyncedChanges()) {
+        console.log('📡 Auto-syncing queued changes...')
         setSaving(true)
         const success = await syncQueuedChanges()
         if (success) {
@@ -90,13 +92,15 @@ export default function FldrDetailPage() {
           console.log('✅ Auto-sync complete!')
           
           // Refresh from server to get latest data
-          if (fldr) {
+          const currentFldrId = params.id as string
+          if (currentFldrId) {
             try {
-              const response = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
+              const response = await fetch(`/api/fldrs/${currentFldrId}`, { cache: 'no-store' })
               if (response.ok) {
                 const updated = await response.json()
                 setFldr(updated)
                 cacheFldr(updated)
+                console.log('✅ Data refreshed from server')
               }
             } catch (error) {
               console.error('Failed to refresh after auto-sync:', error)
@@ -104,18 +108,25 @@ export default function FldrDetailPage() {
           }
         }
         setSaving(false)
+      } else {
+        console.log('✅ No queued changes to sync')
       }
     }
     
+    const handleOffline = () => {
+      console.log('📴 Connection lost')
+      setOnline(false)
+    }
+    
     updateOnlineStatus()
-    window.addEventListener('online', updateOnlineStatus)
-    window.addEventListener('offline', updateOnlineStatus)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
     
     return () => {
-      window.removeEventListener('online', updateOnlineStatus)
-      window.removeEventListener('offline', updateOnlineStatus)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
-  }, [online, fldr])
+  }, [params.id])
 
   // Sync round trip checkbox state with flight segments
   useEffect(() => {
@@ -252,6 +263,12 @@ export default function FldrDetailPage() {
   const saveFldr = useCallback(async (updates: Partial<Fldr>) => {
     if (!fldr) return
     setSaving(true)
+    
+    console.log('💾 saveFldr called with updates:', Object.keys(updates))
+    if (updates.photos) {
+      console.log('📷 Saving photos:', updates.photos.length, 'photos')
+    }
+    
     try {
       // Check if fldr should be marked as ready/complete
       const updatedFldr = { ...fldr, ...updates }
@@ -281,6 +298,7 @@ export default function FldrDetailPage() {
       setFldr(newFldr)
       cacheFldr(newFldr)
       setLastSaved(new Date())
+      console.log('💾 Updated local cache, fldr now has', newFldr.photos?.length || 0, 'photos')
       
       // Also update the list cache so changes appear on list page
       try {
@@ -299,6 +317,7 @@ export default function FldrDetailPage() {
       
       // If online, save to server
       if (isOnline()) {
+        console.log('🌐 Online - sending PATCH request to server...')
         try {
           const response = await fetch(`/api/fldrs/${fldr.id}`, {
             method: 'PATCH',
@@ -307,6 +326,7 @@ export default function FldrDetailPage() {
           })
           if (response.ok) {
             const updated = await response.json()
+            console.log('✅ Server save successful! Server now has', updated.photos?.length || 0, 'photos')
             setFldr(updated)
             cacheFldr(updated)
             setLastSaved(new Date())
@@ -328,13 +348,21 @@ export default function FldrDetailPage() {
           }
         } catch (error) {
           // If save fails, add to sync queue
+          console.log('⚠️ Server save failed, adding to sync queue:', error)
           addToSyncQueue(fldr.id, updates)
           setHasUnsynced(true)
+          if (updates.photos) {
+            console.log('📷 Photo saved to sync queue, will sync when online')
+          }
         }
       } else {
         // Offline: add to sync queue
+        console.log('📴 Offline - adding changes to sync queue')
         addToSyncQueue(fldr.id, updates)
         setHasUnsynced(true)
+        if (updates.photos) {
+          console.log('📷 Photo saved to sync queue, will sync when online')
+        }
       }
     } catch (error) {
       console.error('Failed to save:', error)
@@ -975,8 +1003,10 @@ export default function FldrDetailPage() {
       uploaded_at: new Date().toISOString(),
     }
     const updated = [...photos, newPhoto]
+    console.log('📷 Adding photo:', { photoId: newPhoto.id, totalPhotos: updated.length })
     setFldr({ ...fldr, photos: updated })
     debouncedSave({ photos: updated })
+    console.log('📷 Photo added to local state, will save in 1 second...')
   }
 
   const updatePhotoCaption = (index: number, caption: string) => {
