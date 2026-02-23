@@ -76,6 +76,11 @@ export default function FldrDetailPage() {
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [weatherError, setWeatherError] = useState<string | null>(null)
   const [locationTime, setLocationTime] = useState<string | null>(null)
+  const [distances, setDistances] = useState<any>(null)
+  const [distancesLoading, setDistancesLoading] = useState(false)
+  const [nearbyPlaces, setNearbyPlaces] = useState<any>(null)
+  const [nearbyLoading, setNearbyLoading] = useState(false)
+  const [nearbyType, setNearbyType] = useState<'restaurant' | 'cafe' | 'gas_station'>('restaurant')
 
   useEffect(() => {
     // Update online status
@@ -386,6 +391,130 @@ export default function FldrDetailPage() {
 
     fetchLocationTime()
   }, [fldr?.location])
+
+  // Fetch distances between key locations
+  useEffect(() => {
+    const fetchDistances = async () => {
+      if (!fldr) return
+      
+      const locations = []
+      if (fldr.hotel_info?.address) locations.push(fldr.hotel_info.address)
+      if (fldr.venue_info?.address) locations.push(fldr.venue_info.address)
+      
+      // Add first outbound flight arrival if available
+      const outboundFlight = fldr.flight_info?.find(f => f.segment_type === 'outbound' || f.segment_type === 'connection')
+      if (outboundFlight?.arrival_address) locations.push(outboundFlight.arrival_address)
+
+      if (locations.length < 2) {
+        setDistances(null)
+        return
+      }
+
+      setDistancesLoading(true)
+
+      try {
+        // Calculate distances from first location to all others
+        const origin = locations[0]
+        const destinations = locations.slice(1).join('|')
+        
+        const response = await fetch(`/api/distance?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destinations)}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch distances')
+        }
+
+        const data = await response.json()
+        setDistances(data)
+      } catch (error) {
+        console.error('Distance fetch error:', error)
+        setDistances(null)
+      } finally {
+        setDistancesLoading(false)
+      }
+    }
+
+    fetchDistances()
+  }, [fldr?.hotel_info?.address, fldr?.venue_info?.address, fldr?.flight_info])
+
+  // Fetch nearby places for venue
+  useEffect(() => {
+    const fetchNearby = async () => {
+      if (!fldr?.venue_info?.address) {
+        setNearbyPlaces(null)
+        return
+      }
+
+      setNearbyLoading(true)
+
+      try {
+        const response = await fetch(`/api/nearby?address=${encodeURIComponent(fldr.venue_info.address)}&type=${nearbyType}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch nearby places')
+        }
+
+        const data = await response.json()
+        setNearbyPlaces(data)
+      } catch (error) {
+        console.error('Nearby search error:', error)
+        setNearbyPlaces(null)
+      } finally {
+        setNearbyLoading(false)
+      }
+    }
+
+    fetchNearby()
+  }, [fldr?.venue_info?.address, nearbyType])
+
+  // Auto-detect timezone using Google API when location changes
+  useEffect(() => {
+    const fetchTimezone = async () => {
+      if (!fldr?.location && !fldr?.venue_info?.address) {
+        setLocationTime(null)
+        return
+      }
+
+      const address = fldr.location || fldr.venue_info?.address
+      if (!address) return
+
+      try {
+        const response = await fetch(`/api/timezone?address=${encodeURIComponent(address)}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch timezone')
+        }
+
+        const data = await response.json()
+        
+        // Update location time with actual timezone-aware time
+        const updateTime = () => {
+          const time = new Date().toLocaleTimeString('en-US', {
+            timeZone: data.timeZoneId,
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })
+          setLocationTime(time)
+        }
+
+        updateTime()
+        const interval = setInterval(updateTime, 60000) // Update every minute
+
+        return () => clearInterval(interval)
+      } catch (error) {
+        console.error('Timezone fetch error:', error)
+        // Fall back to simple display
+        const time = new Date().toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+        setLocationTime(time)
+      }
+    }
+
+    fetchTimezone()
+  }, [fldr?.location, fldr?.venue_info?.address])
 
   const saveFldr = useCallback(async (updates: Partial<Fldr>) => {
     if (!fldr) return
@@ -1894,6 +2023,38 @@ export default function FldrDetailPage() {
               </div>
             )}
 
+            {/* Travel Distances */}
+            {distances && distances.distances && distances.distances.length > 0 && (
+              <div className="p-3 bg-[#0a0a0a] rounded-lg">
+                <div className="font-semibold text-[#3b82f6] mb-2">🚗 Travel Times</div>
+                <div className="space-y-1.5">
+                  {distances.distances.map((dist: any, idx: number) => {
+                    if (dist.error) return null
+                    
+                    // Determine label based on destination
+                    let label = 'Destination'
+                    if (dist.destination.toLowerCase().includes('venue') || fldr.venue_info?.address?.includes(dist.destination)) {
+                      label = 'to Venue'
+                    } else if (dist.destination.toLowerCase().includes('airport') || dist.destination.toLowerCase().includes('san')) {
+                      label = 'to Airport'
+                    }
+                    
+                    return (
+                      <div key={idx} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-400">{label}</span>
+                        <span className="font-medium">
+                          {dist.duration} <span className="text-gray-500">({dist.distance})</span>
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {distancesLoading && (
+                  <div className="text-xs text-gray-500 mt-2">Calculating distances...</div>
+                )}
+              </div>
+            )}
+
             {/* Products */}
             {fldr.products && fldr.products.length > 0 && (
               <div className="p-3 bg-[#0a0a0a] rounded-lg">
@@ -2747,6 +2908,72 @@ export default function FldrDetailPage() {
                     placeholder="Additional venue notes..."
                   />
                 </div>
+
+                {/* Nearby Places */}
+                {fldr.venue_info?.address && (
+                  <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-xs text-gray-400">Nearby</label>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setNearbyType('restaurant')}
+                          className={`text-xs px-2 py-1 rounded transition-colors ${
+                            nearbyType === 'restaurant'
+                              ? 'bg-[#3b82f6] text-white'
+                              : 'bg-[#0a0a0a] text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          🍽️ Food
+                        </button>
+                        <button
+                          onClick={() => setNearbyType('cafe')}
+                          className={`text-xs px-2 py-1 rounded transition-colors ${
+                            nearbyType === 'cafe'
+                              ? 'bg-[#3b82f6] text-white'
+                              : 'bg-[#0a0a0a] text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          ☕ Coffee
+                        </button>
+                        <button
+                          onClick={() => setNearbyType('gas_station')}
+                          className={`text-xs px-2 py-1 rounded transition-colors ${
+                            nearbyType === 'gas_station'
+                              ? 'bg-[#3b82f6] text-white'
+                              : 'bg-[#0a0a0a] text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          ⛽ Gas
+                        </button>
+                      </div>
+                    </div>
+
+                    {nearbyLoading ? (
+                      <div className="text-center py-4 text-sm text-gray-500">Loading nearby places...</div>
+                    ) : nearbyPlaces && nearbyPlaces.places.length > 0 ? (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {nearbyPlaces.places.slice(0, 5).map((place: any, idx: number) => (
+                          <div key={idx} className="p-2 bg-[#0a0a0a] rounded text-xs">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="font-medium">{place.name}</div>
+                                <div className="text-gray-500 text-xs mt-0.5">{place.vicinity}</div>
+                              </div>
+                              <div className="text-right ml-2">
+                                <div className="text-[#3b82f6] font-medium">{place.distance}</div>
+                                {place.rating && (
+                                  <div className="text-yellow-500 text-xs">⭐ {place.rating}</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : nearbyPlaces ? (
+                      <div className="text-center py-4 text-sm text-gray-500">No nearby places found</div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             )}
           </div>

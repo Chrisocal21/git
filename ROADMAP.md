@@ -179,6 +179,9 @@ Point camera → see power outlets, WiFi zones (experimental)
 - ✅ Time Zone Display - San Diego clock always visible + location time (Feb 18)
 - ✅ Waste/Loss Tracking - Track damaged/lost items per product with +/- controls (Feb 22)
 - ✅ Google Maps Autocomplete - Address suggestions ready, just add API key (Feb 22)
+- ✅ Distance Matrix - Auto-show drive times between hotel, venue, airport (Feb 22)
+- ✅ Nearby Search - Find restaurants, coffee shops, gas stations near venue (Feb 22)
+- ✅ Auto Timezone Detection - Automatically detect and show local time at destination (Feb 22)
 
 **Next:** Notes Enhancements or Expenses Module
 

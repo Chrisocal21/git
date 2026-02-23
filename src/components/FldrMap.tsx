@@ -94,7 +94,7 @@ export default function FldrMap({ locations }: FldrMapProps) {
 
   if (loading) {
     return (
-      <div className="h-64 bg-white/5 rounded-lg flex items-center justify-center">
+      <div className="h-64 md:h-96 lg:h-[500px] xl:h-[600px] bg-white/5 rounded-lg flex items-center justify-center">
         <div className="text-white/60">Loading map...</div>
       </div>
     )
@@ -102,7 +102,7 @@ export default function FldrMap({ locations }: FldrMapProps) {
 
   if (geocodedLocations.length === 0) {
     return (
-      <div className="h-64 bg-white/5 rounded-lg flex items-center justify-center">
+      <div className="h-64 md:h-96 lg:h-[500px] xl:h-[600px] bg-white/5 rounded-lg flex items-center justify-center">
         <div className="text-white/60">No valid addresses to display</div>
       </div>
     )
@@ -130,7 +130,7 @@ export default function FldrMap({ locations }: FldrMapProps) {
         )}
       </button>
       
-      <div className={`${isFullscreen ? 'w-full h-full' : 'h-96'} rounded-lg overflow-hidden border border-white/10`}>
+      <div className={`${isFullscreen ? 'w-full h-full' : 'h-64 md:h-96 lg:h-[500px] xl:h-[600px]'} rounded-lg overflow-hidden border border-white/10`}>
         <MapContainer
           center={center}
           zoom={10}

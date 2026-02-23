@@ -1,11 +1,13 @@
 # Google Maps Autocomplete Setup
 
 ## ✅ Code Status
-The address autocomplete feature is **already built** and integrated into:
-- Venue addresses
-- Hotel addresses  
-- Flight departure/arrival addresses
-- Rental car pickup/dropoff locations
+The Google Maps integration is **fully implemented** with:
+- ✅ Address autocomplete (Venue, Hotel, Flight, Rental Car)
+- ✅ Distance Matrix (Travel times between locations)
+- ✅ Nearby Search (Find restaurants, coffee, gas stations)
+- ✅ Auto Timezone Detection (Real local time at destination)
+
+**Just add your API key to activate all features!**
 
 ## 🔑 Get Your API Key
 
@@ -15,6 +17,9 @@ The address autocomplete feature is **already built** and integrated into:
 4. **Enable Required APIs:**
    - Maps JavaScript API
    - Places API
+   - Distance Matrix API
+   - Time Zone API
+   - Geocoding API
 5. (Optional but recommended) Restrict your API key:
    - Application restrictions: HTTP referrers
    - Add your domain(s): `*.vercel.app`, `yourdomain.com`
@@ -50,14 +55,32 @@ The app uses a singleton loader that:
 
 ## 🧪 Testing
 
+**Autocomplete:**
 1. Go to any job/fldr
 2. Edit venue, hotel, or flight info
 3. Start typing an address
 4. You should see autocomplete suggestions appear
 
-If autocomplete doesn't work, check browser console for warnings.
+**Distance Matrix:**
+1. Add hotel and venue addresses to a job
+2. Open the "Job Summary" card
+3. Look for "🚗 Travel Times" section
+4. Should show drive times and distances
+
+**Nearby Search:**
+1. Add a venue address
+2. Scroll to bottom of Venue Info card
+3. Click 🍽️ Food, ☕ Coffee, or ⛽ Gas tabs
+4. Should see nearby places with ratings and distances
+
+**Timezone Detection:**
+1. Add a location or venue address
+2. Check the job header
+3. Should show local time at that location
+
+If any feature doesn't work, check browser console for warnings.
 
 ---
 
 **Time to complete:** ~5 minutes  
-**Status:** ✅ Ship it!
+**Status:** ✅ Full integration complete! (See GOOGLE_MAPS_COMPLETE.md for details)
