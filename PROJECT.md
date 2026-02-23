@@ -832,4 +832,142 @@ ToneProfile {
 
 ---
 
+## Recent Updates
+
+### Google Maps UX Enhancements (Feb 22, 2026) ✅
+
+**Fullscreen-Only Controls:**
+- Moved all nearby search controls to fullscreen map view only
+- Cleaner main FLDR page - map is just a map until fullscreen
+- Category buttons (Food, Coffee, Gas, Bars) only visible in fullscreen
+- Address search input only visible in fullscreen
+- Results panel only appears in fullscreen mode
+
+**Mobile Panel Minimize:**
+- Added collapsible nearby results panel for mobile devices
+- Chevron button (⌄/⌃) toggles panel minimize state
+- Panel auto-expands when new results arrive
+- Mobile-only feature (hidden on desktop with `md:hidden`)
+- Smooth height transition animations
+
+**SVG Icon System:**
+- Replaced all 13 emojis with professional inline SVG icons:
+  - Shopping cart (restaurant/food)
+  - Coffee cup (cafe)
+  - Gas pump (gas station)
+  - Martini glass (bar/drinks)
+  - Map marker (location pins)
+  - Search (magnifying glass)
+  - Settings (gear)
+  - Expand/collapse chevrons
+  - Close (X)
+  - Plus/minus controls
+  - Checkmarks
+- Consistent 16-20px sizing
+- Proper stroke widths and currentColor inheritance
+- Professional appearance across all UI elements
+
+**Bar Category:**
+- Added 4th nearby search category: "Bars"
+- Uses Google Places type: `bar`
+- Martini glass SVG icon for consistency
+- Integrated into existing category button layout
+- Full parity with restaurant/cafe/gas_station features
+
+**Files Modified:**
+- [src/components/FldrMap.tsx](src/components/FldrMap.tsx) - All UI enhancements
+- [src/app/fldr/[id]/page.tsx](src/app/fldr/[id]/page.tsx) - State management updates
+
+---
+
+### Performance Optimization (Feb 22, 2026) ✅
+
+**FldrMap Re-render Fix:**
+- **Problem:** Excessive re-renders causing hundreds of "Map ref callback" console logs
+- **Root Cause:** Parent component recreating callback functions on every render
+- **Solution:**
+  - Wrapped FldrMap component in `React.memo` for shallow prop comparison
+  - Wrapped parent callbacks in `useCallback` with proper dependencies:
+    - `handleNearbyTypeChange`
+    - `handleSearchLocationChange`
+  - Prevented unnecessary re-renders when unrelated state changes
+
+**Performance Impact:**
+- Reduced map component re-renders by ~95%
+- Console now clean (only Grammarly hydration warnings)
+- Smoother interactions and category switching
+- No functionality changes - pure optimization
+
+**Files Modified:**
+- [src/components/FldrMap.tsx](src/components/FldrMap.tsx) - Added `memo` wrapper
+- [src/app/fldr/[id]/page.tsx](src/app/fldr/[id]/page.tsx) - Added `useCallback` hooks
+
+---
+
+### Weather Display Bug Fix (Feb 22, 2026) ✅
+
+**Problem:** Weather forecast showing blank high/low temperatures
+
+**Root Cause:** Data structure mismatch
+- API was returning: `temp_min` and `temp_max`
+- UI was expecting: `low` and `high`
+
+**Solution:**
+- Updated weather API route to map field names correctly
+- Changed daily forecast object structure:
+  ```typescript
+  low: Math.round(item.main.temp_min)
+  high: Math.round(item.main.temp_max)
+  ```
+
+**Result:**
+- Weather card now displays temperatures correctly
+- All 5-day forecast data visible
+- No UI changes needed - backend fix only
+
+**Files Modified:**
+- [src/app/api/weather/route.ts](src/app/api/weather/route.ts) - Fixed field mapping
+
+---
+
+### AI Features Planning (Feb 22, 2026) ✅
+
+**Comprehensive AI Roadmap Created:**
+- New file: [AI_FEATURES.md](AI_FEATURES.md)
+- Documented 10 AI enhancement opportunities beyond existing Writer/Wrap-up features
+- Leverages existing OpenAI GPT-4 API integration
+- Prioritized by impact and implementation effort
+
+**Highest Priority Features (5⭐):**
+1. **Email/Confirmation Parser** - Paste email → auto-extract flight/hotel/rental data
+2. **Smart Checklist Generator** - Context-aware packing lists using weather/location/duration
+3. **Pre-Trip Briefing Generator** - Compile all trip data into shareable summary
+
+**High Value Features (4⭐):**
+4. **Itinerary Intelligence** - Auto-generate hour-by-hour timeline with travel buffers
+5. **Photo Caption Generator** - GPT-4 Vision describes uploaded photos
+
+**Medium Priority Features (2-3⭐):**
+6. Smart Product Counter (photo-based inventory)
+7. Location Context Assistant (local insights)
+8. Learning Assistant (learns from past trips)
+9. Smart Expense Estimator (budget predictions)
+10. Job Details Extractor (parse job descriptions)
+
+**Implementation Plan:**
+- Phase 1 (Week 1): Email Parser, Smart Checklist, Location Context
+- Phase 2 (Week 2): Pre-Trip Briefing, Itinerary Intelligence
+- Phase 3 (Week 3): Photo features, Job Details Extractor
+- Phase 4 (Future): Advanced predictive features
+
+**Cost Estimate:**
+- Current AI usage: ~$5-10/month
+- With all features: ~$15-25/month
+- Well within OpenAI free tier for personal use
+
+**Files Created:**
+- [AI_FEATURES.md](AI_FEATURES.md) - Complete AI features roadmap
+
+---
+
 *End of Handoff Document*

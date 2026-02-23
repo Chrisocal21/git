@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, ReferenceLink, Person, Photo, Product, ChecklistItem } from '@/types/fldr'
@@ -21,11 +21,11 @@ import {
 } from '@/lib/offlineStorage'
 import { logStorageInfo } from '@/lib/storageHealth'
 
-// Dynamic import for map (client-side only, Leaflet doesn't support SSR)
+// Dynamic import for map (client-side only)
 const FldrMap = dynamic(() => import('@/components/FldrMap'), { 
   ssr: false,
   loading: () => (
-    <div className="h-64 bg-white/5 rounded-lg flex items-center justify-center">
+    <div className="h-64 md:h-96 lg:h-[500px] xl:h-[600px] bg-white/5 rounded-lg flex items-center justify-center">
       <div className="text-white/60">Loading map...</div>
     </div>
   )
@@ -43,7 +43,7 @@ export default function FldrDetailPage() {
     hotel: false,
     venue: false,
     rentalCar: false,
-    map: false,
+    map: false, // Closed by default
     weather: false,
     preTrip: false,
     itinerary: false,
@@ -80,7 +80,51 @@ export default function FldrDetailPage() {
   const [distancesLoading, setDistancesLoading] = useState(false)
   const [nearbyPlaces, setNearbyPlaces] = useState<any>(null)
   const [nearbyLoading, setNearbyLoading] = useState(false)
-  const [nearbyType, setNearbyType] = useState<'restaurant' | 'cafe' | 'gas_station'>('restaurant')
+  const [nearbyType, setNearbyType] = useState<'restaurant' | 'cafe' | 'gas_station' | 'bar'>('restaurant')
+  const [searchFromAddress, setSearchFromAddress] = useState<string | undefined>(undefined)
+
+  // Memoize map locations to prevent unnecessary re-renders
+  const mapLocations = useMemo(() => {
+    if (!fldr) return []
+    
+    return [
+      {
+        label: 'Departure Airport',
+        address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].departure_address) || '',
+      },
+      {
+        label: 'Arrival Airport',
+        address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].arrival_address) || '',
+      },
+      {
+        label: 'Hotel',
+        address: fldr.hotel_info?.address || '',
+      },
+      {
+        label: 'Venue',
+        address: fldr.venue_info?.address || '',
+      },
+      {
+        label: 'Rental Car Pickup',
+        address: fldr.rental_car_info?.pickup_location || '',
+      },
+    ].filter(loc => loc.address.trim() !== '')
+  }, [
+    fldr?.flight_info?.[0]?.departure_address,
+    fldr?.flight_info?.[0]?.arrival_address,
+    fldr?.hotel_info?.address,
+    fldr?.venue_info?.address,
+    fldr?.rental_car_info?.pickup_location,
+  ])
+
+  // Memoize map callbacks to prevent FldrMap re-renders
+  const handleNearbyTypeChange = useCallback((type: 'restaurant' | 'cafe' | 'gas_station' | 'bar') => {
+    setNearbyType(type)
+  }, [])
+
+  const handleSearchLocationChange = useCallback((address: string) => {
+    setSearchFromAddress(address)
+  }, [])
 
   useEffect(() => {
     // Update online status
@@ -436,10 +480,13 @@ export default function FldrDetailPage() {
     fetchDistances()
   }, [fldr?.hotel_info?.address, fldr?.venue_info?.address, fldr?.flight_info])
 
-  // Fetch nearby places for venue
+  // Fetch nearby places for selected location
   useEffect(() => {
     const fetchNearby = async () => {
-      if (!fldr?.venue_info?.address) {
+      // Use searchFromAddress if set, otherwise default to venue address
+      const addressToSearch = searchFromAddress || fldr?.venue_info?.address
+      
+      if (!addressToSearch) {
         setNearbyPlaces(null)
         return
       }
@@ -447,7 +494,7 @@ export default function FldrDetailPage() {
       setNearbyLoading(true)
 
       try {
-        const response = await fetch(`/api/nearby?address=${encodeURIComponent(fldr.venue_info.address)}&type=${nearbyType}`)
+        const response = await fetch(`/api/nearby?address=${encodeURIComponent(addressToSearch)}&type=${nearbyType}`)
         
         if (!response.ok) {
           throw new Error('Failed to fetch nearby places')
@@ -464,7 +511,14 @@ export default function FldrDetailPage() {
     }
 
     fetchNearby()
-  }, [fldr?.venue_info?.address, nearbyType])
+  }, [searchFromAddress, fldr?.venue_info?.address, nearbyType])
+
+  // Initialize searchFromAddress with venue address when it becomes available
+  useEffect(() => {
+    if (fldr?.venue_info?.address && !searchFromAddress) {
+      setSearchFromAddress(fldr.venue_info.address)
+    }
+  }, [fldr?.venue_info?.address, searchFromAddress])
 
   // Auto-detect timezone using Google API when location changes
   useEffect(() => {
@@ -2205,7 +2259,7 @@ export default function FldrDetailPage() {
             onClick={() => toggleCard('map')}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
           >
-            <span className="font-semibold">Map</span>
+            <span className="font-semibold">Google Maps & Nearby Places</span>
             <ChevronDownIcon
               className={`w-5 h-5 transition-transform ${
                 expandedCards.map ? 'rotate-180' : ''
@@ -2214,29 +2268,15 @@ export default function FldrDetailPage() {
           </button>
           {expandedCards.map && (
             <div className="px-4 pb-4">
-              <FldrMap
-                locations={[
-                  {
-                    label: 'Departure Airport',
-                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].departure_address) || '',
-                  },
-                  {
-                    label: 'Arrival Airport',
-                    address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].arrival_address) || '',
-                  },
-                  {
-                    label: 'Hotel',
-                    address: fldr.hotel_info?.address || '',
-                  },
-                  {
-                    label: 'Venue',
-                    address: fldr.venue_info?.address || '',
-                  },
-                  {
-                    label: 'Rental Car Pickup',
-                    address: fldr.rental_car_info?.pickup_location || '',
-                  },
-                ].filter(loc => loc.address.trim() !== '')}
+              <FldrMap 
+                locations={mapLocations} 
+                venueAddress={fldr.venue_info?.address ?? undefined}
+                onNearbyTypeChange={handleNearbyTypeChange}
+                onSearchLocationChange={handleSearchLocationChange}
+                nearbyPlaces={nearbyPlaces}
+                nearbyLoading={nearbyLoading}
+                nearbyType={nearbyType}
+                searchFromAddress={searchFromAddress}
               />
             </div>
           )}
@@ -2908,72 +2948,6 @@ export default function FldrDetailPage() {
                     placeholder="Additional venue notes..."
                   />
                 </div>
-
-                {/* Nearby Places */}
-                {fldr.venue_info?.address && (
-                  <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="block text-xs text-gray-400">Nearby</label>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => setNearbyType('restaurant')}
-                          className={`text-xs px-2 py-1 rounded transition-colors ${
-                            nearbyType === 'restaurant'
-                              ? 'bg-[#3b82f6] text-white'
-                              : 'bg-[#0a0a0a] text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          🍽️ Food
-                        </button>
-                        <button
-                          onClick={() => setNearbyType('cafe')}
-                          className={`text-xs px-2 py-1 rounded transition-colors ${
-                            nearbyType === 'cafe'
-                              ? 'bg-[#3b82f6] text-white'
-                              : 'bg-[#0a0a0a] text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          ☕ Coffee
-                        </button>
-                        <button
-                          onClick={() => setNearbyType('gas_station')}
-                          className={`text-xs px-2 py-1 rounded transition-colors ${
-                            nearbyType === 'gas_station'
-                              ? 'bg-[#3b82f6] text-white'
-                              : 'bg-[#0a0a0a] text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          ⛽ Gas
-                        </button>
-                      </div>
-                    </div>
-
-                    {nearbyLoading ? (
-                      <div className="text-center py-4 text-sm text-gray-500">Loading nearby places...</div>
-                    ) : nearbyPlaces && nearbyPlaces.places.length > 0 ? (
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {nearbyPlaces.places.slice(0, 5).map((place: any, idx: number) => (
-                          <div key={idx} className="p-2 bg-[#0a0a0a] rounded text-xs">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="font-medium">{place.name}</div>
-                                <div className="text-gray-500 text-xs mt-0.5">{place.vicinity}</div>
-                              </div>
-                              <div className="text-right ml-2">
-                                <div className="text-[#3b82f6] font-medium">{place.distance}</div>
-                                {place.rating && (
-                                  <div className="text-yellow-500 text-xs">⭐ {place.rating}</div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : nearbyPlaces ? (
-                      <div className="text-center py-4 text-sm text-gray-500">No nearby places found</div>
-                    ) : null}
-                  </div>
-                )}
               </div>
             )}
           </div>

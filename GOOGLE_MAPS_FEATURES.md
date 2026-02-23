@@ -4,13 +4,15 @@ You already have the API key set up for autocomplete. Here's what else you can d
 
 ## 🗺️ Currently Using
 
-### OpenStreetMap (Leaflet)
-Your maps currently use **OpenStreetMap** via Leaflet:
-- ✅ **Free** (no API key needed)
-- ✅ Works great for basic pin drops
-- ❌ Limited features compared to Google Maps
+### Google Maps JavaScript API ✅ (UPDATED Feb 22)
+Your maps now use **Google Maps** instead of OpenStreetMap:
+- ✅ **No CORS issues** - Works on production/Vercel
+- ✅ **Custom dark theme** - Matches your app design
+- ✅ **Better geocoding** - More accurate coordinates
+- ✅ **Faster performance** - Native Google infrastructure
+- ✅ **Enhanced features** - Ready for Street View, satellite, traffic
 
-### Google Maps Autocomplete
+### Google Maps Autocomplete ✅
 - ✅ Already implemented
 - ✅ Address suggestions as you type
 - ✅ Geocoding built-in
@@ -118,25 +120,14 @@ Get time zone for any location:
 
 ## 💡 Recommended Quick Wins for GIT
 
-### Option 1: **Switch to Google Maps** (30 mins)
-Replace Leaflet with Google Maps JavaScript for better UX:
-- Better mobile performance
-- Satellite view toggle
-- Street View integration
-- Consistent with autocomplete
+### Option 1: ~~**Switch to Google Maps**~~ ✅ DONE (Feb 22)
+Already using Google Maps JavaScript for better UX!
 
-### Option 2: **Add Distance/Time Display** (45 mins)
-Use Distance Matrix API:
-- Show "15 min drive" between hotel and venue
-- Display total trip mileage
-- Estimate commute times
+### Option 2: **Add Distance/Time Display** ✅ DONE (Feb 22)
+Already showing drive times between locations!
 
-### Option 3: **Nearby Amenities** (1 hour)
-Add "nearby" section to venue card:
-- Coffee shops
-- Restaurants
-- Gas stations
-- Parking lots
+### Option 3: **Nearby Amenities** ✅ DONE (Feb 22)
+Already have nearby search for restaurants, coffee, gas!
 
 ### Option 4: **Street View Preview** (30 mins)
 Add Street View embed to venue:
@@ -159,16 +150,22 @@ With **$200/month free tier**, you could do:
 
 ## 🎯 My Recommendation
 
-**Start with:** Switch to Google Maps for the map display
-**Why:** 
-- You already have the API key
-- Better UX than OpenStreetMap
-- Sets you up for Street View and other features
-- Still free for your usage
+**Already Done:** ✅ Switched to Google Maps for map display (Feb 22)
+**Why:** Better UX, no CORS issues, dark theme, sets up for advanced features
 
-**Then add:** Distance Matrix for hotel ↔ venue ↔ airport travel times
-**Why:** Instant value, easy to implement, shows trip logistics at a glance
+**Next Add:** Street View Preview for venues (30 mins)
+**Why:** 
+- Preview venue entrance before arriving
+- Great for unfamiliar locations
+- Easy button click to activate
+- Helps scout setup areas remotely
+
+**Then Add:** Distance Matrix already added! ✅
+**Other Quick Wins:**
+- Parking nearby search (add "parking" type to nearby search) - 15 mins
+- Walking directions overlay - 45 mins
 
 ---
 
-Want me to implement any of these? The map switch and distance matrix would both be quick wins.
+**Already Implemented:** Map switch, Distance Matrix, Nearby Search, Auto Timezone! 🎉  
+Want me to add Street View or any other features?

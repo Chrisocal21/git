@@ -182,7 +182,15 @@ Point camera → see power outlets, WiFi zones (experimental)
 - ✅ Distance Matrix - Auto-show drive times between hotel, venue, airport (Feb 22)
 - ✅ Nearby Search - Find restaurants, coffee shops, gas stations near venue (Feb 22)
 - ✅ Auto Timezone Detection - Automatically detect and show local time at destination (Feb 22)
+- ✅ Google Maps Integration - Switched map from OpenStreetMap to Google Maps (fixes CORS, dark theme) (Feb 22)
+- ✅ Google Maps Fullscreen-Only - Moved nearby search controls to fullscreen map view only (Feb 22)
+- ✅ Mobile Panel Minimize - Added collapsible nearby results panel with chevron button for mobile (Feb 22)
+- ✅ SVG Icon System - Replaced all emojis with professional SVG icons (13 icons) (Feb 22)
+- ✅ Bar Category - Added 4th nearby search category for bars/drinks with martini glass icon (Feb 22)
+- ✅ Performance Optimization - Fixed FldrMap excessive re-renders with React.memo + useCallback (Feb 22)
+- ✅ Weather Bug Fix - Fixed temperature display data structure (low/high fields) (Feb 22)
+- ✅ AI Features Planning - Created comprehensive AI_FEATURES.md roadmap with 10 enhancement opportunities (Feb 22)
 
-**Next:** Notes Enhancements or Expenses Module
+**Next:** Notes Enhancements, Expenses Module, or AI Features (Email Parser, Smart Checklist)
 
 *Updated: February 22, 2026*

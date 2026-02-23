@@ -21,26 +21,38 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // First, geocode the address to get coordinates
-    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`
-    
-    const geocodeResponse = await fetch(geocodeUrl)
-    
-    if (!geocodeResponse.ok) {
-      throw new Error(`Geocoding failed: ${geocodeResponse.statusText}`)
+    let lat: number
+    let lng: number
+
+    // Check if address is already in lat,lng format
+    const coordPattern = /^-?\d+\.\d+,\s*-?\d+\.\d+$/
+    if (coordPattern.test(address)) {
+      const [latStr, lngStr] = address.split(',').map(s => s.trim())
+      lat = parseFloat(latStr)
+      lng = parseFloat(lngStr)
+      console.log('Using coordinates directly:', lat, lng)
+    } else {
+      // Geocode the address to get coordinates
+      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`
+      
+      const geocodeResponse = await fetch(geocodeUrl)
+      
+      if (!geocodeResponse.ok) {
+        throw new Error(`Geocoding failed: ${geocodeResponse.statusText}`)
+      }
+
+      const geocodeData = await geocodeResponse.json()
+
+      if (geocodeData.status !== 'OK' || !geocodeData.results.length) {
+        return NextResponse.json({ 
+          error: 'Could not geocode address'
+        }, { status: 404 })
+      }
+
+      const location = geocodeData.results[0].geometry.location
+      lat = location.lat
+      lng = location.lng
     }
-
-    const geocodeData = await geocodeResponse.json()
-
-    if (geocodeData.status !== 'OK' || !geocodeData.results.length) {
-      return NextResponse.json({ 
-        error: 'Could not geocode address'
-      }, { status: 404 })
-    }
-
-    const location = geocodeData.results[0].geometry.location
-    const lat = location.lat
-    const lng = location.lng
 
     // Now search for nearby places
     const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=${type}&key=${apiKey}`

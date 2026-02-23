@@ -64,7 +64,8 @@ class GoogleMapsLoader {
       // Create new script
       const script = document.createElement('script')
       
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`
+      // Only load places library - geocoding is done server-side via /api/timezone
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async&v=weekly`
       script.async = true
       script.defer= true
 
