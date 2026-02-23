@@ -1175,6 +1175,7 @@ export default function FldrDetailPage() {
       name: '',
       quantity: 1,
       notes: null,
+      waste: 0,
     }
     const updated = [...products, newProduct]
     setFldr({ ...fldr, products: updated })
@@ -1184,7 +1185,17 @@ export default function FldrDetailPage() {
   const updateProduct = (index: number, field: keyof Product, value: any) => {
     if (!fldr?.products) return
     const products = [...fldr.products]
-    products[index] = { ...products[index], [field]: field === 'quantity' ? Number(value) : (value || null) }
+    products[index] = { ...products[index], [field]: (field === 'quantity' || field === 'waste') ? Number(value) : (value || null) }
+    setFldr({ ...fldr, products })
+    debouncedSave({ products })
+  }
+
+  const adjustWaste = (index: number, delta: number) => {
+    if (!fldr?.products) return
+    const products = [...fldr.products]
+    const currentWaste = products[index].waste || 0
+    const newWaste = Math.max(0, Math.min(products[index].quantity, currentWaste + delta))
+    products[index] = { ...products[index], waste: newWaste }
     setFldr({ ...fldr, products })
     debouncedSave({ products })
   }
@@ -1495,7 +1506,7 @@ export default function FldrDetailPage() {
         checklist: fldr.checklist ? JSON.parse(JSON.stringify(fldr.checklist)).map((item: ChecklistItem) => ({ ...item, completed: false })) : null,
         people: fldr.people ? JSON.parse(JSON.stringify(fldr.people)) : null,
         photos: null, // Don't copy photos
-        products: fldr.products ? JSON.parse(JSON.stringify(fldr.products)) : null,
+        products: fldr.products ? JSON.parse(JSON.stringify(fldr.products)).map((p: Product) => ({ ...p, waste: 0 })) : null,
         notes: fldr.notes || '',
         wrap_up: null, // Don't copy wrap-up
         polished_messages: []
@@ -1887,14 +1898,26 @@ export default function FldrDetailPage() {
             {fldr.products && fldr.products.length > 0 && (
               <div className="p-3 bg-[#0a0a0a] rounded-lg">
                 <div className="font-semibold text-[#3b82f6] mb-2">
-                  Products ({fldr.products.reduce((sum, p) => sum + p.quantity, 0)} total items)
+                  Products ({fldr.products.reduce((sum, p) => sum + p.quantity, 0)} total, {fldr.products.reduce((sum, p) => sum + (p.waste || 0), 0)} wasted)
                 </div>
-                {fldr.products.map((product, idx) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>{product.name}</span>
-                    <span className="text-gray-400">×{product.quantity}</span>
-                  </div>
-                ))}
+                {fldr.products.map((product, idx) => {
+                  const waste = product.waste || 0
+                  const available = product.quantity - waste
+                  return (
+                    <div key={idx} className="flex justify-between items-center">
+                      <span>{product.name}</span>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-gray-400">×{product.quantity}</span>
+                        {waste > 0 && (
+                          <>
+                            <span className="text-red-400/60">(-{waste})</span>
+                            <span className="text-green-400 font-medium">{available} left</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
 
@@ -3531,9 +3554,33 @@ export default function FldrDetailPage() {
             </div>
             {expandedCards.products && (
               <div className="px-4 pb-4 space-y-3">
-                <div className="flex items-center justify-between mb-2">
+                {/* Summary Stats */}
+                <div className="p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-xs text-gray-400">Total</div>
+                      <div className="text-lg font-bold text-white">
+                        {(fldr.products || []).reduce((sum, p) => sum + p.quantity, 0)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400">Wasted</div>
+                      <div className="text-lg font-bold text-red-400">
+                        {(fldr.products || []).reduce((sum, p) => sum + (p.waste || 0), 0)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400">Available</div>
+                      <div className="text-lg font-bold text-green-400">
+                        {(fldr.products || []).reduce((sum, p) => sum + (p.quantity - (p.waste || 0)), 0)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400">
-                    {(fldr.products || []).reduce((sum, p) => sum + p.quantity, 0)} total items
+                    Track waste with +/− buttons
                   </span>
                   <button
                     onClick={addProduct}
@@ -3542,44 +3589,74 @@ export default function FldrDetailPage() {
                     + Add Product
                   </button>
                 </div>
-                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
-                  <p className="text-xs text-blue-400">
-                    ℹ️ Products added here automatically appear in Job Summary and Job Info sections
-                  </p>
-                </div>
-                {(fldr.products || []).map((product, index) => (
-                  <div key={product.id} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
-                    <div className="flex items-start gap-2">
+
+                {(fldr.products || []).map((product, index) => {
+                  const waste = product.waste || 0
+                  const available = product.quantity - waste
+                  return (
+                    <div key={product.id} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
+                      {/* Product Name & Quantity Row */}
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="text"
+                          value={product.name}
+                          onChange={(e) => updateProduct(index, 'name', e.target.value)}
+                          className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm font-medium"
+                          placeholder="Product name"
+                        />
+                        <input
+                          type="number"
+                          min="1"
+                          value={product.quantity}
+                          onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
+                          className="w-20 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm text-center"
+                        />
+                        <button
+                          onClick={() => removeProduct(index)}
+                          className="px-2 text-red-500 hover:text-red-400"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {/* Waste Tracking Row */}
+                      <div className="flex items-center gap-2 p-2 bg-[#1a1a1a] rounded-lg">
+                        <span className="text-xs text-gray-400 flex-shrink-0">Waste:</span>
+                        <button
+                          onClick={() => adjustWaste(index, -1)}
+                          disabled={waste === 0}
+                          className="w-8 h-8 flex items-center justify-center rounded bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg font-bold"
+                        >
+                          −
+                        </button>
+                        <div className="flex-1 flex items-center justify-center gap-2">
+                          <span className="text-sm font-mono text-red-400">{waste}</span>
+                          <span className="text-xs text-gray-500">/</span>
+                          <span className="text-sm font-mono text-gray-400">{product.quantity}</span>
+                        </div>
+                        <button
+                          onClick={() => adjustWaste(index, 1)}
+                          disabled={waste >= product.quantity}
+                          className="w-8 h-8 flex items-center justify-center rounded bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg font-bold"
+                        >
+                          +
+                        </button>
+                        <div className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 font-medium ml-2">
+                          {available} left
+                        </div>
+                      </div>
+
+                      {/* Notes Row */}
                       <input
                         type="text"
-                        value={product.name}
-                        onChange={(e) => updateProduct(index, 'name', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm font-medium"
-                        placeholder="Product name"
+                        value={product.notes || ''}
+                        onChange={(e) => updateProduct(index, 'notes', e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                        placeholder="Notes (optional)"
                       />
-                      <input
-                        type="number"
-                        min="1"
-                        value={product.quantity}
-                        onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
-                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm text-center"
-                      />
-                      <button
-                        onClick={() => removeProduct(index)}
-                        className="px-2 text-red-500 hover:text-red-400"
-                      >
-                        ×
-                      </button>
                     </div>
-                    <input
-                      type="text"
-                      value={product.notes || ''}
-                      onChange={(e) => updateProduct(index, 'notes', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                      placeholder="Notes (optional)"
-                    />
-                  </div>
-                ))}
+                  )
+                })}
                 {(fldr.products || []).length === 0 && (
                   <p className="text-xs text-gray-500 py-2">No products yet</p>
                 )}

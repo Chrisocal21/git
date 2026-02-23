@@ -5,10 +5,10 @@
 
 ## 🎯 Core Project - Still Needed
 
-### Waste/Loss Tracking Module
+### Waste/Loss Tracking Module ✅
 **Why:** Track materials lost/wasted during jobs  
 **What:** Quantity lost, reason/context, cost impact, aggregated view  
-**Status:** Planned from original spec
+**Status:** Shipped - +/- controls on each product, live summary stats (Feb 22)
 
 ### Notes Enhancements
 **Why:** Better note-taking experience  
@@ -21,11 +21,11 @@
 **Where:** Prod tab or side menu  
 **Status:** Planned workspace feature
 
-### Google Maps Autocomplete
+### Google Maps Autocomplete ✅
 **Why:** Faster address entry  
 **What:** Address autocomplete when typing  
 **Setup:** Need to add API key to Vercel  
-**Status:** Code ready, needs API key
+**Status:** Shipped - Code ready, just add API key (see GOOGLE_MAPS_SETUP.md)
 
 ---
 
@@ -150,8 +150,9 @@ Point camera → see power outlets, WiFi zones (experimental)
 **Do Now:**
 1. ~~Duplicate Job~~ ✅ Shipped
 2. ~~Time Zone Display~~ ✅ Shipped
-3. Waste/Loss Tracking (core project)
-4. Expenses Module (essential, high value)
+3. ~~Waste/Loss Tracking~~ ✅ Shipped (Feb 22)
+4. ~~Google Maps Autocomplete~~ ✅ Ready (just add API key)
+5. Expenses Module (essential, high value)
 
 **Do Next:**
 5. Notes Enhancements (core project)
@@ -176,7 +177,9 @@ Point camera → see power outlets, WiFi zones (experimental)
 **Latest Ships:**
 - ✅ Duplicate Job - Copy any job with one click (Feb 18)
 - ✅ Time Zone Display - San Diego clock always visible + location time (Feb 18)
+- ✅ Waste/Loss Tracking - Track damaged/lost items per product with +/- controls (Feb 22)
+- ✅ Google Maps Autocomplete - Address suggestions ready, just add API key (Feb 22)
 
-**Next:** Waste/Loss Tracking or Expenses Module
+**Next:** Notes Enhancements or Expenses Module
 
-*Updated: February 18, 2026*
+*Updated: February 22, 2026*

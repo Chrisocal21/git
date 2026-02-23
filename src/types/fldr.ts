@@ -104,6 +104,7 @@ export interface Product {
   name: string
   quantity: number
   notes: string | null
+  waste: number // Quantity lost/damaged/wasted
 }
 
 export interface Fldr {
