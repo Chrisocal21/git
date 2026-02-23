@@ -50,6 +50,7 @@ declare global {
         setMap(map: Map | null): void
         setPosition(position: LatLng | { lat: number; lng: number }): void
         getPosition(): LatLng | undefined
+        addListener(event: string, handler: () => void): void
       }
 
       interface InfoWindowOptions {
