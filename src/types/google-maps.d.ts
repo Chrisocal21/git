@@ -52,6 +52,19 @@ declare global {
         getPosition(): LatLng | undefined
       }
 
+      interface InfoWindowOptions {
+        content?: string | HTMLElement
+        position?: LatLng | { lat: number; lng: number }
+        maxWidth?: number
+      }
+
+      class InfoWindow {
+        constructor(options?: InfoWindowOptions)
+        open(map?: Map, anchor?: Marker): void
+        close(): void
+        setContent(content: string | HTMLElement): void
+      }
+
       class Geocoder {
         geocode(
           request: { address: string },
