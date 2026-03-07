@@ -2210,7 +2210,9 @@ export default function FldrDetailPage() {
         products: fldr.products ? JSON.parse(JSON.stringify(fldr.products)).map((p: Product) => ({ ...p, waste: 0 })) : null,
         notes: fldr.notes || '',
         wrap_up: null, // Don't copy wrap-up
-        polished_messages: []
+        polished_messages: [],
+        ai_itinerary_items: null, // Don't copy AI-generated content
+        ai_itinerary_overview: null // Don't copy AI-generated content
       }
       
       const response = await fetch('/api/fldrs', {
