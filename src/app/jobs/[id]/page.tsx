@@ -1552,6 +1552,8 @@ export default function FldrDetailPage() {
       type: string
       title: string
       details: string[]
+      isAI?: boolean
+      personalized?: boolean
     }
 
     const events: ItineraryEvent[] = []
