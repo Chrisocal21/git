@@ -48,6 +48,8 @@ export const fldrStore = {
       notes: '',
       wrap_up: null,
       polished_messages: [],
+      ai_itinerary_items: null,
+      ai_itinerary_overview: null,
       created_at: now,
       updated_at: now,
     }

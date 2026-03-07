@@ -132,8 +132,8 @@ export async function POST(request: Request) {
         job_info: null,
         wrap_up: null,
         polished_messages: [],
-        ai_itinerary_items: [],
-        ai_itinerary_overview: '',
+        ai_itinerary_items: null,
+        ai_itinerary_overview: null,
         created_at: trip.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
