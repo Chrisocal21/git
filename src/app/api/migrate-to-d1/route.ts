@@ -32,14 +32,14 @@ export async function POST(request: NextRequest) {
       try {
         await upsertFldr(fldr)
         results.success.push(fldr.id)
-        console.log('✅ Migrated fldr to D1:', fldr.id)
+        console.log('[Migration] Migrated fldr to D1:', fldr.id)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
         results.failed.push({
           id: fldr.id,
           error: errorMsg
         })
-        console.error('❌ Failed to migrate fldr:', fldr.id)
+        console.error('[Migration] Failed to migrate fldr:', fldr.id)
         console.error('   Error details:', errorMsg)
         // Log full error object for debugging
         if (error instanceof Error && error.stack) {

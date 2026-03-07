@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fldrStore } from '@/lib/store'
-import { Fldr, FlightSegment } from '@/types/fldr'
+import { Fldr, FlightSegment, AIItineraryItem } from '@/types/fldr'
 import { getFldrById, updateFldr, deleteFldr } from '@/lib/d1'
 
 // Check if D1 is configured
@@ -59,6 +59,9 @@ function normalizeFldr(fldr: any): Fldr {
     products: fldr.products === undefined ? null : (Array.isArray(fldr.products) ? fldr.products : null),
     polished_messages: Array.isArray(fldr.polished_messages) ? fldr.polished_messages : [],
     attending: fldr.attending ?? false,
+    // AI-generated content
+    ai_itinerary_items: fldr.ai_itinerary_items === undefined ? null : (Array.isArray(fldr.ai_itinerary_items) ? fldr.ai_itinerary_items : null),
+    ai_itinerary_overview: fldr.ai_itinerary_overview ?? null,
   }
 
   return normalizedFldr
@@ -84,7 +87,7 @@ export async function GET(
       )
       
       if (needsUpdate) {
-        console.log(`💾 Saving normalized data back to D1 for fldr ${params.id}`)
+        console.log(`[D1] Saving normalized data back to D1 for fldr ${params.id}`)
         await updateFldr(params.id, normalized)
       }
       
@@ -139,11 +142,11 @@ export async function PATCH(
   try {
     const updates = await request.json() as Partial<Fldr>
     
-    console.log('📥 PATCH request for fldr:', params.id, 'updates:', Object.keys(updates))
+    console.log('[API] PATCH request for fldr:', params.id, 'updates:', Object.keys(updates))
     if (updates.photos) {
-      console.log('📷 Photos in request:', updates.photos.length)
+      console.log('[API] Photos in request:', updates.photos.length)
       const totalSize = JSON.stringify(updates.photos).length
-      console.log('📊 Photos data size:', (totalSize / 1024).toFixed(2), 'KB')
+      console.log('[D1] Photos data size:', (totalSize / 1024).toFixed(2), 'KB')
     }
     
     if (D1_ENABLED && useD1) {
@@ -153,10 +156,10 @@ export async function PATCH(
         if (!fldr) {
           return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
         }
-        console.log('✅ Fldr updated in D1:', params.id, 'photos:', fldr.photos?.length || 0)
+        console.log('[D1] Fldr updated in D1:', params.id, 'photos:', fldr.photos?.length || 0)
         return NextResponse.json(fldr)
       } catch (d1Error) {
-        console.error('❌ D1 update failed:', d1Error)
+        console.error('[D1] D1 update failed:', d1Error)
         return NextResponse.json(
           { error: 'Failed to update cloud storage' },
           { status: 500 }

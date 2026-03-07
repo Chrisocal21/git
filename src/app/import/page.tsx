@@ -99,7 +99,7 @@ export default function ImportPage() {
   };
 
   const handleRefresh = async () => {
-    console.log('🔄 Pull-to-refresh triggered on import page');
+    console.log('[Refresh] Pull-to-refresh triggered on import page');
     
     // Check for service worker updates
     if ('serviceWorker' in navigator) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fldrStore } from '@/lib/store'
-import { NewFldr, Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo } from '@/types/fldr'
+import { NewFldr, Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, AIItineraryItem } from '@/types/fldr'
 import { getAllFldrs, createFldr, updateFldr } from '@/lib/d1'
 
 // Check if D1 is configured
@@ -8,7 +8,7 @@ const useD1 = process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_DATABA
 // Temporarily disable D1 until table is confirmed working
 const D1_ENABLED = process.env.D1_ENABLED === 'true'
 
-console.log('🗄️ D1 Configuration:', {
+console.log('[D1] Configuration:', {
   hasCredentials: !!useD1,
   enabled: D1_ENABLED,
   mode: D1_ENABLED && useD1 ? 'D1 + localStorage' : 'localStorage only'
@@ -69,6 +69,9 @@ function normalizeFldr(fldr: any): Fldr {
     products: fldr.products === undefined ? null : (Array.isArray(fldr.products) ? fldr.products : null),
     polished_messages: Array.isArray(fldr.polished_messages) ? fldr.polished_messages : [],
     attending: fldr.attending ?? false,
+    // AI-generated content
+    ai_itinerary_items: fldr.ai_itinerary_items === undefined ? null : (Array.isArray(fldr.ai_itinerary_items) ? fldr.ai_itinerary_items : null),
+    ai_itinerary_overview: fldr.ai_itinerary_overview ?? null,
   }
 
   return normalizedFldr
@@ -84,7 +87,7 @@ export async function GET() {
   if (D1_ENABLED && useD1) {
     try {
       let d1Fldrs = await getAllFldrs()
-      console.log(`✅ Loaded ${d1Fldrs.length} fldrs from D1`)
+      console.log(`[D1] Loaded ${d1Fldrs.length} fldrs from D1`)
       
       // Normalize all fldrs and save back if changes were made
       const normalizedFldrs = await Promise.all(d1Fldrs.map(async (fldr) => {
@@ -97,7 +100,7 @@ export async function GET() {
         )
         
         if (needsUpdate) {
-          console.log(`💾 Saving normalized data back to D1 for fldr ${fldr.id}`)
+          console.log(`[D1] Saving normalized data back to D1 for fldr ${fldr.id}`)
           await updateFldr(fldr.id, normalized)
         }
         
@@ -106,7 +109,7 @@ export async function GET() {
       
       return NextResponse.json(normalizedFldrs)
     } catch (error) {
-      console.error('❌ D1 fetch failed, using memory:', error)
+      console.error('[D1] D1 fetch failed, using memory:', error)
     }
   }
   
@@ -139,9 +142,9 @@ export async function POST(request: NextRequest) {
       // Cloud-first: Save to D1 and fail if it fails
       try {
         await createFldr(fldr)
-        console.log('✅ Fldr saved to D1:', fldr.id)
+        console.log('[D1] Fldr saved to D1:', fldr.id)
       } catch (d1Error) {
-        console.error('❌ D1 save failed:', d1Error)
+        console.error('[D1] D1 save failed:', d1Error)
         return NextResponse.json(
           { error: 'Failed to save to cloud storage' },
           { status: 500 }

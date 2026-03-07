@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       }));
 
       const packingChecklistItems: ChecklistItem[] = packingItems.map((item: any) => ({
-        item: `📦 ${item.name || item.item || item.text || ''}`,
+        item: `PACK: ${item.name || item.item || item.text || ''}`,
         completed: item.packed || item.completed || item.checked || false,
       }));
 

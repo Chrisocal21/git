@@ -5,107 +5,114 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { FlightSegment } from '@/types/fldr'
 
-// Airport coordinates database - Major US Airports
-const AIRPORT_COORDS: Record<string, [number, number]> = {
+// Airport coordinates and location database - Major US Airports
+interface AirportInfo {
+  coords: [number, number]
+  city: string
+  state: string
+  name: string
+}
+
+const AIRPORT_INFO: Record<string, AirportInfo> = {
   // Major Hubs
-  'ATL': [33.6407, -84.4277],   // Atlanta Hartsfield-Jackson
-  'ORD': [41.9742, -87.9073],   // Chicago O'Hare
-  'DFW': [32.8998, -97.0403],   // Dallas/Fort Worth
-  'DEN': [39.8561, -104.6737],  // Denver International
-  'LAX': [33.9416, -118.4085],  // Los Angeles International
-  'JFK': [40.6413, -73.7781],   // New York JFK
-  'SFO': [37.6213, -122.3790],  // San Francisco International
+  'ATL': { coords: [33.6407, -84.4277], city: 'Atlanta', state: 'GA', name: 'Hartsfield-Jackson' },
+  'ORD': { coords: [41.9742, -87.9073], city: 'Chicago', state: 'IL', name: "O'Hare" },
+  'DFW': { coords: [32.8998, -97.0403], city: 'Dallas', state: 'TX', name: 'Dallas/Fort Worth' },
+  'DEN': { coords: [39.8561, -104.6737], city: 'Denver', state: 'CO', name: 'International' },
+  'LAX': { coords: [33.9416, -118.4085], city: 'Los Angeles', state: 'CA', name: 'International' },
+  'JFK': { coords: [40.6413, -73.7781], city: 'New York', state: 'NY', name: 'JFK' },
+  'SFO': { coords: [37.6213, -122.3790], city: 'San Francisco', state: 'CA', name: 'International' },
   
   // Northeast
-  'BOS': [42.3656, -71.0096],   // Boston Logan
-  'EWR': [40.6895, -74.1745],   // Newark Liberty
-  'LGA': [40.7769, -73.8740],   // New York LaGuardia
-  'PHL': [39.8729, -75.2437],   // Philadelphia International
-  'BWI': [39.1774, -76.6684],   // Baltimore/Washington
-  'IAD': [38.9531, -77.4565],   // Washington Dulles
-  'DCA': [38.8521, -77.0377],   // Washington Reagan National
-  'BDL': [41.9389, -72.6832],   // Hartford Bradley
-  'PVD': [41.7240, -71.4281],   // Providence
-  'BUF': [42.9405, -78.7322],   // Buffalo Niagara
-  'ROC': [43.1189, -77.6724],   // Rochester
-  'SYR': [43.1112, -76.1063],   // Syracuse
-  'ALB': [42.7483, -73.8017],   // Albany International
-  'MHT': [42.9326, -71.4357],   // Manchester-Boston Regional
-  'PIT': [40.4915, -80.2329],   // Pittsburgh International
+  'BOS': { coords: [42.3656, -71.0096], city: 'Boston', state: 'MA', name: 'Logan' },
+  'EWR': { coords: [40.6895, -74.1745], city: 'Newark', state: 'NJ', name: 'Liberty' },
+  'LGA': { coords: [40.7769, -73.8740], city: 'New York', state: 'NY', name: 'LaGuardia' },
+  'PHL': { coords: [39.8729, -75.2437], city: 'Philadelphia', state: 'PA', name: 'International' },
+  'BWI': { coords: [39.1774, -76.6684], city: 'Baltimore', state: 'MD', name: 'Washington Int.' },
+  'IAD': { coords: [38.9531, -77.4565], city: 'Washington', state: 'DC', name: 'Dulles' },
+  'DCA': { coords: [38.8521, -77.0377], city: 'Washington', state: 'DC', name: 'Reagan National' },
+  'BDL': { coords: [41.9389, -72.6832], city: 'Hartford', state: 'CT', name: 'Bradley' },
+  'PVD': { coords: [41.7240, -71.4281], city: 'Providence', state: 'RI', name: 'T.F. Green' },
+  'BUF': { coords: [42.9405, -78.7322], city: 'Buffalo', state: 'NY', name: 'Niagara' },
+  'ROC': { coords: [43.1189, -77.6724], city: 'Rochester', state: 'NY', name: 'Int. Airport' },
+  'SYR': { coords: [43.1112, -76.1063], city: 'Syracuse', state: 'NY', name: 'Hancock Int.' },
+  'ALB': { coords: [42.7483, -73.8017], city: 'Albany', state: 'NY', name: 'International' },
+  'MHT': { coords: [42.9326, -71.4357], city: 'Manchester', state: 'NH', name: 'Boston Regional' },
+  'PIT': { coords: [40.4915, -80.2329], city: 'Pittsburgh', state: 'PA', name: 'International' },
   
   // Southeast
-  'MIA': [25.7959, -80.2870],   // Miami International
-  'FLL': [26.0726, -80.1528],   // Fort Lauderdale-Hollywood
-  'MCO': [28.4312, -81.3081],   // Orlando International
-  'TPA': [27.9755, -82.5332],   // Tampa International
-  'RSW': [26.5362, -81.7552],   // Southwest Florida (Fort Myers)
-  'PBI': [26.6832, -80.0956],   // Palm Beach International
-  'JAX': [30.4941, -81.6879],   // Jacksonville International
-  'CLT': [35.2144, -80.9473],   // Charlotte Douglas
-  'RDU': [35.8801, -78.7880],   // Raleigh-Durham
-  'RIC': [37.5052, -77.3197],   // Richmond International
-  'GSO': [36.0978, -79.9373],   // Greensboro Piedmont Triad
-  'SAV': [32.1276, -81.2021],   // Savannah/Hilton Head
-  'CHS': [32.8986, -80.0405],   // Charleston International
-  'MSY': [29.9902, -90.2580],   // New Orleans Louis Armstrong
-  'BNA': [36.1263, -86.6681],   // Nashville International
-  'MEM': [35.0424, -89.9767],   // Memphis International
+  'MIA': { coords: [25.7959, -80.2870], city: 'Miami', state: 'FL', name: 'International' },
+  'FLL': { coords: [26.0726, -80.1528], city: 'Fort Lauderdale', state: 'FL', name: 'Hollywood Int.' },
+  'MCO': { coords: [28.4312, -81.3081], city: 'Orlando', state: 'FL', name: 'International' },
+  'TPA': { coords: [27.9755, -82.5332], city: 'Tampa', state: 'FL', name: 'International' },
+  'RSW': { coords: [26.5362, -81.7552], city: 'Fort Myers', state: 'FL', name: 'Southwest Florida' },
+  'PBI': { coords: [26.6832, -80.0956], city: 'West Palm Beach', state: 'FL', name: 'International' },
+  'JAX': { coords: [30.4941, -81.6879], city: 'Jacksonville', state: 'FL', name: 'International' },
+  'CLT': { coords: [35.2144, -80.9473], city: 'Charlotte', state: 'NC', name: 'Douglas' },
+  'RDU': { coords: [35.8801, -78.7880], city: 'Raleigh-Durham', state: 'NC', name: 'Int. Airport' },
+  'RIC': { coords: [37.5052, -77.3197], city: 'Richmond', state: 'VA', name: 'International' },
+  'GSO': { coords: [36.0978, -79.9373], city: 'Greensboro', state: 'NC', name: 'Piedmont Triad' },
+  'SAV': { coords: [32.1276, -81.2021], city: 'Savannah', state: 'GA', name: 'Hilton Head Int.' },
+  'CHS': { coords: [32.8986, -80.0405], city: 'Charleston', state: 'SC', name: 'International' },
+  'MSY': { coords: [29.9902, -90.2580], city: 'New Orleans', state: 'LA', name: 'Louis Armstrong' },
+  'BNA': { coords: [36.1263, -86.6681], city: 'Nashville', state: 'TN', name: 'International' },
+  'MEM': { coords: [35.0424, -89.9767], city: 'Memphis', state: 'TN', name: 'International' },
   
   // Midwest
-  'MDW': [41.7868, -87.7522],   // Chicago Midway
-  'DTW': [42.2162, -83.3554],   // Detroit Metro Wayne County
-  'MSP': [44.8848, -93.2223],   // Minneapolis-St. Paul
-  'STL': [38.7487, -90.3700],   // St. Louis Lambert
-  'MCI': [39.2976, -94.7139],   // Kansas City International
-  'CLE': [41.4117, -81.8498],   // Cleveland Hopkins
-  'CVG': [39.0488, -84.6678],   // Cincinnati/Northern Kentucky
-  'CMH': [39.9980, -82.8919],   // Columbus John Glenn
-  'IND': [39.7173, -86.2944],   // Indianapolis International
-  'MKE': [42.9472, -87.8966],   // Milwaukee Mitchell
-  'ICT': [37.6499, -97.4331],   // Wichita Eisenhower
-  'OMA': [41.3032, -95.8941],   // Omaha Eppley Airfield
-  'DSM': [41.5340, -93.6631],   // Des Moines International
-  'GRR': [42.8808, -85.5228],   // Grand Rapids Gerald R. Ford
+  'MDW': { coords: [41.7868, -87.7522], city: 'Chicago', state: 'IL', name: 'Midway' },
+  'DTW': { coords: [42.2162, -83.3554], city: 'Detroit', state: 'MI', name: 'Metro Wayne County' },
+  'MSP': { coords: [44.8848, -93.2223], city: 'Minneapolis', state: 'MN', name: 'St. Paul Int.' },
+  'STL': { coords: [38.7487, -90.3700], city: 'St. Louis', state: 'MO', name: 'Lambert' },
+  'MCI': { coords: [39.2976, -94.7139], city: 'Kansas City', state: 'MO', name: 'International' },
+  'CLE': { coords: [41.4117, -81.8498], city: 'Cleveland', state: 'OH', name: 'Hopkins' },
+  'CVG': { coords: [39.0488, -84.6678], city: 'Cincinnati', state: 'OH', name: 'Northern Kentucky' },
+  'CMH': { coords: [39.9980, -82.8919], city: 'Columbus', state: 'OH', name: 'John Glenn' },
+  'IND': { coords: [39.7173, -86.2944], city: 'Indianapolis', state: 'IN', name: 'International' },
+  'MKE': { coords: [42.9472, -87.8966], city: 'Milwaukee', state: 'WI', name: 'Mitchell' },
+  'ICT': { coords: [37.6499, -97.4331], city: 'Wichita', state: 'KS', name: 'Eisenhower' },
+  'OMA': { coords: [41.3032, -95.8941], city: 'Omaha', state: 'NE', name: 'Eppley Airfield' },
+  'DSM': { coords: [41.5340, -93.6631], city: 'Des Moines', state: 'IA', name: 'International' },
+  'GRR': { coords: [42.8808, -85.5228], city: 'Grand Rapids', state: 'MI', name: 'Gerald R. Ford' },
   
   // Southwest
-  'PHX': [33.4352, -112.0101],  // Phoenix Sky Harbor
-  'LAS': [36.0840, -115.1537],  // Las Vegas McCarran
-  'TUS': [32.1161, -110.9411],  // Tucson International
-  'ABQ': [35.0402, -106.6092],  // Albuquerque International Sunport
-  'ELP': [31.8072, -106.3777],  // El Paso International
+  'PHX': { coords: [33.4352, -112.0101], city: 'Phoenix', state: 'AZ', name: 'Sky Harbor' },
+  'LAS': { coords: [36.0840, -115.1537], city: 'Las Vegas', state: 'NV', name: 'Harry Reid' },
+  'TUS': { coords: [32.1161, -110.9411], city: 'Tucson', state: 'AZ', name: 'International' },
+  'ABQ': { coords: [35.0402, -106.6092], city: 'Albuquerque', state: 'NM', name: 'Sunport' },
+  'ELP': { coords: [31.8072, -106.3777], city: 'El Paso', state: 'TX', name: 'International' },
   
   // Mountain West
-  'SLC': [40.7899, -111.9791],  // Salt Lake City International
-  'BOI': [43.5644, -116.2228],  // Boise Airport
-  'ANC': [61.1743, -149.9962],  // Anchorage Ted Stevens
-  'FAI': [64.8151, -147.8561],  // Fairbanks International
-  'RNO': [39.4991, -119.7681],  // Reno-Tahoe International
-  'BIL': [45.8077, -108.5430],  // Billings Logan International
-  'MSO': [46.9163, -114.0906],  // Missoula International
+  'SLC': { coords: [40.7899, -111.9791], city: 'Salt Lake City', state: 'UT', name: 'International' },
+  'BOI': { coords: [43.5644, -116.2228], city: 'Boise', state: 'ID', name: 'Airport' },
+  'ANC': { coords: [61.1743, -149.9962], city: 'Anchorage', state: 'AK', name: 'Ted Stevens' },
+  'FAI': { coords: [64.8151, -147.8561], city: 'Fairbanks', state: 'AK', name: 'International' },
+  'RNO': { coords: [39.4991, -119.7681], city: 'Reno', state: 'NV', name: 'Tahoe Int.' },
+  'BIL': { coords: [45.8077, -108.5430], city: 'Billings', state: 'MT', name: 'Logan Int.' },
+  'MSO': { coords: [46.9163, -114.0906], city: 'Missoula', state: 'MT', name: 'International' },
   
   // Texas
-  'DAL': [32.8470, -96.8517],   // Dallas Love Field
-  'IAH': [29.9902, -95.3368],   // Houston George Bush Intercontinental
-  'HOU': [29.6465, -95.2789],   // Houston Hobby
-  'AUS': [30.1945, -97.6699],   // Austin-Bergstrom
-  'SAT': [29.5337, -98.4698],   // San Antonio International
+  'DAL': { coords: [32.8470, -96.8517], city: 'Dallas', state: 'TX', name: 'Love Field' },
+  'IAH': { coords: [29.9902, -95.3368], city: 'Houston', state: 'TX', name: 'Bush Int.' },
+  'HOU': { coords: [29.6465, -95.2789], city: 'Houston', state: 'TX', name: 'Hobby' },
+  'AUS': { coords: [30.1945, -97.6699], city: 'Austin', state: 'TX', name: 'Bergstrom' },
+  'SAT': { coords: [29.5337, -98.4698], city: 'San Antonio', state: 'TX', name: 'International' },
   
-  // West Coast (additional regional airports)
-  'SNA': [33.6757, -117.8682],  // John Wayne Airport (Orange County)
-  'ONT': [34.0560, -117.6012],  // Ontario International
-  'BUR': [34.2007, -118.3587],  // Hollywood Burbank
-  'SJC': [37.3626, -121.9290],  // San Jose International
-  'SMF': [38.6954, -121.5901],  // Sacramento International
-  'OAK': [37.7126, -122.2197],  // Oakland International
-  'PDX': [45.5898, -122.5951],  // Portland International
-  'SEA': [47.4502, -122.3088],  // Seattle-Tacoma International
-  'SAN': [32.7338, -117.1933],  // San Diego International
+  // West Coast
+  'SNA': { coords: [33.6757, -117.8682], city: 'Santa Ana', state: 'CA', name: 'John Wayne' },
+  'ONT': { coords: [34.0560, -117.6012], city: 'Ontario', state: 'CA', name: 'International' },
+  'BUR': { coords: [34.2007, -118.3587], city: 'Burbank', state: 'CA', name: 'Hollywood' },
+  'SJC': { coords: [37.3626, -121.9290], city: 'San Jose', state: 'CA', name: 'International' },
+  'SMF': { coords: [38.6954, -121.5901], city: 'Sacramento', state: 'CA', name: 'International' },
+  'OAK': { coords: [37.7126, -122.2197], city: 'Oakland', state: 'CA', name: 'International' },
+  'PDX': { coords: [45.5898, -122.5951], city: 'Portland', state: 'OR', name: 'International' },
+  'SEA': { coords: [47.4502, -122.3088], city: 'Seattle', state: 'WA', name: 'Tacoma Int.' },
+  'SAN': { coords: [32.7338, -117.1933], city: 'San Diego', state: 'CA', name: 'International' },
   
   // Hawaii
-  'HNL': [21.3187, -157.9225],  // Honolulu International
-  'OGG': [20.8984, -156.4306],  // Kahului (Maui)
-  'KOA': [19.7388, -156.0456],  // Kona International
-  'LIH': [21.9760, -159.3389],  // Lihue (Kauai)
+  'HNL': { coords: [21.3187, -157.9225], city: 'Honolulu', state: 'HI', name: 'International' },
+  'OGG': { coords: [20.8984, -156.4306], city: 'Kahului', state: 'HI', name: 'Maui' },
+  'KOA': { coords: [19.7388, -156.0456], city: 'Kona', state: 'HI', name: 'International' },
+  'LIH': { coords: [21.9760, -159.3389], city: 'Lihue', state: 'HI', name: 'Kauai' },
 }
 
 export interface FlightRoute {
@@ -163,6 +170,28 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
         .leaflet-popup-close-button {
           color: #fff !important;
           font-size: 20px !important;
+        }
+        .airport-tooltip {
+          background: rgba(26, 26, 26, 0.95) !important;
+          border: 1px solid rgba(59, 130, 246, 0.3) !important;
+          border-radius: 6px !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+          padding: 4px 8px !important;
+        }
+        .airport-tooltip::before {
+          border-top-color: rgba(26, 26, 26, 0.95) !important;
+        }
+        .leaflet-tooltip-top::before {
+          border-top-color: rgba(26, 26, 26, 0.95) !important;
+        }
+        .leaflet-tooltip-bottom::before {
+          border-bottom-color: rgba(26, 26, 26, 0.95) !important;
+        }
+        .leaflet-tooltip-left::before {
+          border-left-color: rgba(26, 26, 26, 0.95) !important;
+        }
+        .leaflet-tooltip-right::before {
+          border-right-color: rgba(26, 26, 26, 0.95) !important;
         }
         .flight-path {
           transition: all 0.3s ease;
@@ -269,9 +298,11 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
         const depCode = segment.departure_code
         const arrCode = segment.arrival_code
 
-        if (depCode && arrCode && AIRPORT_COORDS[depCode] && AIRPORT_COORDS[arrCode]) {
-          const from = AIRPORT_COORDS[depCode]
-          const to = AIRPORT_COORDS[arrCode]
+        if (depCode && arrCode && AIRPORT_INFO[depCode] && AIRPORT_INFO[arrCode]) {
+          const from = AIRPORT_INFO[depCode].coords
+          const to = AIRPORT_INFO[arrCode].coords
+          const depInfo = AIRPORT_INFO[depCode]
+          const arrInfo = AIRPORT_INFO[arrCode]
 
           // Add to bounds
           bounds.push(from as L.LatLngTuple)
@@ -316,13 +347,29 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
             opacity: 1,
             fillOpacity: selectedRouteId === route.fldrId ? 1 : 0.85,
           }).addTo(map)
+          
+          // Popup for click (mobile)
           depMarker.bindPopup(`
             <div style="color: #fff; padding: 4px;">
               <div style="font-size: 16px; font-weight: 700; color: ${route.color}; margin-bottom: 2px;">${depCode}</div>
-              <div style="font-size: 12px; color: rgba(255,255,255,0.8);">${segment.departure_airport || 'Unknown'}</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.8);">${depInfo.city}, ${depInfo.state}</div>
+              <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px;">${depInfo.name}</div>
               <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.6);">Departure</div>
             </div>
           `)
+          
+          // Tooltip for hover (desktop)
+          depMarker.bindTooltip(`
+            <div style="text-align: center;">
+              <div style="font-weight: 700; font-size: 13px; color: ${route.color};">${depCode}</div>
+              <div style="font-size: 11px; color: rgba(255,255,255,0.9);">${depInfo.city}, ${depInfo.state}</div>
+            </div>
+          `, {
+            permanent: false,
+            direction: 'top',
+            className: 'airport-tooltip'
+          })
+          
           markersRef.current.push(depMarker)
 
           const arrMarker = L.circleMarker(to, {
@@ -333,13 +380,29 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
             opacity: 1,
             fillOpacity: selectedRouteId === route.fldrId ? 1 : 0.85,
           }).addTo(map)
+          
+          // Popup for click (mobile)
           arrMarker.bindPopup(`
             <div style="color: #fff; padding: 4px;">
               <div style="font-size: 16px; font-weight: 700; color: ${route.color}; margin-bottom: 2px;">${arrCode}</div>
-              <div style="font-size: 12px; color: rgba(255,255,255,0.8);">${segment.arrival_airport || 'Unknown'}</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.8);">${arrInfo.city}, ${arrInfo.state}</div>
+              <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px;">${arrInfo.name}</div>
               <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.6);">Arrival</div>
             </div>
           `)
+          
+          // Tooltip for hover (desktop)
+          arrMarker.bindTooltip(`
+            <div style="text-align: center;">
+              <div style="font-weight: 700; font-size: 13px; color: ${route.color};">${arrCode}</div>
+              <div style="font-size: 11px; color: rgba(255,255,255,0.9);">${arrInfo.city}, ${arrInfo.state}</div>
+            </div>
+          `, {
+            permanent: false,
+            direction: 'top',
+            className: 'airport-tooltip'
+          })
+          
           markersRef.current.push(arrMarker)
         }
       })
@@ -349,8 +412,8 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
     linesToDraw.forEach(({ pathPoints, route, segment, depCode, arrCode, totalCount, instanceNum }) => {
       const line = L.polyline(pathPoints, {
         color: route.color,
-        weight: selectedRouteId ? 3 : 2,
-        opacity: 0.9,
+        weight: selectedRouteId ? 2 : 1.5,
+        opacity: 0.8,
         dashArray: segment.segment_type === 'connection' ? '10, 10' : undefined,
         className: 'flight-path',
       }).addTo(map)
@@ -358,7 +421,7 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
       // Add animated effect for selected route
       if (selectedRouteId === route.fldrId) {
         line.setStyle({ 
-          weight: 3, 
+          weight: 2.5, 
           opacity: 1,
           className: 'flight-path-selected'
         })
@@ -366,13 +429,13 @@ export default function FlightMap({ routes, selectedRouteId }: FlightMapProps) {
 
       // Add hover effect
       line.on('mouseover', function(this: L.Polyline) {
-        this.setStyle({ weight: 4, opacity: 1 })
+        this.setStyle({ weight: 3, opacity: 1 })
       })
       line.on('mouseout', function(this: L.Polyline) {
         const isSelected = selectedRouteId === route.fldrId
         this.setStyle({ 
-          weight: isSelected ? 3 : (selectedRouteId ? 3 : 2), 
-          opacity: isSelected ? 1 : 0.9
+          weight: isSelected ? 2.5 : (selectedRouteId ? 2 : 1.5), 
+          opacity: isSelected ? 1 : 0.8
         })
       })
 

@@ -20,12 +20,12 @@ export async function GET(request: NextRequest) {
     // Step 1: Geocode the location
     const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${apiKey}`
     
-    console.log('🌍 Geocoding request:', { location, url: geoUrl.replace(apiKey, 'REDACTED') })
+    console.log('[Weather] Geocoding request:', { location, url: geoUrl.replace(apiKey, 'REDACTED') })
     
     const geoResponse = await fetch(geoUrl)
     
     if (!geoResponse.ok) {
-      console.error('❌ Geocoding failed:', geoResponse.status, geoResponse.statusText)
+      console.error('[Weather] Geocoding failed:', geoResponse.status, geoResponse.statusText)
       if (geoResponse.status === 401) {
         return NextResponse.json({ 
           error: 'OpenWeather API key is invalid or not activated yet'
@@ -35,10 +35,10 @@ export async function GET(request: NextRequest) {
     }
 
     const geoData = await geoResponse.json()
-    console.log('🌍 Geocoding response:', geoData)
+    console.log('[Weather] Geocoding response:', geoData)
 
     if (!geoData || geoData.length === 0) {
-      console.error('❌ Location not found:', location)
+      console.error('[Weather] Location not found:', location)
       return NextResponse.json({ 
         error: 'Location not found',
         details: `Could not find location: "${location}". Try "City, State" or "City, Country" format.`
@@ -47,22 +47,22 @@ export async function GET(request: NextRequest) {
 
     const { lat, lon, name, state, country } = geoData[0]
 
-    console.log('🌤️ Found location:', { name, state, country, lat, lon })
+    console.log('[Weather] Found location:', { name, state, country, lat, lon })
 
     // Step 2: Get weather forecast
     const weatherUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial`
     
-    console.log('🌤️ Weather request:', { lat, lon })
+    console.log('[Weather] Weather request:', { lat, lon })
     
     const weatherResponse = await fetch(weatherUrl)
     
     if (!weatherResponse.ok) {
-      console.error('❌ Weather API failed:', weatherResponse.status, weatherResponse.statusText)
+      console.error('[Weather] Weather API failed:', weatherResponse.status, weatherResponse.statusText)
       throw new Error(`Weather API failed: ${weatherResponse.statusText}`)
     }
 
     const weatherData = await weatherResponse.json()
-    console.log('✅ Weather data retrieved:', weatherData.list?.length, 'forecasts')
+    console.log('[Weather] Weather data retrieved:', weatherData.list?.length, 'forecasts')
 
     // Format hourly forecast
     const hourly = weatherData.list.slice(0, 8).map((item: any) => ({

@@ -24,7 +24,7 @@ export default function CloudSettingsPage() {
       }
 
       const fldrs = JSON.parse(cached)
-      console.log(`📤 Migrating ${fldrs.length} fldrs to D1...`)
+      console.log(`[Migration] Migrating ${fldrs.length} fldrs to D1...`)
 
       const response = await fetch('/api/migrate-to-d1', {
         method: 'POST',
@@ -45,7 +45,7 @@ export default function CloudSettingsPage() {
       
       // Log detailed errors
       if (result.results?.failed && result.results.failed.length > 0) {
-        console.error('❌ Failed migrations:')
+        console.error('[Migration] Failed migrations:')
         result.results.failed.forEach((f: any) => {
           console.error(`  - ${f.id}: ${f.error}`)
         })

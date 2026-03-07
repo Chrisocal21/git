@@ -80,9 +80,12 @@ export interface JobInfo {
   daily_break_end: string | null   // Time only (HH:MM)
 }
 
+export type ChecklistCategory = 'production' | 'packing' | 'travel' | 'onsite' | 'teardown' | 'general'
+
 export interface ChecklistItem {
   item: string
   completed: boolean
+  category?: ChecklistCategory // Optional for backward compatibility
 }
 
 export interface Person {
@@ -105,6 +108,15 @@ export interface Product {
   quantity: number
   notes: string | null
   waste: number // Quantity lost/damaged/wasted
+}
+
+export interface AIItineraryItem {
+  action: string
+  time: string
+  duration?: string
+  reason?: string
+  type?: 'transition' | 'preparation' | 'logistics' | 'buffer'
+  personalized?: boolean
 }
 
 export interface Fldr {
@@ -144,6 +156,10 @@ export interface Fldr {
     polish_level: 'light' | 'full_suit'
     created_at: string
   }>
+  
+  // AI-generated content (saved to avoid regenerating)
+  ai_itinerary_items: AIItineraryItem[] | null
+  ai_itinerary_overview: string | null
   
   // Meta
   created_at: string // ISO timestamp

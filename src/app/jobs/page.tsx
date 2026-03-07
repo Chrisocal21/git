@@ -36,14 +36,14 @@ export default function JobsPage() {
     }
     
     const handleOnline = async () => {
-      console.log('📡 Connection restored - checking for queued changes...')
+      console.log('[Network] Connection restored - checking for queued changes...')
       setOnline(true)
       
       if (hasUnsyncedChanges()) {
-        console.log('📡 Auto-syncing queued changes from list page...')
+        console.log('[Sync] Auto-syncing queued changes from list page...')
         const success = await syncQueuedChanges()
         if (success) {
-          console.log('✅ Auto-sync complete! Refreshing list...')
+          console.log('[Sync] Auto-sync complete! Refreshing list...')
           // Refresh the list after syncing
           try {
             const res = await fetch('/api/fldrs', { cache: 'no-store' })
@@ -57,12 +57,12 @@ export default function JobsPage() {
           }
         }
       } else {
-        console.log('✅ No queued changes to sync')
+        console.log('[Sync] No queued changes to sync')
       }
     }
     
     const handleOffline = () => {
-      console.log('📴 Connection lost')
+      console.log('[Network] Connection lost')
       setOnline(false)
     }
     
@@ -79,7 +79,7 @@ export default function JobsPage() {
   useEffect(() => {
     // Check storage health first
     const health = checkStorageHealth()
-    console.log('🏥 Storage Health Check:', health)
+    console.log('[Storage] Storage Health Check:', health)
     logStorageInfo()
     
     // Try to load from localStorage first for instant display
@@ -89,14 +89,14 @@ export default function JobsPage() {
     if (cached) {
       try {
         cachedData = JSON.parse(cached)
-        console.log(`✅ Loaded ${cachedData.length} fldrs from cache`)
+        console.log(`[Cache] Loaded ${cachedData.length} fldrs from cache`)
         setFldrs(cachedData)
         setLoading(false)
       } catch (e) {
-        console.error('❌ Failed to parse cached fldrs:', e)
+        console.error('[Cache] Failed to parse cached fldrs:', e)
       }
     } else {
-      console.log('⚠️ No cached data found in localStorage')
+      console.log('[Cache] No cached data found in localStorage')
     }
 
     // Then fetch from API and merge with cache (don't overwrite on empty)
@@ -107,7 +107,7 @@ export default function JobsPage() {
         
         // CRITICAL: Never overwrite existing cache with empty data
         if (data.length === 0 && cachedData.length > 0) {
-          console.log('⚠️ Server returned empty, keeping cached data')
+          console.log('[Cache] Server returned empty, keeping cached data')
           return // Don't update - keep cached data
         }
         
@@ -119,10 +119,10 @@ export default function JobsPage() {
           // Don't merge - use server data directly to avoid orphaned cache entries
           setFldrs(data)
           localStorage.setItem('git-fldrs', JSON.stringify(data))
-          console.log(`💾 Saved ${data.length} fldrs to cache (server is source of truth)`)
+          console.log(`[Cache] Saved ${data.length} fldrs to cache (server is source of truth)`)
         } else if (data.length > 0) {
           // No cache but server has data - use server data
-          console.log('📥 No cache, using server data')
+          console.log('[Cache] No cache, using server data')
           setFldrs(data)
           localStorage.setItem('git-fldrs', JSON.stringify(data))
         } else {
@@ -170,14 +170,14 @@ export default function JobsPage() {
   }
 
   const handleRefresh = async () => {
-    console.log('🔄 Pull-to-refresh triggered')
+    console.log('[Refresh] Pull-to-refresh triggered')
     
     // Check for service worker updates
     if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.getRegistration()
       if (registration) {
         await registration.update()
-        console.log('✅ Service worker checked for updates')
+        console.log('[ServiceWorker] Service worker checked for updates')
         
         // If there's a waiting worker, activate it
         if (registration.waiting) {
@@ -194,9 +194,9 @@ export default function JobsPage() {
       const data = await res.json()
       setFldrs(data)
       localStorage.setItem('git-fldrs', JSON.stringify(data))
-      console.log('✅ Data refreshed')
+      console.log('[Refresh] Data refreshed')
     } catch (error) {
-      console.error('❌ Refresh failed:', error)
+      console.error('[Refresh] Refresh failed:', error)
     }
     
     setIsRefreshing(false)
@@ -273,7 +273,7 @@ export default function JobsPage() {
         const updated = fldrs.filter(f => f.id !== fldrId)
         setFldrs(updated)
         localStorage.setItem('git-fldrs', JSON.stringify(updated))
-        console.log('✅ Fldr deleted:', fldrId)
+        console.log('[API] Fldr deleted:', fldrId)
       } else {
         alert('Failed to delete fldr')
       }

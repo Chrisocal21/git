@@ -99,6 +99,11 @@ export default function FldrDetailPage() {
   const [parseEmailImage, setParseEmailImage] = useState<string | null>(null)
   const [parseInputMode, setParseInputMode] = useState<'text' | 'image'>('text')
   const [parsingEmail, setParsingEmail] = useState(false)
+  const [generatingItinerary, setGeneratingItinerary] = useState(false)
+  const [generatedItineraryItems, setGeneratedItineraryItems] = useState<any[]>([])
+  const [generatedItineraryOverview, setGeneratedItineraryOverview] = useState<string>('')
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const prevItineraryDataRef = useRef<string>('')
 
   // Memoize map locations to prevent unnecessary re-renders
   const mapLocations = useMemo(() => {
@@ -152,16 +157,16 @@ export default function FldrDetailPage() {
     
     // Auto-sync when coming back online
     const handleOnline = async () => {
-      console.log('📡 Connection restored - checking for queued changes...')
+      console.log('[Network] Connection restored - checking for queued changes...')
       setOnline(true)
       
       if (hasUnsyncedChanges()) {
-        console.log('📡 Auto-syncing queued changes...')
+        console.log('[Sync] Auto-syncing queued changes...')
         setSaving(true)
         const success = await syncQueuedChanges()
         if (success) {
           setHasUnsynced(false)
-          console.log('✅ Auto-sync complete!')
+          console.log('[Sync] Auto-sync complete!')
           
           // Refresh from server to get latest data
           const currentFldrId = params.id as string
@@ -172,7 +177,7 @@ export default function FldrDetailPage() {
                 const updated = await response.json()
                 setFldr(updated)
                 cacheFldr(updated)
-                console.log('✅ Data refreshed from server')
+                console.log('[Sync] Data refreshed from server')
               }
             } catch (error) {
               console.error('Failed to refresh after auto-sync:', error)
@@ -181,12 +186,12 @@ export default function FldrDetailPage() {
         }
         setSaving(false)
       } else {
-        console.log('✅ No queued changes to sync')
+        console.log('[Sync] No queued changes to sync')
       }
     }
     
     const handleOffline = () => {
-      console.log('📴 Connection lost')
+      console.log('[Network] Connection lost')
       setOnline(false)
     }
     
@@ -204,13 +209,13 @@ export default function FldrDetailPage() {
   useEffect(() => {
     const handleFocus = async () => {
       if (!fldr || !isOnline()) return
-      console.log('👀 Tab focused - refreshing from server...')
+      console.log('[Focus] Tab focused - refreshing from server...')
       
       try {
         const response = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
         if (response.ok) {
           const updated = await response.json()
-          console.log('✅ Refreshed from server (focus), photos:', updated.photos?.length || 0)
+          console.log('[Focus] Refreshed from server (focus), photos:', updated.photos?.length || 0)
           setFldr(updated)
           cacheFldr(updated)
           
@@ -258,6 +263,66 @@ export default function FldrDetailPage() {
     }
   }, [showExportMenu])
 
+  // Update current time every minute for itinerary strikethrough
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 60000) // Update every minute
+
+    return () => clearInterval(timer)
+  }, [])
+
+  // Auto-generate smart itinerary ONLY when travel timing data actually changes
+  useEffect(() => {
+    if (!fldr) return
+
+    // Load saved AI suggestions if they exist
+    if (fldr.ai_itinerary_items && fldr.ai_itinerary_items.length > 0) {
+      console.log('[AI] Loading saved itinerary suggestions from database')
+      setGeneratedItineraryItems(fldr.ai_itinerary_items)
+      setGeneratedItineraryOverview(fldr.ai_itinerary_overview || '')
+      return // Don't regenerate if we already have saved suggestions
+    }
+
+    // Only check data that affects travel timing
+    const itineraryRelevantData = {
+      flights: fldr.flight_info?.map(f => `${f.departure_time}-${f.arrival_time}`).join(','),
+      hotelCheckin: fldr.hotel_info?.check_in,
+      hotelCheckout: fldr.hotel_info?.check_out,
+      hotelAddress: fldr.hotel_info?.address,
+      venueAddress: fldr.venue_info?.address,
+      showUpTime: fldr.job_info?.show_up_time,
+      eventStart: fldr.job_info?.job_start_time,
+      eventEnd: fldr.job_info?.job_end_time,
+      rentalPickup: fldr.rental_car_info?.pickup_time,
+      rentalDropoff: fldr.rental_car_info?.dropoff_time,
+    }
+
+    const currentHash = JSON.stringify(itineraryRelevantData)
+    
+    // Only regenerate if timing data actually changed
+    if (currentHash !== prevItineraryDataRef.current && (itineraryRelevantData.flights || itineraryRelevantData.eventStart)) {
+      console.log('[Itinerary] Timing data changed - regenerating')
+      prevItineraryDataRef.current = currentHash
+      generateSmartItinerary()
+    } else if (!itineraryRelevantData.flights && !itineraryRelevantData.eventStart) {
+      setGeneratedItineraryItems([])
+      setGeneratedItineraryOverview('')
+    }
+  }, [
+    fldr?.flight_info,
+    fldr?.hotel_info?.check_in,
+    fldr?.hotel_info?.check_out,
+    fldr?.hotel_info?.address,
+    fldr?.venue_info?.address,
+    fldr?.job_info?.show_up_time,
+    fldr?.job_info?.job_start_time,
+    fldr?.job_info?.job_end_time,
+    fldr?.rental_car_info?.pickup_time,
+    fldr?.rental_car_info?.dropoff_time,
+    fldr?.ai_itinerary_items
+  ])
+
   // Sync round trip checkbox state with flight segments
   useEffect(() => {
     if (fldr?.flight_info && Array.isArray(fldr.flight_info)) {
@@ -269,7 +334,7 @@ export default function FldrDetailPage() {
   useEffect(() => {
     if (params.id) {
       const fldrId = params.id as string
-      console.log(`🔍 Loading fldr: ${fldrId}`)
+      console.log(`[Load] Loading fldr: ${fldrId}`)
       logStorageInfo()
       
       // Try to load from cache first (fallback 1: offlineStorage)
@@ -277,31 +342,31 @@ export default function FldrDetailPage() {
       
       // Fallback 2: Check the main list cache
       if (!cached) {
-        console.log('⚠️ Not found in offline storage, checking list cache')
+        console.log('[Cache] Not found in offline storage, checking list cache')
         try {
           const listCache = localStorage.getItem('git-fldrs')
           if (listCache) {
             const allFldrs = JSON.parse(listCache)
             cached = allFldrs.find((f: Fldr) => f.id === fldrId)
             if (cached) {
-              console.log('✅ Found in list cache')
+              console.log('[Cache] Found in list cache')
             } else {
-              console.log('❌ Not found in list cache either')
+              console.log('[Cache] Not found in list cache either')
             }
           } else {
-            console.log('❌ No list cache exists')
+            console.log('[Cache] No list cache exists')
           }
         } catch (e) {
-          console.error('❌ Failed to parse list cache:', e)
+          console.error('[Cache] Failed to parse list cache:', e)
         }
       } else {
-        console.log('✅ Found in offline storage')
+        console.log('[Cache] Found in offline storage')
       }
       
       if (cached) {
         // Migrate old flight_info structure to new array structure
         if (cached.flight_info && !Array.isArray(cached.flight_info)) {
-          console.log('🔄 Migrating old flight_info structure to array format')
+          console.log('[Migration] Migrating old flight_info structure to array format')
           const oldFlightInfo = cached.flight_info as any
           // Convert old object structure to array with one segment
           cached.flight_info = [{
@@ -329,7 +394,7 @@ export default function FldrDetailPage() {
           cached.flight_info = null
         }
         
-        console.log('📦 Loaded from cache, photos:', cached.photos?.length || 0)
+        console.log('[Cache] Loaded from cache, photos:', cached.photos?.length || 0)
         setFldr(cached)
         setEditTitle(cached.title)
         setEditDateStart(cached.date_start)
@@ -341,7 +406,7 @@ export default function FldrDetailPage() {
       // Fetch from server to get latest data (especially notes from other devices)
       // Try to fetch fresh data if online
       if (isOnline()) {
-        console.log('🌐 Fetching latest data from server...')
+        console.log('[Server] Fetching latest data from server...')
         fetch(`/api/fldrs/${fldrId}`, { cache: 'no-store' })
           .then(res => {
             if (res.ok) {
@@ -350,7 +415,7 @@ export default function FldrDetailPage() {
             throw new Error('Failed to fetch')
           })
           .then(freshData => {
-            console.log('✅ Got fresh data from server, photos:', freshData.photos?.length || 0)
+            console.log('[Server] Got fresh data from server, photos:', freshData.photos?.length || 0)
             setFldr(freshData)
             cacheFldr(freshData)
             
@@ -370,17 +435,17 @@ export default function FldrDetailPage() {
             }
           })
           .catch(err => {
-            console.log('⚠️ Server fetch failed, using cached data:', err)
+            console.log('[Server] Server fetch failed, using cached data:', err)
             // Keep using cached data
           })
       } else {
-        console.log('📴 Offline - using cached data only')
+        console.log('[Network] Offline - using cached data only')
       }
       
       if (!cached) {
         // No cached data - redirect to list
-        console.error('💥 CRITICAL: No cached data found for fldr:', fldrId)
-        console.error('💥 This should not happen! Data may have been lost.')
+        console.error('[Error] CRITICAL: No cached data found for fldr:', fldrId)
+        console.error('[Error] This should not happen! Data may have been lost.')
         logStorageInfo()
         
         // Give user a chance to see the error before redirect
@@ -465,17 +530,17 @@ export default function FldrDetailPage() {
             
             if (response.ok) {
               const data = await response.json()
-              console.log('✅ Weather data received for:', location)
+              console.log('[Weather] Weather data received for:', location)
               setWeatherData(data)
               success = true
               break
             } else {
               const errorData = await response.json()
-              console.warn(`❌ Failed for "${location}":`, errorData.error)
+              console.warn(`[Weather] Failed for "${location}":`, errorData.error)
               lastError = errorData
             }
           } catch (err) {
-            console.warn(`❌ Error for "${location}":`, err)
+            console.warn(`[Weather] Error for "${location}":`, err)
             lastError = err
           }
         }
@@ -671,13 +736,13 @@ export default function FldrDetailPage() {
     if (!fldr) return
     setSaving(true)
     
-    console.log('💾 saveFldr called with updates:', Object.keys(updates))
+    console.log('[Save] saveFldr called with updates:', Object.keys(updates))
     if (updates.photos) {
-      console.log('📷 Saving photos:', updates.photos.length, 'photos')
+      console.log('[Save] Saving photos:', updates.photos.length, 'photos')
       const photosSize = JSON.stringify(updates.photos).length
-      console.log('📊 Photos JSON size:', (photosSize / 1024).toFixed(2), 'KB')
+      console.log('[Save] Photos JSON size:', (photosSize / 1024).toFixed(2), 'KB')
       if (photosSize > 500000) {
-        console.warn('⚠️ WARNING: Photos data is large -', (photosSize / 1024).toFixed(2), 'KB')
+        console.warn('[Save] WARNING: Photos data is large -', (photosSize / 1024).toFixed(2), 'KB')
       }
     }
     
@@ -710,7 +775,7 @@ export default function FldrDetailPage() {
       setFldr(newFldr)
       cacheFldr(newFldr)
       setLastSaved(new Date())
-      console.log('💾 Updated local cache, fldr now has', newFldr.photos?.length || 0, 'photos')
+      console.log('[Save] Updated local cache, fldr now has', newFldr.photos?.length || 0, 'photos')
       
       // Also update the list cache so changes appear on list page
       try {
@@ -729,7 +794,7 @@ export default function FldrDetailPage() {
       
       // If online, save to server
       if (isOnline()) {
-        console.log('🌐 Online - sending PATCH request to server...')
+        console.log('[Server] Online - sending PATCH request to server...')
         try {
           const response = await fetch(`/api/fldrs/${fldr.id}`, {
             method: 'PATCH',
@@ -738,7 +803,7 @@ export default function FldrDetailPage() {
           })
           if (response.ok) {
             const updated = await response.json()
-            console.log('✅ Server save successful! Server now has', updated.photos?.length || 0, 'photos')
+            console.log('[Server] Server save successful! Server now has', updated.photos?.length || 0, 'photos')
             setFldr(updated)
             cacheFldr(updated)
             setLastSaved(new Date())
@@ -760,30 +825,30 @@ export default function FldrDetailPage() {
           } else {
             // Server returned an error
             const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-            console.error('❌ Server save failed:', response.status, errorData)
+            console.error('[Server] Server save failed:', response.status, errorData)
             // Add to sync queue on server error
             addToSyncQueue(fldr.id, updates)
             setHasUnsynced(true)
             if (updates.photos) {
-              console.log('📷 Photo save failed on server, added to sync queue')
+              console.log('[Sync] Photo save failed on server, added to sync queue')
             }
           }
         } catch (error) {
           // If save fails, add to sync queue
-          console.log('⚠️ Server save failed, adding to sync queue:', error)
+          console.log('[Sync] Server save failed, adding to sync queue:', error)
           addToSyncQueue(fldr.id, updates)
           setHasUnsynced(true)
           if (updates.photos) {
-            console.log('📷 Photo saved to sync queue, will sync when online')
+            console.log('[Sync] Photo saved to sync queue, will sync when online')
           }
         }
       } else {
         // Offline: add to sync queue
-        console.log('📴 Offline - adding changes to sync queue')
+        console.log('[Network] Offline - adding changes to sync queue')
         addToSyncQueue(fldr.id, updates)
         setHasUnsynced(true)
         if (updates.photos) {
-          console.log('📷 Photo saved to sync queue, will sync when online')
+          console.log('[Sync] Photo saved to sync queue, will sync when online')
         }
       }
     } catch (error) {
@@ -1094,6 +1159,267 @@ export default function FldrDetailPage() {
       setParsingEmail(false)
     }
   }
+
+  // Helper function to calculate days until job starts
+  const getDaysUntilJob = () => {
+    if (!fldr?.date_start) return null
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const [year, month, day] = fldr.date_start.split('-').map(Number)
+    const jobDate = new Date(year, month - 1, day)
+    const diffTime = jobDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
+  const generateSmartItinerary = async () => {
+    if (!fldr) return
+
+    setGeneratingItinerary(true)
+
+    try {
+      // Build comprehensive job context for AI analysis
+      const jobData: any = {}
+
+      // === FLIGHTS (with calculated durations) ===
+      if (fldr.flight_info && fldr.flight_info.length > 0) {
+        const flightDetails = fldr.flight_info.map((f, idx) => {
+          const parts: string[] = []
+          parts.push(`Segment ${idx + 1}: ${f.airline || ''} ${f.flight_number || ''}`)
+          parts.push(`${f.departure_code || f.departure_airport} → ${f.arrival_code || f.arrival_airport}`)
+          
+          if (f.departure_time && f.arrival_time) {
+            const depTime = new Date(f.departure_time)
+            const arrTime = new Date(f.arrival_time)
+            const durationMs = arrTime.getTime() - depTime.getTime()
+            const hours = Math.floor(durationMs / (1000 * 60 * 60))
+            const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+            
+            // Format times more explicitly for AI
+            const depFormatted = depTime.toLocaleString('en-US', { 
+              weekday: 'short', 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric',
+              hour: 'numeric', 
+              minute: '2-digit', 
+              hour12: true 
+            })
+            const arrFormatted = arrTime.toLocaleString('en-US', { 
+              weekday: 'short', 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric',
+              hour: 'numeric', 
+              minute: '2-digit', 
+              hour12: true 
+            })
+            
+            parts.push(`DEPARTS: ${depFormatted}`)
+            parts.push(`ARRIVES: ${arrFormatted}`)
+            parts.push(`Duration: ${hours}h ${minutes}m`)
+          } else {
+            if (f.departure_time) {
+              const depTime = new Date(f.departure_time)
+              parts.push(`DEPARTS: ${depTime.toLocaleString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric', 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+              })}`)
+            }
+            if (f.arrival_time) {
+              const arrTime = new Date(f.arrival_time)
+              parts.push(`ARRIVES: ${arrTime.toLocaleString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric', 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+              })}`)
+            }
+          }
+          
+          if (f.departure_address) parts.push(`Departure Airport: ${f.departure_address}`)
+          if (f.arrival_address) parts.push(`Arrival Airport: ${f.arrival_address}`)
+          return parts.join(' | ')
+        }).join('\n')
+        jobData.flights = flightDetails
+      }
+
+      // === HOTEL ===
+      if (fldr.hotel_info) {
+        const hotelParts: string[] = []
+        if (fldr.hotel_info.name) hotelParts.push(`Name: ${fldr.hotel_info.name}`)
+        if (fldr.hotel_info.address) hotelParts.push(`Address: ${fldr.hotel_info.address}`)
+        if (fldr.hotel_info.check_in) {
+          const checkInTime = new Date(fldr.hotel_info.check_in)
+          hotelParts.push(`CHECK-IN: ${checkInTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`)
+        }
+        if (fldr.hotel_info.check_out) {
+          const checkOutTime = new Date(fldr.hotel_info.check_out)
+          hotelParts.push(`CHECK-OUT: ${checkOutTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`)
+        }
+        jobData.hotel = hotelParts.join(' | ')
+      }
+
+      // === VENUE ===
+      if (fldr.venue_info) {
+        const venueParts: string[] = []
+        if (fldr.venue_info.name) venueParts.push(`Name: ${fldr.venue_info.name}`)
+        if (fldr.venue_info.address) venueParts.push(`Address: ${fldr.venue_info.address}`)
+        if (fldr.venue_info.phone) venueParts.push(`Phone: ${fldr.venue_info.phone}`)
+        jobData.venue = venueParts.join(' | ')
+      }
+
+      // === EVENT SCHEDULE (with calculated duration) ===
+      const scheduleParts: string[] = []
+      if (fldr.job_info?.show_up_time) {
+        const showUpTime = new Date(fldr.job_info.show_up_time)
+        scheduleParts.push(`SHOW UP TIME: ${showUpTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`)
+      }
+      if (fldr.job_info?.job_start_time) {
+        const startTime = new Date(fldr.job_info.job_start_time)
+        scheduleParts.push(`EVENT START: ${startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`)
+      }
+      if (fldr.job_info?.job_end_time) {
+        const endTime = new Date(fldr.job_info.job_end_time)
+        scheduleParts.push(`EVENT END: ${endTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`)
+      }
+      
+      // Calculate event duration
+      if (fldr.job_info?.job_start_time && fldr.job_info?.job_end_time) {
+        const startTime = new Date(fldr.job_info.job_start_time)
+        const endTime = new Date(fldr.job_info.job_end_time)
+        const durationMs = endTime.getTime() - startTime.getTime()
+        const hours = Math.floor(durationMs / (1000 * 60 * 60))
+        const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+        scheduleParts.push(`Event Duration: ${hours}h ${minutes}m`)
+      }
+      
+      if (scheduleParts.length > 0) {
+        jobData.eventSchedule = scheduleParts.join(' | ')
+      }
+
+      // === RENTAL CAR ===
+      if (fldr.rental_car_info) {
+        const carParts: string[] = []
+        if (fldr.rental_car_info.company) carParts.push(`Company: ${fldr.rental_car_info.company}`)
+        if (fldr.rental_car_info.pickup_location) carParts.push(`Pickup: ${fldr.rental_car_info.pickup_location}`)
+        if (fldr.rental_car_info.pickup_time) {
+          const pickupTime = new Date(fldr.rental_car_info.pickup_time)
+          carParts.push(`at ${pickupTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`)
+        }
+        if (fldr.rental_car_info.dropoff_location) carParts.push(`Dropoff: ${fldr.rental_car_info.dropoff_location}`)
+        if (fldr.rental_car_info.dropoff_time) {
+          const dropoffTime = new Date(fldr.rental_car_info.dropoff_time)
+          carParts.push(`at ${dropoffTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`)
+        }
+        jobData.rentalCar = carParts.join(' | ')
+      }
+
+      // === EQUIPMENT PICKUP (Office Location) ===
+      jobData.equipmentPickup = '925 Poinsettia Ave, Vista, CA 92081'
+      jobData.equipmentNote = 'NOTE: Equipment (XTool cases) stored at office location. Travel time from home/current location to office will vary per person and depends on day of week, time of day, and traffic conditions.'
+
+      // === CALCULATE DRIVE TIMES (using Google Maps Distance Matrix API) ===
+      const driveTimeSegments: string[] = []
+      
+      try {
+        // Get addresses
+        const arrivalAirport = fldr.flight_info?.[fldr.flight_info.length - 1]?.arrival_address
+        const departureAirport = fldr.flight_info?.[0]?.departure_address
+        const hotelAddress = fldr.hotel_info?.address
+        const venueAddress = fldr.venue_info?.address
+        
+        // Calculate Airport → Hotel
+        if (arrivalAirport && hotelAddress) {
+          const response = await fetch(`/api/distance?origin=${encodeURIComponent(arrivalAirport)}&destination=${encodeURIComponent(hotelAddress)}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.distance && data.duration) {
+              driveTimeSegments.push(`Airport → Hotel: ${data.distance} (${data.duration})`)
+            }
+          }
+        }
+        
+        // Calculate Hotel → Venue
+        if (hotelAddress && venueAddress) {
+          const response = await fetch(`/api/distance?origin=${encodeURIComponent(hotelAddress)}&destination=${encodeURIComponent(venueAddress)}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.distance && data.duration) {
+              driveTimeSegments.push(`Hotel → Venue: ${data.distance} (${data.duration})`)
+            }
+          }
+        }
+        
+        // Calculate Venue → Airport (for departure)
+        if (venueAddress && departureAirport) {
+          const response = await fetch(`/api/distance?origin=${encodeURIComponent(venueAddress)}&destination=${encodeURIComponent(departureAirport)}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.distance && data.duration) {
+              driveTimeSegments.push(`Venue → Airport: ${data.distance} (${data.duration})`)
+            }
+          }
+        }
+        
+        // Calculate Airport → Venue (if no hotel)
+        if (!hotelAddress && arrivalAirport && venueAddress) {
+          const response = await fetch(`/api/distance?origin=${encodeURIComponent(arrivalAirport)}&destination=${encodeURIComponent(venueAddress)}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.distance && data.duration) {
+              driveTimeSegments.push(`Airport → Venue: ${data.distance} (${data.duration})`)
+            }
+          }
+        }
+        
+        if (driveTimeSegments.length > 0) {
+          jobData.driveTimes = driveTimeSegments.join(' | ')
+        }
+      } catch (error) {
+        console.error('Failed to calculate drive times:', error)
+      }
+
+      console.log('[AI] Generating smart itinerary with context:', Object.keys(jobData).join(', '))
+
+      const response = await fetch('/api/smart-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobData })
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to generate itinerary')
+      }
+
+      const aiItems = result.itinerary?.recommendations || []
+      const aiOverview = result.itinerary?.overview || ''
+      
+      setGeneratedItineraryItems(aiItems)
+      setGeneratedItineraryOverview(aiOverview)
+      
+      // Save AI suggestions to database to avoid regenerating
+      setFldr({ ...fldr, ai_itinerary_items: aiItems, ai_itinerary_overview: aiOverview })
+      await saveFldr({ ai_itinerary_items: aiItems, ai_itinerary_overview: aiOverview })
+      
+      console.log('[AI] Smart itinerary saved to database')
+    } catch (error) {
+      console.error('Failed to generate smart itinerary:', error)
+      alert('Failed to generate smart itinerary. Please try again.')
+    } finally {
+      setGeneratingItinerary(false)
+    }
+  }
+
+
 
   const updateJobInfo = (field: keyof JobInfo, value: any) => {
     if (!fldr) return
@@ -1454,7 +1780,7 @@ export default function FldrDetailPage() {
   const addChecklistItem = () => {
     if (!fldr) return
     const checklist = fldr.checklist || []
-    const newItem = { item: '', completed: false }
+    const newItem = { item: '', completed: false, category: 'general' as const }
     const updated = [...checklist, newItem]
     setFldr({ ...fldr, checklist: updated })
     debouncedSave({ checklist: updated })
@@ -1518,10 +1844,10 @@ export default function FldrDetailPage() {
       uploaded_at: new Date().toISOString(),
     }
     const updated = [...photos, newPhoto]
-    console.log('📷 Adding photo:', { photoId: newPhoto.id, totalPhotos: updated.length })
+    console.log('[Photo] Adding photo:', { photoId: newPhoto.id, totalPhotos: updated.length })
     setFldr({ ...fldr, photos: updated })
     debouncedSave({ photos: updated })
-    console.log('📷 Photo added to local state, will save in 1 second...')
+    console.log('[Photo] Photo added to local state, will save in 1 second...')
   }
 
   const updatePhotoCaption = (index: number, caption: string) => {
@@ -1895,7 +2221,7 @@ export default function FldrDetailPage() {
       
       if (response.ok) {
         const createdFldr = await response.json()
-        console.log('✅ Job duplicated successfully')
+        console.log('[Duplicate] Job duplicated successfully')
         
         // Navigate to the new fldr
         router.push(`/jobs/${createdFldr.id}`)
@@ -1903,7 +2229,7 @@ export default function FldrDetailPage() {
         throw new Error('Failed to duplicate job')
       }
     } catch (error) {
-      console.error('❌ Duplicate job failed:', error)
+      console.error('[Duplicate] Duplicate job failed:', error)
       alert('Failed to duplicate job. Please try again.')
     } finally {
       setSaving(false)
@@ -1930,7 +2256,7 @@ export default function FldrDetailPage() {
         throw new Error('Failed to generate overview')
       }
     } catch (error) {
-      console.error('❌ Generate overview failed:', error)
+      console.error('[Overview] Generate overview failed:', error)
       alert('Failed to generate overview. Please try again.')
     } finally {
       setGeneratingOverview(false)
@@ -1943,7 +2269,7 @@ export default function FldrDetailPage() {
     try {
       await shareQuickOverviewPDF(fldr)
     } catch (error) {
-      console.error('❌ PDF share failed:', error)
+      console.error('[PDF] PDF share failed:', error)
       alert('Failed to share PDF. Please try again.')
     } finally {
       setGeneratingPDF(null)
@@ -1956,7 +2282,7 @@ export default function FldrDetailPage() {
     try {
       await generateQuickOverviewPDF(fldr)
     } catch (error) {
-      console.error('❌ PDF download failed:', error)
+      console.error('[PDF] PDF download failed:', error)
       alert('Failed to download PDF. Please try again.')
     } finally {
       setGeneratingPDF(null)
@@ -1969,7 +2295,7 @@ export default function FldrDetailPage() {
     try {
       await shareFullTripBriefPDF(fldr)
     } catch (error) {
-      console.error('❌ PDF share failed:', error)
+      console.error('[PDF] PDF share failed:', error)
       alert('Failed to share PDF. Please try again.')
     } finally {
       setGeneratingPDF(null)
@@ -1982,7 +2308,7 @@ export default function FldrDetailPage() {
     try {
       await generateFullTripBriefPDF(fldr)
     } catch (error) {
-      console.error('❌ PDF download failed:', error)
+      console.error('[PDF] PDF download failed:', error)
       alert('Failed to download PDF. Please try again.')
     } finally {
       setGeneratingPDF(null)
@@ -1990,14 +2316,14 @@ export default function FldrDetailPage() {
   }
 
   const handleRefresh = async () => {
-    console.log('🔄 Pull-to-refresh triggered on detail page')
+    console.log('[Refresh] Pull-to-refresh triggered on detail page')
     
     // Check for service worker updates
     if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.getRegistration()
       if (registration) {
         await registration.update()
-        console.log('✅ Service worker checked for updates')
+        console.log('[ServiceWorker] Service worker checked for updates')
         
         // If there's a waiting worker, activate it
         if (registration.waiting) {
@@ -2018,7 +2344,7 @@ export default function FldrDetailPage() {
       const res = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
       if (res.ok) {
         const freshData = await res.json()
-        console.log('✅ Refreshed from server, photos:', freshData.photos?.length || 0)
+        console.log('[Refresh] Refreshed from server, photos:', freshData.photos?.length || 0)
         setFldr(freshData)
         cacheFldr(freshData)
         
@@ -2033,10 +2359,10 @@ export default function FldrDetailPage() {
           }
         }
         
-        console.log('✅ Fldr data refreshed from server')
+        console.log('[Refresh] Fldr data refreshed from server')
       }
     } catch (error) {
-      console.error('❌ Refresh failed:', error)
+      console.error('[Refresh] Refresh failed:', error)
     }
     
     setIsRefreshing(false)
@@ -2835,24 +3161,219 @@ export default function FldrDetailPage() {
 
         {/* Itinerary Card - Always shown, auto-generated from time data */}
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-          <button
-            onClick={() => toggleCard('itinerary')}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
-          >
-            <span className="font-semibold">Itinerary</span>
-            <ChevronDownIcon
-              className={`w-5 h-5 transition-transform ${
-                expandedCards.itinerary ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
+          <div className="w-full px-4 py-3 flex items-center justify-between">
+            <button
+              onClick={() => toggleCard('itinerary')}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
+            >
+              <span className="font-semibold">Itinerary</span>
+              <ChevronDownIcon
+                className={`w-5 h-5 transition-transform ${
+                  expandedCards.itinerary ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {fldr.ai_itinerary_items && fldr.ai_itinerary_items.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm('Regenerate AI timing suggestions? This will replace existing AI suggestions.')) {
+                    generateSmartItinerary()
+                  }
+                }}
+                disabled={generatingItinerary}
+                className="text-xs text-[#f59e0b] hover:text-[#fb923c] px-2 py-1 rounded border border-[#f59e0b]/30 hover:bg-[#f59e0b]/10 transition-colors disabled:opacity-50"
+              >
+                <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Regenerate AI
+              </button>
+            )}
+          </div>
           {expandedCards.itinerary && (
             <div className="px-4 pb-4">
+              {/* Info banner about itinerary features */}
+              <div className="mb-3 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="flex-1 text-xs text-gray-400 space-y-1">
+                    <p className="flex items-center gap-1 flex-wrap">
+                      <span className="inline-flex items-center gap-0.5">
+                        <span className="w-2 h-2 rounded-full bg-[#f59e0b]"></span>
+                        <span className="text-[#f59e0b]">Orange highlight</span>
+                      </span>
+                      <span>= AI timing suggestions •</span>
+                      <span className="inline-flex items-center gap-0.5">
+                        <span className="w-2 h-2 rounded-full bg-[#3b82f6]"></span>
+                        <span className="text-[#3b82f6]">Blue highlight</span>
+                      </span>
+                      <span>= Your scheduled events</span>
+                    </p>
+                    <p className="text-gray-500">Past items automatically strike through • Next upcoming item highlights in green</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Generating indicator */}
+              {generatingItinerary && (
+                <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#10b981]/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <svg className="animate-spin h-5 w-5 text-[#10b981]" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-300">Calculating optimal timing...</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Considering flights, traffic, TSA, and setup times</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {(() => {
                 const itinerary = generateItinerary()
                 const days = Object.keys(itinerary)
                 
-                if (days.length === 0) {
+                // Merge AI-generated timing recommendations into the itinerary
+                if (generatedItineraryItems.length > 0) {
+                  // Build a map of scheduled events for smart matching
+                  const scheduledEvents: Array<{date: Date, type: string, event: any}> = []
+                  
+                  if (fldr.flight_info) {
+                    fldr.flight_info.forEach(f => {
+                      if (f.departure_time) scheduledEvents.push({ date: new Date(f.departure_time), type: 'flight_departure', event: f })
+                      if (f.arrival_time) scheduledEvents.push({ date: new Date(f.arrival_time), type: 'flight_arrival', event: f })
+                    })
+                  }
+                  if (fldr.hotel_info?.check_in) scheduledEvents.push({ date: new Date(fldr.hotel_info.check_in), type: 'hotel_checkin', event: fldr.hotel_info })
+                  if (fldr.hotel_info?.check_out) scheduledEvents.push({ date: new Date(fldr.hotel_info.check_out), type: 'hotel_checkout', event: fldr.hotel_info })
+                  if (fldr.venue_info?.event_start) scheduledEvents.push({ date: new Date(fldr.venue_info.event_start), type: 'event_start', event: fldr.venue_info })
+                  if (fldr.venue_info?.event_end) scheduledEvents.push({ date: new Date(fldr.venue_info.event_end), type: 'event_end', event: fldr.venue_info })
+                  
+                  scheduledEvents.sort((a, b) => a.date.getTime() - b.date.getTime())
+                  
+                  generatedItineraryItems.forEach(aiItem => {
+                    // Parse the time from AI recommendation (e.g., "7:30 AM")
+                    const timeMatch = aiItem.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+                    if (!timeMatch) return
+                    
+                    const hours = parseInt(timeMatch[1])
+                    const minutes = parseInt(timeMatch[2])
+                    const isPM = timeMatch[3].toUpperCase() === 'PM'
+                    const hour24 = isPM && hours !== 12 ? hours + 12 : !isPM && hours === 12 ? 0 : hours
+                    
+                    const actionLower = aiItem.action.toLowerCase()
+                    
+                    // Find the relevant scheduled event this AI suggestion relates to
+                    let targetEvent = null
+                    
+                    // Match to specific event types
+                    if (actionLower.includes('depart for airport') || actionLower.includes('leave for airport') || 
+                        actionLower.includes('airport') || actionLower.includes('tsa')) {
+                      // Find the nearest flight AFTER any currently processed AI time
+                      targetEvent = scheduledEvents.find(e => e.type === 'flight_departure')
+                    }
+                    else if (actionLower.includes('board') || actionLower.includes('gate')) {
+                      targetEvent = scheduledEvents.find(e => e.type === 'flight_departure')
+                    }
+                    else if (actionLower.includes('flight departs') || actionLower.includes('takeoff')) {
+                      targetEvent = scheduledEvents.find(e => e.type === 'flight_departure')
+                    }
+                    else if (actionLower.includes('land') || actionLower.includes('arrive') && actionLower.includes('airport')) {
+                      targetEvent = scheduledEvents.find(e => e.type === 'flight_arrival')
+                    }
+                    else if (actionLower.includes('hotel') && (actionLower.includes('arrive') || actionLower.includes('check'))) {
+                      targetEvent = scheduledEvents.find(e => e.type === 'hotel_checkin')
+                    }
+                    else if (actionLower.includes('leave hotel') || actionLower.includes('checkout')) {
+                      targetEvent = scheduledEvents.find(e => e.type === 'hotel_checkout')
+                    }
+                    else if (actionLower.includes('venue') || actionLower.includes('event') || actionLower.includes('setup')) {
+                      targetEvent = scheduledEvents.find(e => e.type === 'event_start')
+                    }
+                    
+                    // Default to first flight if no match
+                    if (!targetEvent && scheduledEvents.length > 0) {
+                      targetEvent = scheduledEvents[0]
+                    }
+                    
+                    if (targetEvent) {
+                      // Use the same DATE as the target event, but with the AI's suggested TIME
+                      const targetDate = new Date(targetEvent.date)
+                      targetDate.setHours(hour24, minutes, 0, 0)
+                      
+                      // If this is a "before" action (depart, leave) and the suggested time is AFTER the event time,
+                      // it means the AI wants us to depart the day before
+                      // Example: Flight at 6:20 AM Thursday, AI says "depart 8:00 PM" → must be Wednesday 8 PM
+                      const isBeforeAction = actionLower.includes('depart') || actionLower.includes('leave')
+                      const suggestedIsAfterEvent = targetDate.getTime() > targetEvent.date.getTime()
+                      
+                      if (isBeforeAction && suggestedIsAfterEvent) {
+                        targetDate.setDate(targetDate.getDate() - 1)
+                      }
+                      
+                      // Boundary check: ensure AI recommendations stay within trip dates
+                      // This prevents spurious "Monday" entries when trip is Wed-Thu
+                      // IMPORTANT: Parse dates in local timezone to avoid UTC/local mismatches
+                      if (fldr.date_start && fldr.date_end) {
+                        const [startYear, startMonth, startDay] = fldr.date_start.split('-').map(Number)
+                        const [endYear, endMonth, endDay] = fldr.date_end.split('-').map(Number)
+                        const tripStart = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0)
+                        const tripEnd = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999)
+                        
+                        // Clamp to trip range
+                        if (targetDate < tripStart) {
+                          targetDate.setFullYear(startYear, startMonth - 1, startDay)
+                          targetDate.setHours(hour24, minutes, 0, 0)
+                        } else if (targetDate > tripEnd) {
+                          targetDate.setFullYear(endYear, endMonth - 1, endDay)
+                          targetDate.setHours(hour24, minutes, 0, 0)
+                        }
+                      } else if (fldr.date_start) {
+                        // If only start date, ensure not before it
+                        const [startYear, startMonth, startDay] = fldr.date_start.split('-').map(Number)
+                        const tripStart = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0)
+                        if (targetDate < tripStart) {
+                          targetDate.setFullYear(startYear, startMonth - 1, startDay)
+                          targetDate.setHours(hour24, minutes, 0, 0)
+                        }
+                      }
+                      
+                      const dayKey = targetDate.toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })
+                      
+                      // Add AI recommendation as an event
+                      if (!itinerary[dayKey]) {
+                        itinerary[dayKey] = []
+                      }
+                      
+                      itinerary[dayKey].push({
+                        dateTime: targetDate,
+                        type: aiItem.type || 'transition',
+                        title: aiItem.action,
+                        details: [
+                          aiItem.duration ? `${aiItem.duration}` : '',
+                          aiItem.reason || ''
+                        ].filter(d => d),
+                        isAI: true,
+                        personalized: aiItem.personalized || false
+                      })
+                    }
+                  })
+                  
+                  // Re-sort events within each day
+                  Object.keys(itinerary).forEach(day => {
+                    itinerary[day].sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())
+                  })
+                }
+                
+                if (Object.keys(itinerary).length === 0) {
                   return (
                     <p className="text-sm text-gray-400 py-4 text-center">
                       No scheduled events yet. Add flight times, hotel check-in/out, or rental car times to build your itinerary.
@@ -2860,37 +3381,80 @@ export default function FldrDetailPage() {
                   )
                 }
 
+                // Find the very first upcoming event across ALL days (not just within each day)
+                let firstUpcomingEventTime: number | null = null
+                Object.keys(itinerary).forEach(day => {
+                  itinerary[day].forEach(event => {
+                    if (event.dateTime.getTime() >= currentTime.getTime()) {
+                      if (firstUpcomingEventTime === null || event.dateTime.getTime() < firstUpcomingEventTime) {
+                        firstUpcomingEventTime = event.dateTime.getTime()
+                      }
+                    }
+                  })
+                })
+
                 return (
                   <div className="space-y-4">
-                    {days.map((day, dayIndex) => (
+                    {Object.keys(itinerary).map((day, dayIndex) => (
                       <div key={day} className={dayIndex > 0 ? 'border-t border-[#2a2a2a] pt-4' : ''}>
                         <div className="text-sm font-semibold text-[#3b82f6] mb-3">
                           {day}
                         </div>
                         <div className="space-y-3">
-                          {itinerary[day].map((event, eventIndex) => (
-                            <div key={eventIndex} className="pl-4 border-l-2 border-[#3b82f6]/30">
-                              <div className="flex items-baseline gap-2 mb-1">
-                                <span className="text-xs font-medium text-[#3b82f6]">
-                                  {event.dateTime.toLocaleTimeString('en-US', {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}
-                                </span>
-                                <span className="text-sm font-medium text-white">
-                                  {event.title}
-                                </span>
-                              </div>
-                              {event.details.length > 0 && (
-                                <div className="text-xs text-gray-400 space-y-0.5 ml-16">
-                                  {event.details.map((detail, i) => (
-                                    <div key={i}>{detail}</div>
-                                  ))}
+                          {itinerary[day].map((event, eventIndex) => {
+                            const isAIGenerated = (event as any).isAI
+                            const isPersonalized = (event as any).personalized
+                            const isPast = event.dateTime.getTime() < currentTime.getTime()
+                            
+                            // Mark as "NEXT" only if this is THE first upcoming event across the entire itinerary
+                            const isNext = firstUpcomingEventTime !== null && event.dateTime.getTime() === firstUpcomingEventTime
+                            
+                            return (
+                              <div 
+                                key={eventIndex} 
+                                className={`pl-4 border-l-2 transition-all ${
+                                  isPast 
+                                    ? 'border-[#3b82f6]/20 opacity-50' 
+                                    : isNext 
+                                      ? 'border-[#10b981] bg-[#10b981]/5 shadow-sm' 
+                                      : isAIGenerated 
+                                        ? 'border-[#f59e0b]/50 bg-[#f59e0b]/5' 
+                                        : 'border-[#3b82f6]/30'
+                                }`}
+                              >
+                                <div className="flex items-baseline gap-2 mb-1">
+                                  <span className={`text-xs font-medium ${isPast ? 'text-gray-600' : isNext ? 'text-[#10b981]' : 'text-[#3b82f6]'}`}>
+                                    {event.dateTime.toLocaleTimeString('en-US', {
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}
+                                  </span>
+                                  <span className={`text-sm flex items-center gap-1.5 ${
+                                    isPast 
+                                      ? 'line-through text-gray-600' 
+                                      : isAIGenerated 
+                                        ? 'text-gray-300' 
+                                        : 'font-medium text-white'
+                                  }`}>
+                                    {event.title}
+                                    {isNext && (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-[#10b981]/20 text-[#10b981] rounded border border-[#10b981]/30">
+                                        NEXT
+                                      </span>
+                                    )}
+                                  </span>
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                                {event.details.length > 0 && (
+                                  <div className={`text-xs space-y-0.5 ml-16 ${isPast ? 'text-gray-600 line-through' : 'text-gray-400'}`}>
+                                    {event.details.map((detail, i) => (
+                                      <div key={i}>{detail}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     ))}
@@ -3897,36 +4461,78 @@ export default function FldrDetailPage() {
                     + Add Item
                   </button>
                 </div>
+
+                {(() => {
+                  const daysUntil = getDaysUntilJob()
+                  if (daysUntil !== null && daysUntil >= 0) {
+                    const urgencyColor = daysUntil <= 2 ? 'text-red-400' : daysUntil <= 7 ? 'text-yellow-400' : 'text-green-400'
+                    const urgencyBg = daysUntil <= 2 ? 'bg-red-500/10 border-red-500/20' : daysUntil <= 7 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-green-500/10 border-green-500/20'
+                    return (
+                      <div className={`px-3 py-2 ${urgencyBg} border rounded-lg mb-2`}>
+                        <div className="flex items-center gap-2">
+                          <svg className={`w-3.5 h-3.5 ${urgencyColor} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className={`text-xs ${urgencyColor} font-medium`}>
+                            {daysUntil === 0 ? 'Job is today!' : daysUntil === 1 ? '1 day until job' : `${daysUntil} days until job`}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+
                 <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
-                  <p className="text-xs text-blue-400">
-                    ℹ️ Checklist progress automatically updates in Job Summary section
-                  </p>
-                </div>
-                {(fldr.checklist || []).map((item, index) => (
-                  <div key={index} className="flex items-center gap-2 group">
-                    <input
-                      type="checkbox"
-                      checked={item.completed}
-                      onChange={() => toggleChecklistItem(index)}
-                      className="w-4 h-4 rounded border-[#2a2a2a] bg-[#0a0a0a] accent-[#3b82f6]"
-                    />
-                    <input
-                      type="text"
-                      value={item.item}
-                      onChange={(e) => updateChecklistItem(index, e.target.value)}
-                      className={`flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm ${
-                        item.completed ? 'line-through text-gray-500' : ''
-                      }`}
-                      placeholder="Item"
-                    />
-                    <button
-                      onClick={() => removeChecklistItem(index)}
-                      className="px-2 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      ×
-                    </button>
+                  <div className="flex items-start gap-2">
+                    <svg className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-blue-400 flex-1">
+                      Checklist progress automatically updates in Job Summary section
+                    </p>
                   </div>
-                ))}  
+                </div>
+                {(fldr.checklist || []).map((item, index) => {
+                  const daysUntil = getDaysUntilJob()
+                  return (
+                    <div key={index} className="flex items-start gap-2 group">
+                      <input
+                        type="checkbox"
+                        checked={item.completed}
+                        onChange={() => toggleChecklistItem(index)}
+                        className="w-4 h-4 mt-2 rounded border-[#2a2a2a] bg-[#0a0a0a] accent-[#3b82f6]"
+                      />
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.item}
+                          onChange={(e) => updateChecklistItem(index, e.target.value)}
+                          className={`w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm ${
+                            item.completed ? 'line-through text-gray-500' : ''
+                          }`}
+                          placeholder="Item"
+                        />
+                        {daysUntil !== null && daysUntil >= 0 && (
+                          <div className="mt-1 flex items-center gap-1">
+                            <svg className={`w-3 h-3 ${daysUntil <= 2 ? 'text-red-400' : daysUntil <= 7 ? 'text-yellow-400' : 'text-green-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className={`text-xs ${daysUntil <= 2 ? 'text-red-400' : daysUntil <= 7 ? 'text-yellow-400' : 'text-green-400'}`}>
+                              {daysUntil === 0 ? 'Today' : daysUntil === 1 ? '1 day left' : `${daysUntil} days left`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeChecklistItem(index)}
+                        className="px-2 mt-2 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}  
                 {(fldr.checklist || []).length === 0 && (
                   <p className="text-xs text-gray-500 py-2">No items yet</p>
                 )}
@@ -3969,9 +4575,14 @@ export default function FldrDetailPage() {
                   </button>
                 </div>
                 <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
-                  <p className="text-xs text-blue-400">
-                    ℹ️ People added here automatically appear in Job Summary and Job Info sections
-                  </p>
+                  <div className="flex items-start gap-2">
+                    <svg className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-blue-400 flex-1">
+                      People added here automatically appear in Job Summary and Job Info sections
+                    </p>
+                  </div>
                 </div>
                 {(fldr.people || []).map((person, index) => (
                   <div key={index} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
@@ -4103,7 +4714,7 @@ export default function FldrDetailPage() {
                               
                               const originalSize = (event.target?.result as string).length
                               const compressedSize = compressedUrl.length
-                              console.log(`📷 Compressed: ${(originalSize/1024).toFixed(0)}KB → ${(compressedSize/1024).toFixed(0)}KB`)
+                              console.log(`[Photo] Compressed: ${(originalSize/1024).toFixed(0)}KB -> ${(compressedSize/1024).toFixed(0)}KB`)
                               
                               addPhoto(compressedUrl)
                             }

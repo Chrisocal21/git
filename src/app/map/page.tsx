@@ -88,7 +88,7 @@ export default function MapPage() {
     filteredFldrs.forEach((fldr, index) => {
       // Handle migration: if flight_info is an object (old structure), convert to array
       if (fldr.flight_info && !Array.isArray(fldr.flight_info)) {
-        console.log(`🔄 Migrating flight_info for fldr: ${fldr.title}`)
+        console.log(`[Migration] Migrating flight_info for fldr: ${fldr.title}`)
         const oldFlightInfo = fldr.flight_info as any
         // Convert to array with single segment
         const migratedSegments: FlightSegment[] = [{
@@ -132,7 +132,7 @@ export default function MapPage() {
 
     // If we migrated any data, save it back to cache
     if (needsUpdate) {
-      console.log('💾 Saving migrated flight data to cache')
+      console.log('[Migration] Saving migrated flight data to cache')
       localStorage.setItem('git-fldrs', JSON.stringify(fldrsData))
       
       // Also update individual offline storage entries
@@ -341,7 +341,7 @@ export default function MapPage() {
                   }`}
                 >
                   <div className="text-sm font-semibold text-white">
-                    ✨ Show All Routes
+                    Show All Routes
                   </div>
                   <div className="text-xs text-white/70 mt-1">
                     View your complete flight history

@@ -77,32 +77,32 @@ function FldrMap({
       const element = mapContainerRef.current
       
       if (!element) {
-        console.warn('⚠️ Map element not ready')
+        console.warn('[Map] Map element not ready')
         return
       }
       
       if (!locations || locations.length === 0) {
-        console.log('⚠️ No locations provided')
+        console.log('[Map] No locations provided')
         setLoading(false)
         return
       }
       
       // Prevent re-initialization if map already exists
       if (googleMapRef.current) {
-        console.log('♻️ Map already initialized, skipping re-init')
+        console.log('[Map] Map already initialized, skipping re-init')
         return
       }
 
-      console.log('🗺️ Initializing Google Maps with', locations.length, 'locations')
+      console.log('[Map] Initializing Google Maps with', locations.length, 'locations')
       
       setLoading(true)
       setError(null)
 
       try {
         // Load Google Maps
-        console.log('📍 Loading Google Maps API...')
+        console.log('[Map] Loading Google Maps API...')
         await googleMapsLoader.load()
-        console.log('✅ Google Maps API loaded, geocoding addresses via server...')
+        console.log('[Map] Google Maps API loaded, geocoding addresses via server...')
 
         // Geocode addresses using our server-side API (more reliable than client-side)
         const results = await Promise.all(
@@ -111,13 +111,13 @@ function FldrMap({
               return null
             }
             try {
-              console.log('🔍 Geocoding:', loc.label, '-', loc.address)
+              console.log('[Map] Geocoding:', loc.label, '-', loc.address)
               
               // Use our server-side geocoding API
               const response = await fetch(`/api/timezone?address=${encodeURIComponent(loc.address)}`)
               
               if (!response.ok) {
-                console.warn('⚠️ Geocoding failed for:', loc.label)
+                console.warn('[Map] Geocoding failed for:', loc.label)
                 return null
               }
               
@@ -125,13 +125,13 @@ function FldrMap({
               
               if (data.coordinates?.lat && data.coordinates?.lng) {
                 const coordinates: [number, number] = [parseFloat(data.coordinates.lat), parseFloat(data.coordinates.lng)]
-                console.log('✅ Geocoded:', loc.label, '→', coordinates)
+                console.log('[Map] Geocoded:', loc.label, '->', coordinates)
                 return { ...loc, coordinates }
               } else {
-                console.warn('❌ No results for:', loc.label, loc.address)
+                console.warn('[Map] No results for:', loc.label, loc.address)
               }
             } catch (e) {
-              console.error('❌ Geocoding error for:', loc.address, e)
+              console.error('[Map] Geocoding error for:', loc.address, e)
             }
             return null
           })
@@ -140,10 +140,10 @@ function FldrMap({
         const validLocations = results.filter((loc): loc is Location & { coordinates: [number, number] } => loc !== null)
         setGeocodedLocations(validLocations)
         
-        console.log('📍 Valid locations:', validLocations.length)
+        console.log('[Map] Valid locations:', validLocations.length)
 
         if (validLocations.length === 0) {
-          console.warn('⚠️ No valid addresses to display on map')
+          console.warn('[Map] No valid addresses to display on map')
           setError('No valid addresses to display')
           setLoading(false)
           return
@@ -244,17 +244,17 @@ function FldrMap({
           map.fitBounds(bounds)
         }
 
-        console.log('✅ Google Maps initialized successfully')
+        console.log('[Map] Google Maps initialized successfully')
         setLoading(false)
 
       } catch (error) {
-        console.error('❌ Map initialization error:', error)
+        console.error('[Map] Map initialization error:', error)
         setError(`Failed to load map: ${error instanceof Error ? error.message : 'Unknown error'}`)
         setLoading(false)
       }
     }
 
-    console.log('🗺️ useEffect triggered - isRefReady:', isRefReady, 'locations:', locations.length)
+    console.log('[Map] useEffect triggered - isRefReady:', isRefReady, 'locations:', locations.length)
     
     if (isRefReady && locations.length > 0) {
       locations.forEach((loc, i) => {
@@ -264,7 +264,7 @@ function FldrMap({
     }
 
     return () => {
-      console.log('🧹 Cleanup - clearing markers')
+      console.log('[Map] Cleanup - clearing markers')
       markersRef.current.forEach(marker => marker.setMap(null))
       markersRef.current = []
       googleMapRef.current = null
@@ -273,7 +273,7 @@ function FldrMap({
 
   // Callback ref - triggers state update when element is attached
   const setMapRef = (element: HTMLDivElement | null) => {
-    console.log('🎯 Map ref callback:', element ? 'ELEMENT SET' : 'NULL')
+    console.log('[Map] Map ref callback:', element ? 'ELEMENT SET' : 'NULL')
     mapContainerRef.current = element
     if (element && !isRefReady) {
       setIsRefReady(true)

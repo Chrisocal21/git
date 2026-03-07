@@ -108,9 +108,9 @@ Important:
     }
 
     if (imageData) {
-      console.log(`🤖 Parsing ${type} from image (${imageData.length} bytes)`)
+      console.log(`[AI] Parsing ${type} from image (${imageData.length} bytes)`)
     } else {
-      console.log(`🤖 Parsing ${type} email (${emailText.length} chars)`)
+      console.log(`[AI] Parsing ${type} email (${emailText.length} chars)`)
     }
 
     // Use GPT-4o for images (has vision), GPT-4o-mini for text only
@@ -159,7 +159,7 @@ Important:
       throw new Error('No response from OpenAI')
     }
 
-    console.log('✅ Parsed successfully:', content.substring(0, 100) + '...')
+    console.log('[AI] Parsed successfully:', content.substring(0, 100) + '...')
 
     const parsedData = JSON.parse(content)
 

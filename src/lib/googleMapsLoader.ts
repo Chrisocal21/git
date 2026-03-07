@@ -29,7 +29,7 @@ class GoogleMapsLoader {
     
     // Check if API key is valid (not placeholder or empty)
     if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
-      console.warn('⚠️ Google Maps API key not configured. Address autocomplete will not work.')
+      console.warn('[Maps] Google Maps API key not configured. Address autocomplete will not work.')
       console.warn('To fix: Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env.local file')
       return Promise.reject(new Error('Google Maps API key not configured'))
     }

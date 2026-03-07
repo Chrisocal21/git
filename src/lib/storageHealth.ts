@@ -52,11 +52,11 @@ export const getStorageHealth = (): StorageHealth | null => {
 export const logStorageInfo = () => {
   try {
     const health = getStorageHealth()
-    console.log('📦 Storage Health:', health)
+    console.log('[Storage] Health:', health)
     
     // Log all git-related keys
     const keys = Object.keys(localStorage).filter(k => k.startsWith('git'))
-    console.log('📦 Storage Keys:', keys)
+    console.log('[Storage] Keys:', keys)
     
     keys.forEach(key => {
       const value = localStorage.getItem(key)
@@ -74,7 +74,7 @@ export const logStorageInfo = () => {
         }
       }
     }
-    console.log(`📦 Total localStorage: ${(totalSize / 1024).toFixed(2)} KB`)
+    console.log(`[Storage] Total localStorage: ${(totalSize / 1024).toFixed(2)} KB`)
     
   } catch (error) {
     console.error('Failed to log storage info:', error)

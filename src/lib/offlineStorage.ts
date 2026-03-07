@@ -104,14 +104,14 @@ export const syncQueuedChanges = async (): Promise<boolean> => {
   const queue = getSyncQueue()
   if (queue.length === 0) return true
   
-  console.log(`🔄 Syncing ${queue.length} queued changes...`)
+  console.log(`[Sync] Syncing ${queue.length} queued changes...`)
   
   try {
     // Process each queued item
     for (const item of queue) {
-      console.log(`🔄 Syncing fldr ${item.fldrId}:`, Object.keys(item.updates))
+      console.log(`[Sync] Syncing fldr ${item.fldrId}:`, Object.keys(item.updates))
       if (item.updates.photos) {
-        console.log(`📷 Syncing ${item.updates.photos.length} photos for fldr ${item.fldrId}`)
+        console.log(`[Sync] Syncing ${item.updates.photos.length} photos for fldr ${item.fldrId}`)
       }
       await fetch(`/api/fldrs/${item.fldrId}`, {
         method: 'PATCH',
@@ -122,7 +122,7 @@ export const syncQueuedChanges = async (): Promise<boolean> => {
     
     // Clear queue after successful sync
     clearSyncQueue()
-    console.log('✅ Sync queue cleared')
+    console.log('[Sync] Sync queue cleared')
     return true
   } catch (error) {
     console.error('Failed to sync queued changes:', error)
