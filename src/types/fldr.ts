@@ -119,6 +119,10 @@ export interface Fldr {
   status: FldrStatus
   attending: boolean // Whether user is personally attending this trip
   
+  // Team/User Management (prepared for multi-user - not enforced yet)
+  created_by: string | null // User ID of creator (admin) - set to null for now
+  assigned_to: string[] | null // Array of user IDs assigned to this job - null = visible to all
+  
   // Modules (all optional)
   flight_info: FlightSegment[] | null
   hotel_info: HotelInfo | null

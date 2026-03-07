@@ -7,11 +7,13 @@ import { PlusIcon, AirplaneIcon, HomeIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
+import { getCurrentUser, canEditJob, filterJobsByUser } from '@/lib/auth'
+import ProfileButton from '@/components/ProfileButton'
 import SanDiegoClock from '@/components/SanDiegoClock'
 
 type FilterOption = 'all' | 'upcoming' | 'complete'
 
-export default function FldrPage() {
+export default function JobsPage() {
   const router = useRouter()
   const [fldrs, setFldrs] = useState<Fldr[]>([])
   const [loading, setLoading] = useState(true)
@@ -22,6 +24,10 @@ export default function FldrPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStartY, setTouchStartY] = useState(0)
   const [online, setOnline] = useState(true)
+  const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = assigned to me
+  
+  // Get current user for permission checks
+  const currentUser = getCurrentUser()
 
   // Check online status and auto-sync when coming back online
   useEffect(() => {
@@ -250,6 +256,9 @@ export default function FldrPage() {
       return dateA - dateB
     })
 
+  // Apply user-based filtering (prepared for auth - currently shows all)
+  const userFilteredFldrs = filterJobsByUser(filteredFldrs, viewMode)
+
   const handleDelete = async (fldrId: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent navigation
     
@@ -282,7 +291,7 @@ export default function FldrPage() {
           <button
             disabled
             className="p-2 bg-gray-700 rounded-lg opacity-50 cursor-not-allowed"
-            aria-label="Create new Fldr"
+            aria-label="Create new Job"
           >
             <PlusIcon className="w-5 h-5" />
           </button>
@@ -322,86 +331,141 @@ export default function FldrPage() {
           </div>
         </div>
       )}
+      
+      {/* Clean header - minimal single row */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">GIT</h1>
+        
+        {/* Right side: Minimal actions */}
         <div className="flex items-center gap-2">
           <SanDiegoClock />
+          <ProfileButton />
+          
+          {/* Delete mode toggle */}
           <button
             onClick={() => setShowDeleteButtons(!showDeleteButtons)}
-            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+            className={`p-2 rounded-lg transition-colors ${
               showDeleteButtons
                 ? 'bg-red-600 hover:bg-red-700 text-white'
                 : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
             }`}
+            title={showDeleteButtons ? 'Done' : 'Delete mode'}
           >
-            {showDeleteButtons ? 'Done' : 'Delete'}
+            {showDeleteButtons ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
           </button>
+          
+          {/* Create button */}
           <button
-            onClick={() => router.push('/fldr/create')}
+            onClick={() => router.push('/jobs/create')}
             className="p-2 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg transition-colors"
-            aria-label="Create new Fldr"
+            aria-label="Create new Job"
           >
             <PlusIcon className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-            filter === 'all'
-              ? 'bg-[#3b82f6] text-white'
-              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-          }`}
-        >
-          All ({fldrs.length})
-        </button>
-        <button
-          onClick={() => setFilter('upcoming')}
-          className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-            filter === 'upcoming'
-              ? 'bg-[#3b82f6] text-white'
-              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-          }`}
-        >
-          Current ({fldrs.filter(f => f.status === 'incomplete' || f.status === 'ready' || f.status === 'active').length})
-        </button>
-        <button
-          onClick={() => setFilter('complete')}
-          className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-            filter === 'complete'
-              ? 'bg-[#3b82f6] text-white'
-              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-          }`}
-        >
-          Complete ({fldrs.filter(f => f.status === 'complete').length})
-        </button>
+      {/* Unified Filter Section */}
+      <div className="bg-[#1a1a1a] rounded-lg p-3 mb-4 space-y-3">
+        {/* Team/My Jobs toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex bg-[#0a0a0a] rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('team')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                viewMode === 'team'
+                  ? 'bg-[#3b82f6] text-white'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              Team
+            </button>
+            <button
+              onClick={() => setViewMode('my')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                viewMode === 'my'
+                  ? 'bg-[#3b82f6] text-white'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              My Jobs
+            </button>
+          </div>
+          {viewMode === 'my' && (
+            <span className="text-xs text-gray-500">I am attending</span>
+          )}
+        </div>
+        
+        {/* Status filters */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === 'all'
+                ? 'bg-[#3b82f6] text-white'
+                : 'bg-[#0a0a0a] text-gray-400 hover:bg-gray-800'
+            }`}
+          >
+            All ({fldrs.length})
+          </button>
+          <button
+            onClick={() => setFilter('upcoming')}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === 'upcoming'
+                ? 'bg-[#3b82f6] text-white'
+                : 'bg-[#0a0a0a] text-gray-400 hover:bg-gray-800'
+            }`}
+          >
+            Current ({fldrs.filter(f => f.status === 'incomplete' || f.status === 'ready' || f.status === 'active').length})
+          </button>
+          <button
+            onClick={() => setFilter('complete')}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === 'complete'
+                ? 'bg-[#3b82f6] text-white'
+                : 'bg-[#0a0a0a] text-gray-400 hover:bg-gray-800'
+            }`}
+          >
+            Complete ({fldrs.filter(f => f.status === 'complete').length})
+          </button>
+        </div>
       </div>
 
-      {filteredFldrs.length === 0 ? (
+      {userFilteredFldrs.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-400 mb-4">
-            {filter === 'all' ? 'No folders yet' : filter === 'upcoming' ? 'No current jobs' : `No ${filter} folders`}
+            {filter === 'all' ? 'No jobs yet' : filter === 'upcoming' ? 'No current jobs' : `No ${filter} jobs`}
           </p>
-          {filter === 'all' && (
+          {filter === 'all' && viewMode === 'team' && (
             <button
-              onClick={() => router.push('/fldr/create')}
+              onClick={() => router.push('/jobs/create')}
               className="px-6 py-2 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg transition-colors"
             >
-              Create Your First Fldr
+              Create Your First Job
             </button>
+          )}
+          {viewMode === 'my' && (
+            <p className="text-gray-500 text-sm mt-2">
+              No jobs assigned to you yet. Switch to Team view to see all jobs.
+            </p>
           )}
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredFldrs.map((fldr) => {
+          {userFilteredFldrs.map((fldr) => {
             const isCurrent = isCurrentEvent(fldr)
             return (
               <div key={fldr.id} className="relative">
                 <button
-                  onClick={() => router.push(`/fldr/${fldr.id}`)}
+                  onClick={() => router.push(`/jobs/${fldr.id}`)}
                   className={`w-full p-4 rounded-lg text-left transition-all bg-[#1a1a1a] border-2 ${
                     isCurrent 
                       ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:border-blue-500/70 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]' 

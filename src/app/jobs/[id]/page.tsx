@@ -20,6 +20,12 @@ import {
   clearAllCache
 } from '@/lib/offlineStorage'
 import { logStorageInfo } from '@/lib/storageHealth'
+import { 
+  shareQuickOverviewPDF, 
+  shareFullTripBriefPDF,
+  generateQuickOverviewPDF,
+  generateFullTripBriefPDF
+} from '@/lib/pdfGenerator'
 
 // Dynamic import for map (client-side only)
 const FldrMap = dynamic(() => import('@/components/FldrMap'), { 
@@ -82,6 +88,12 @@ export default function FldrDetailPage() {
   const [nearbyLoading, setNearbyLoading] = useState(false)
   const [nearbyType, setNearbyType] = useState<'restaurant' | 'cafe' | 'gas_station' | 'bar'>('restaurant')
   const [searchFromAddress, setSearchFromAddress] = useState<string | undefined>(undefined)
+  const [showOverviewModal, setShowOverviewModal] = useState(false)
+  const [generatedOverview, setGeneratedOverview] = useState<string>('')
+  const [generatingOverview, setGeneratingOverview] = useState(false)
+  const [generatingPDF, setGeneratingPDF] = useState<'quick' | 'full' | null>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   // Memoize map locations to prevent unnecessary re-renders
   const mapLocations = useMemo(() => {
@@ -224,6 +236,23 @@ export default function FldrDetailPage() {
     }
   }, [fldr])
 
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false)
+      }
+    }
+
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showExportMenu])
+
   // Sync round trip checkbox state with flight segments
   useEffect(() => {
     if (fldr?.flight_info && Array.isArray(fldr.flight_info)) {
@@ -351,7 +380,7 @@ export default function FldrDetailPage() {
         
         // Give user a chance to see the error before redirect
         setTimeout(() => {
-          router.push('/fldr')
+          router.push('/jobs')
         }, 2000)
       }
     }
@@ -1047,7 +1076,7 @@ export default function FldrDetailPage() {
           events.push({
             dateTime: new Date(segment.departure_time),
             type: 'flight',
-            title: `✈️ Flight Departure${segment.segment_type === 'return' ? ' (Return)' : ''}`,
+            title: `Flight Departure${segment.segment_type === 'return' ? ' (Return)' : ''}`,
             details: [
               segment.airline && segment.flight_number ? `${segment.airline} ${segment.flight_number}` : segment.airline || segment.flight_number || '',
               segment.departure_airport ? `From: ${segment.departure_airport}` : '',
@@ -1060,7 +1089,7 @@ export default function FldrDetailPage() {
           events.push({
             dateTime: new Date(segment.arrival_time),
             type: 'flight',
-            title: `🛬 Flight Arrival${segment.segment_type === 'return' ? ' (Return)' : ''}`,
+            title: `Flight Arrival${segment.segment_type === 'return' ? ' (Return)' : ''}`,
             details: [
               segment.arrival_airport || '',
             ].filter(d => d)
@@ -1075,7 +1104,7 @@ export default function FldrDetailPage() {
         events.push({
           dateTime: new Date(fldr.hotel_info.check_in),
           type: 'hotel',
-          title: '🏨 Hotel Check-in',
+          title: 'Hotel Check-in',
           details: [
             fldr.hotel_info.name || '',
             fldr.hotel_info.address || '',
@@ -1087,7 +1116,7 @@ export default function FldrDetailPage() {
         events.push({
           dateTime: new Date(fldr.hotel_info.check_out),
           type: 'hotel',
-          title: '🏨 Hotel Check-out',
+          title: 'Hotel Check-out',
           details: [
             fldr.hotel_info.name || '',
           ].filter(d => d)
@@ -1101,7 +1130,7 @@ export default function FldrDetailPage() {
         events.push({
           dateTime: new Date(fldr.rental_car_info.pickup_time),
           type: 'rental',
-          title: '🚗 Rental Car Pickup',
+          title: 'Rental Car Pickup',
           details: [
             fldr.rental_car_info.company || '',
             fldr.rental_car_info.pickup_location || '',
@@ -1114,7 +1143,7 @@ export default function FldrDetailPage() {
         events.push({
           dateTime: new Date(fldr.rental_car_info.dropoff_time),
           type: 'rental',
-          title: '🚗 Rental Car Dropoff',
+          title: 'Rental Car Dropoff',
           details: [
             fldr.rental_car_info.dropoff_location || '',
           ].filter(d => d)
@@ -1129,7 +1158,7 @@ export default function FldrDetailPage() {
         events.push({
           dateTime: new Date(fldr.job_info.show_up_time),
           type: 'job',
-          title: '👤 Show Up Time',
+          title: 'Show Up Time',
           details: [
             fldr.job_info.job_title || fldr.job_info.client_name || '',
             fldr.venue_info?.name && fldr.venue_info.address ? `Venue: ${fldr.venue_info.name}` : '',
@@ -1152,7 +1181,7 @@ export default function FldrDetailPage() {
             events.push({
               dateTime: new Date(`${dateStr}T${fldr.job_info.daily_start_time}`),
               type: 'job',
-              title: '🎯 Job Start',
+              title: 'Job Start',
               details: [
                 fldr.job_info.job_title || fldr.job_info.client_name || '',
                 fldr.job_info.item ? `Item: ${fldr.job_info.item}` : '',
@@ -1165,7 +1194,7 @@ export default function FldrDetailPage() {
             events.push({
               dateTime: new Date(`${dateStr}T${fldr.job_info.daily_break_start}`),
               type: 'job',
-              title: '☕ Break Start',
+              title: 'Break Start',
               details: []
             })
           }
@@ -1175,7 +1204,7 @@ export default function FldrDetailPage() {
             events.push({
               dateTime: new Date(`${dateStr}T${fldr.job_info.daily_break_end}`),
               type: 'job',
-              title: '🔄 Break End',
+              title: 'Break End',
               details: []
             })
           }
@@ -1185,7 +1214,7 @@ export default function FldrDetailPage() {
             events.push({
               dateTime: new Date(`${dateStr}T${fldr.job_info.daily_end_time}`),
               type: 'job',
-              title: '✅ Job End',
+              title: 'Job End',
               details: [
                 fldr.job_info.job_title || fldr.job_info.client_name || '',
               ].filter(d => d)
@@ -1198,7 +1227,7 @@ export default function FldrDetailPage() {
           events.push({
             dateTime: new Date(fldr.job_info.job_start_time),
             type: 'job',
-            title: '🎯 Job Start',
+            title: 'Job Start',
             details: [
               fldr.job_info.job_title || fldr.job_info.client_name || '',
               fldr.job_info.item ? `Item: ${fldr.job_info.item}` : '',
@@ -1209,7 +1238,7 @@ export default function FldrDetailPage() {
           events.push({
             dateTime: new Date(fldr.job_info.break_start_time),
             type: 'job',
-            title: '☕ Break Start',
+            title: 'Break Start',
             details: []
           })
         }
@@ -1217,7 +1246,7 @@ export default function FldrDetailPage() {
           events.push({
             dateTime: new Date(fldr.job_info.break_end_time),
             type: 'job',
-            title: '🔄 Break End',
+            title: 'Break End',
             details: []
           })
         }
@@ -1225,7 +1254,7 @@ export default function FldrDetailPage() {
           events.push({
             dateTime: new Date(fldr.job_info.job_end_time),
             type: 'job',
-            title: '✅ Job End',
+            title: 'Job End',
             details: [
               fldr.job_info.job_title || fldr.job_info.client_name || '',
             ].filter(d => d)
@@ -1601,7 +1630,7 @@ export default function FldrDetailPage() {
       clearAllCache()
       setHasUnsynced(false)
       // Redirect to list since we cleared everything
-      router.push('/fldr')
+      router.push('/jobs')
     }
   }
 
@@ -1706,7 +1735,7 @@ export default function FldrDetailPage() {
         console.log('✅ Job duplicated successfully')
         
         // Navigate to the new fldr
-        router.push(`/fldr/${createdFldr.id}`)
+        router.push(`/jobs/${createdFldr.id}`)
       } else {
         throw new Error('Failed to duplicate job')
       }
@@ -1715,6 +1744,85 @@ export default function FldrDetailPage() {
       alert('Failed to duplicate job. Please try again.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const generateOverview = async () => {
+    if (!fldr) return
+    
+    setGeneratingOverview(true)
+    
+    try {
+      const response = await fetch('/api/overview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fldr })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setGeneratedOverview(data.overview)
+        setShowOverviewModal(true)
+      } else {
+        throw new Error('Failed to generate overview')
+      }
+    } catch (error) {
+      console.error('❌ Generate overview failed:', error)
+      alert('Failed to generate overview. Please try again.')
+    } finally {
+      setGeneratingOverview(false)
+    }
+  }
+
+  const handleQuickOverviewShare = async () => {
+    if (!fldr) return
+    setGeneratingPDF('quick')
+    try {
+      await shareQuickOverviewPDF(fldr)
+    } catch (error) {
+      console.error('❌ PDF share failed:', error)
+      alert('Failed to share PDF. Please try again.')
+    } finally {
+      setGeneratingPDF(null)
+    }
+  }
+
+  const handleQuickOverviewDownload = async () => {
+    if (!fldr) return
+    setGeneratingPDF('quick')
+    try {
+      await generateQuickOverviewPDF(fldr)
+    } catch (error) {
+      console.error('❌ PDF download failed:', error)
+      alert('Failed to download PDF. Please try again.')
+    } finally {
+      setGeneratingPDF(null)
+    }
+  }
+
+  const handleFullTripBriefShare = async () => {
+    if (!fldr) return
+    setGeneratingPDF('full')
+    try {
+      await shareFullTripBriefPDF(fldr)
+    } catch (error) {
+      console.error('❌ PDF share failed:', error)
+      alert('Failed to share PDF. Please try again.')
+    } finally {
+      setGeneratingPDF(null)
+    }
+  }
+
+  const handleFullTripBriefDownload = async () => {
+    if (!fldr) return
+    setGeneratingPDF('full')
+    try {
+      await generateFullTripBriefPDF(fldr)
+    } catch (error) {
+      console.error('❌ PDF download failed:', error)
+      alert('Failed to download PDF. Please try again.')
+    } finally {
+      setGeneratingPDF(null)
     }
   }
 
@@ -1809,7 +1917,7 @@ export default function FldrDetailPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push('/fldr')}
+            onClick={() => router.push('/jobs')}
             className="text-[#3b82f6] hover:text-[#2563eb]"
           >
             ← Back
@@ -1834,6 +1942,106 @@ export default function FldrDetailPage() {
                 </svg>
                 <span>Duplicate</span>
               </button>
+              
+              {/* Export Dropdown */}
+              <div className="relative" ref={exportMenuRef}>
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  disabled={generatingOverview || generatingPDF !== null}
+                  className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors disabled:opacity-50"
+                  title="Export options"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Export</span>
+                  <svg className={`w-3 h-3 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showExportMenu && (
+                  <div className="absolute top-full left-0 mt-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-lg py-1 min-w-[200px] z-50">
+                    <button
+                      onClick={() => {
+                        generateOverview()
+                        setShowExportMenu(false)
+                      }}
+                      disabled={generatingOverview}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>{generatingOverview ? 'Generating...' : 'Text Overview'}</span>
+                    </button>
+                    
+                    <div className="border-t border-[#2a2a2a] my-1"></div>
+                    
+                    <div className="px-3 py-1">
+                      <span className="text-xs text-gray-500 font-medium">Quick PDF (1 page)</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        handleQuickOverviewDownload()
+                        setShowExportMenu(false)
+                      }}
+                      disabled={generatingPDF !== null}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      <span>{generatingPDF === 'quick' ? 'Generating...' : 'Download PDF'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleQuickOverviewShare()
+                        setShowExportMenu(false)
+                      }}
+                      disabled={generatingPDF !== null}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      <span>Share PDF</span>
+                    </button>
+                    
+                    <div className="border-t border-[#2a2a2a] my-1"></div>
+                    
+                    <div className="px-3 py-1">
+                      <span className="text-xs text-gray-500 font-medium">Full Trip Brief</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        handleFullTripBriefDownload()
+                        setShowExportMenu(false)
+                      }}
+                      disabled={generatingPDF !== null}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      <span>{generatingPDF === 'full' ? 'Generating...' : 'Download PDF'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleFullTripBriefShare()
+                        setShowExportMenu(false)
+                      }}
+                      disabled={generatingPDF !== null}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      <span>Share PDF</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -2043,7 +2251,7 @@ export default function FldrDetailPage() {
           onClick={() => toggleCard('summary')}
           className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
         >
-          <span className="font-semibold">📋 Job Summary</span>
+          <span className="font-semibold">Job Summary</span>
           <ChevronDownIcon
             className={`w-5 h-5 transition-transform ${
               expandedCards.summary ? 'rotate-180' : ''
@@ -2080,7 +2288,7 @@ export default function FldrDetailPage() {
             {/* Travel Distances */}
             {distances && distances.distances && distances.distances.length > 0 && (
               <div className="p-3 bg-[#0a0a0a] rounded-lg">
-                <div className="font-semibold text-[#3b82f6] mb-2">🚗 Travel Times</div>
+                <div className="font-semibold text-[#3b82f6] mb-2">Travel Times</div>
                 <div className="space-y-1.5">
                   {distances.distances.map((dist: any, idx: number) => {
                     if (dist.error) return null
@@ -2166,7 +2374,7 @@ export default function FldrDetailPage() {
                       {(segment.departure_time || segment.arrival_time) && (
                         <div className="text-xs text-gray-400 ml-7 flex gap-3">
                           {segment.departure_time && (
-                            <span>🛫 {new Date(segment.departure_time).toLocaleString('en-US', { 
+                            <span>Depart: {new Date(segment.departure_time).toLocaleString('en-US', { 
                               month: 'short', 
                               day: 'numeric', 
                               hour: 'numeric', 
@@ -2175,7 +2383,7 @@ export default function FldrDetailPage() {
                             })}</span>
                           )}
                           {segment.arrival_time && (
-                            <span>🛬 {new Date(segment.arrival_time).toLocaleString('en-US', { 
+                            <span>Arrive: {new Date(segment.arrival_time).toLocaleString('en-US', { 
                               month: 'short', 
                               day: 'numeric', 
                               hour: 'numeric', 
@@ -2307,10 +2515,10 @@ export default function FldrDetailPage() {
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                   <p className="text-xs text-red-400">
                     {weatherError === 'OpenWeather API key not configured' ? (
-                      <>⚠️ Weather requires API key. Add <code className="bg-black/30 px-1 rounded">NEXT_PUBLIC_OPENWEATHER_API_KEY</code> to .env</>
+                      <>Weather requires API key. Add <code className="bg-black/30 px-1 rounded">NEXT_PUBLIC_OPENWEATHER_API_KEY</code> to .env</>
                     ) : weatherError.includes('not activated') || weatherError.includes('invalid') ? (
                       <>
-                        ⏳ API key not activated yet. New OpenWeather keys can take up to 2 hours to activate.
+                        API key not activated yet. New OpenWeather keys can take up to 2 hours to activate.
                         <br />
                         <a 
                           href="https://home.openweathermap.org/api_keys" 
@@ -2322,7 +2530,7 @@ export default function FldrDetailPage() {
                         </a>
                       </>
                     ) : (
-                      <>⚠️ {weatherError}</>
+                      <>{weatherError}</>
                     )}
                   </p>
                 </div>
@@ -2331,7 +2539,7 @@ export default function FldrDetailPage() {
               {!weatherLoading && !weatherError && !weatherData && (
                 <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                   <p className="text-xs text-yellow-400">
-                    ℹ️ Add a location to see weather forecast
+                    Add a location to see weather forecast
                   </p>
                 </div>
               )}
@@ -2447,7 +2655,7 @@ export default function FldrDetailPage() {
                 </div>
                 <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                   <p className="text-xs text-blue-400">
-                    ℹ️ Team/contact info is in the <strong>People</strong> module below
+                    Team/contact info is in the <strong>People</strong> module below
                   </p>
                 </div>
               </div>
@@ -4047,6 +4255,47 @@ export default function FldrDetailPage() {
                 <p className="text-sm text-center">{fldr.photos[expandedPhotoIndex].caption}</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Overview Modal */}
+      {showOverviewModal && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowOverviewModal(false)}
+        >
+          <div 
+            className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">Job Overview</h3>
+              <button
+                onClick={() => setShowOverviewModal(false)}
+                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4 mb-4">
+              <pre className="whitespace-pre-wrap font-mono text-sm text-gray-300 leading-relaxed">
+                {generatedOverview}
+              </pre>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">
+                Copy this overview to use in emails, reports, or other programs
+              </p>
+              <CopyButton 
+                text={generatedOverview} 
+                label="Copy Overview"
+              />
+            </div>
           </div>
         </div>
       )}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Fldr, FlightSegment } from '@/types/fldr'
 import { AirplaneIcon } from '@/components/Icons'
+import { filterJobsByUser } from '@/lib/auth'
 
 // FlightRoute interface (must match FlightMap component props)
 interface FlightRoute {
@@ -47,6 +48,7 @@ export default function MapPage() {
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const [showAirportStats, setShowAirportStats] = useState(false)
+  const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = assigned to me (future)
 
   useEffect(() => {
     // Load fldrs from cache or API
@@ -76,11 +78,14 @@ export default function MapPage() {
   }, [])
 
   const processRoutes = (fldrsData: Fldr[]) => {
+    // Apply user-based filtering (prepared for auth - currently shows all)
+    const filteredFldrs = filterJobsByUser(fldrsData, viewMode)
+    
     const flightRoutes: FlightRoute[] = []
     let colorIndex = 0
     let needsUpdate = false
 
-    fldrsData.forEach((fldr, index) => {
+    filteredFldrs.forEach((fldr, index) => {
       // Handle migration: if flight_info is an object (old structure), convert to array
       if (fldr.flight_info && !Array.isArray(fldr.flight_info)) {
         console.log(`🔄 Migrating flight_info for fldr: ${fldr.title}`)
@@ -208,7 +213,7 @@ export default function MapPage() {
       <div className="fixed inset-0 bg-[#0a0a0a] flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#3b82f6] mb-4"></div>
-          <div className="text-white/60">Loading your flight history...</div>
+          <div className="text-white/60">Loading job travel data...</div>
         </div>
       </div>
     )
@@ -228,20 +233,45 @@ export default function MapPage() {
       <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/90 via-black/60 to-transparent p-4 sm:p-6 z-[1000] pointer-events-none">
         <div className="flex items-center justify-between max-w-7xl mx-auto pointer-events-auto">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white drop-shadow-lg">Flight Map</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-white drop-shadow-lg">Job Travel Map</h1>
             <p className="text-xs sm:text-sm text-white/90 drop-shadow mt-1">
-              {routes.length} {routes.length === 1 ? 'trip' : 'trips'} • {routes.reduce((sum, r) => sum + r.segments.length, 0)} flights
+              {viewMode === 'team' ? 'Team Overview' : 'My Jobs'} • {routes.length} {routes.length === 1 ? 'job' : 'jobs'} • {routes.reduce((sum, r) => sum + r.segments.length, 0)} flights
             </p>
           </div>
-          <button
-            onClick={() => setShowSidebar(!showSidebar)}
-            className="hidden sm:flex px-3 sm:px-4 py-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:scale-105 items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-            <span className="font-medium">Routes</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* View mode toggle - prepared for future user filtering */}
+            <div className="hidden sm:flex bg-[#1a1a1a]/80 backdrop-blur-sm rounded-lg p-1 shadow-lg">
+              <button
+                onClick={() => setViewMode('team')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === 'team'
+                    ? 'bg-[#3b82f6] text-white shadow-md'
+                    : 'text-white/60 hover:text-white/90'
+                }`}
+              >
+                Team
+              </button>
+              <button
+                onClick={() => setViewMode('my')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === 'my'
+                    ? 'bg-[#3b82f6] text-white shadow-md'
+                    : 'text-white/60 hover:text-white/90'
+                }`}
+              >
+                My Jobs
+              </button>
+            </div>
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="hidden sm:flex px-3 sm:px-4 py-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:scale-105 items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <span className="font-medium">Jobs</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -364,7 +394,7 @@ export default function MapPage() {
             <div className="mb-3 grid grid-cols-3 gap-2 text-center">
               <div className="bg-[#1a1a1a] rounded-lg p-2">
                 <div className="text-xl font-bold text-[#3b82f6]">{routes.length}</div>
-                <div className="text-xs text-gray-400">Trips</div>
+                <div className="text-xs text-gray-400">Jobs</div>
               </div>
               <div className="bg-[#1a1a1a] rounded-lg p-2">
                 <div className="text-xl font-bold text-[#10b981]">
@@ -420,7 +450,10 @@ export default function MapPage() {
             )}
             
             <div className="text-xs text-gray-500 text-center mt-2">
-              Click routes to focus • Tap markers for details
+              {viewMode === 'team' ? 'Showing all team travel' : 'Showing your assigned jobs'}
+            </div>
+            <div className="text-xs text-gray-500 text-center">
+              Click jobs to focus • Tap markers for details
             </div>
           </div>
         </div>

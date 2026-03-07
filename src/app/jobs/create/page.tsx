@@ -34,7 +34,7 @@ export default function CreateFldrPage() {
       cacheFldr(fldr)
       
       // Navigate to the new fldr - it will fetch from D1/server on load
-      router.push(`/fldr/${fldr.id}`)
+      router.push(`/jobs/${fldr.id}`)
     } else {
       const error = await response.json()
       alert(`Failed to create fldr: ${error.error || 'Unknown error'}`)

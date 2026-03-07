@@ -36,9 +36,9 @@ export default function CloudSettingsPage() {
       setMigrationResult(result)
 
       if (result.migrated > 0) {
-        alert(`✅ Successfully migrated ${result.migrated} fldrs to D1!`)
+        alert(`Successfully migrated ${result.migrated} fldrs to D1!`)
       } else {
-        alert(`⚠️ Migration failed. Check console for details.`)
+        alert(`Migration failed. Check console for details.`)
       }
       
       console.log('Migration result:', result)
@@ -52,7 +52,7 @@ export default function CloudSettingsPage() {
       }
     } catch (error) {
       console.error('Migration error:', error)
-      alert('❌ Migration failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      alert('Migration failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setMigrating(false)
     }
@@ -95,9 +95,9 @@ export default function CloudSettingsPage() {
           </button>
           {migrationResult && (
             <div className="mt-3 p-3 bg-gray-800 rounded text-xs">
-              <div className="text-green-400">✅ {migrationResult.migrated} migrated</div>
+              <div className="text-green-400">{migrationResult.migrated} migrated</div>
               {migrationResult.failed > 0 && (
-                <div className="text-red-400">❌ {migrationResult.failed} failed</div>
+                <div className="text-red-400">{migrationResult.failed} failed</div>
               )}
             </div>
           )}
@@ -119,7 +119,7 @@ export default function CloudSettingsPage() {
 
       <div className="mt-8 p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
         <div className="text-xs text-yellow-400">
-          ⚠️ This page is only accessible via direct URL
+          WARNING: This page is only accessible via direct URL
         </div>
       </div>
     </div>

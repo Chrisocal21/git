@@ -7,8 +7,8 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect to Fldr mode on app open
-    router.push('/fldr')
+    // Redirect to Jobs page on app open
+    router.push('/jobs')
   }, [router])
 
   return null

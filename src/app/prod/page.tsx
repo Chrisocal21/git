@@ -348,7 +348,6 @@ export default function ProdPage() {
 
       {activeJobs.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <div className="text-4xl mb-4">🎉</div>
           <div className="text-lg font-medium mb-2">No active jobs</div>
           <div className="text-sm">You're all caught up!</div>
         </div>
@@ -377,7 +376,7 @@ export default function ProdPage() {
                         {task.item}
                       </div>
                       <button
-                        onClick={() => router.push(`/fldr/${task.fldrId}`)}
+                        onClick={() => router.push(`/jobs/${task.fldrId}`)}
                         className="text-xs text-gray-500 hover:text-[#3b82f6] transition-colors"
                       >
                         {task.fldrTitle}
@@ -451,7 +450,7 @@ export default function ProdPage() {
                       />
                     )}
                     <button
-                      onClick={() => router.push(`/fldr/${product.fldrId}`)}
+                      onClick={() => router.push(`/jobs/${product.fldrId}`)}
                       className="text-xs text-gray-500 hover:text-[#3b82f6] transition-colors"
                     >
                       {product.fldrTitle}

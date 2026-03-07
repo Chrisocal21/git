@@ -55,6 +55,9 @@ function normalizeFldr(fldr: any): Fldr {
   // Ensure array fields are either null or arrays (not undefined)
   const normalizedFldr: Fldr = {
     ...fldr,
+    // Team/User fields (prepared for multi-user)
+    created_by: fldr.created_by ?? null,
+    assigned_to: fldr.assigned_to === undefined ? null : (Array.isArray(fldr.assigned_to) ? fldr.assigned_to : null),
     flight_info,
     hotel_info: fldr.hotel_info === undefined ? null : fldr.hotel_info,
     venue_info: fldr.venue_info === undefined ? null : fldr.venue_info,

@@ -263,7 +263,7 @@ export default function ImportPage() {
           <h1 className="text-2xl font-bold mb-6">Import Complete</h1>
           <div className="bg-green-900/20 border border-green-500 rounded-lg p-6 mb-6">
             <div className="text-lg font-semibold mb-2">
-              ✓ Successfully imported {migratedCount} {migratedCount === 1 ? 'job' : 'jobs'}
+              Successfully imported {migratedCount} {migratedCount === 1 ? 'job' : 'jobs'}
             </div>
             <div className="text-sm text-gray-300">
               Your old trips have been converted to Fldrs and are now available in the app.

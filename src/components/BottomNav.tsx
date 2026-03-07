@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FolderIcon, PencilIcon, CogIcon, MapIcon } from './Icons'
+import { FolderIcon, CogIcon, MapIcon } from './Icons'
 
 export default function BottomNav() {
   const pathname = usePathname()
@@ -15,27 +15,15 @@ export default function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-[#2a2a2a]">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-4">
         <Link
-          href="/fldr"
+          href="/jobs"
           className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-            isActive('/fldr')
+            isActive('/jobs')
               ? 'text-[#3b82f6]'
               : 'text-gray-400 hover:text-gray-300'
           }`}
         >
           <FolderIcon className="w-6 h-6 mb-1" />
-          <span className="text-xs font-medium">Fldr</span>
-        </Link>
-
-        <Link
-          href="/write"
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-            isActive('/write')
-              ? 'text-[#3b82f6]'
-              : 'text-gray-400 hover:text-gray-300'
-          }`}
-        >
-          <PencilIcon className="w-6 h-6 mb-1" />
-          <span className="text-xs font-medium">Write</span>
+          <span className="text-xs font-medium">Jobs</span>
         </Link>
 
         <Link

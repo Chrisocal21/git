@@ -33,6 +33,9 @@ export const fldrStore = {
       location: newFldr.location || null,
       status: 'incomplete',
       attending: false,
+      // TODO: Set created_by to current user ID once auth is implemented
+      created_by: null,
+      assigned_to: null, // null = visible to all team members
       flight_info: null,
       hotel_info: null,
       venue_info: null,
