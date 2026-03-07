@@ -1710,6 +1710,8 @@ export default function FldrDetailPage() {
         location: fldr.location,
         status: 'incomplete',
         attending: fldr.attending,
+        created_by: null,
+        assigned_to: null,
         flight_info: fldr.flight_info ? JSON.parse(JSON.stringify(fldr.flight_info)) : null,
         hotel_info: fldr.hotel_info ? JSON.parse(JSON.stringify(fldr.hotel_info)) : null,
         venue_info: fldr.venue_info ? JSON.parse(JSON.stringify(fldr.venue_info)) : null,
