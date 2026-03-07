@@ -17,6 +17,18 @@ interface WeatherData {
     humidity: number
     wind_speed: number
   }
+  daily: Array<{
+    date: string
+    temp: number
+    low: number
+    high: number
+    description: string
+    main: string
+    icon: string
+    pop: number
+    humidity: number
+    wind_speed: number
+  }>
 }
 
 export default function SanDiegoClock() {
@@ -50,10 +62,30 @@ export default function SanDiegoClock() {
     const fetchWeather = async () => {
       setWeatherLoading(true)
       try {
-        const response = await fetch('/api/weather?location=San Diego, CA')
-        if (response.ok) {
-          const data = await response.json()
-          setWeatherData(data)
+        // Try different location formats
+        const locations = ['San Diego, CA, US', 'San Diego, California', 'San Diego']
+        let success = false
+        
+        for (const location of locations) {
+          try {
+            const response = await fetch(`/api/weather?location=${encodeURIComponent(location)}`)
+            
+            if (response.ok) {
+              const data = await response.json()
+              setWeatherData(data)
+              success = true
+              break
+            } else {
+              const errorData = await response.json()
+              console.warn(`Weather fetch failed for "${location}":`, errorData)
+            }
+          } catch (err) {
+            console.warn(`Weather fetch error for "${location}":`, err)
+          }
+        }
+        
+        if (!success) {
+          console.error('All weather fetch attempts failed')
         }
       } catch (error) {
         console.error('Failed to fetch SD weather:', error)
@@ -157,6 +189,42 @@ export default function SanDiegoClock() {
                         <div className="text-sm font-semibold">{weatherData.current.wind_speed} mph</div>
                       </div>
                     </div>
+                    
+                    {/* 5-Day Forecast */}
+                    {weatherData.daily && weatherData.daily.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+                        <div className="text-xs text-gray-400 mb-2">5-Day Forecast</div>
+                        <div className="grid grid-cols-5 gap-2">
+                          {weatherData.daily.map((day: any, index: number) => {
+                            // Get today's date in YYYY-MM-DD format for proper comparison
+                            const today = new Date()
+                            const todayStr = today.getFullYear() + '-' + 
+                              String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                              String(today.getDate()).padStart(2, '0')
+                            
+                            const date = new Date(day.date + 'T12:00:00')
+                            const isToday = day.date === todayStr
+                            const dayName = isToday ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' })
+                            
+                            return (
+                              <div 
+                                key={day.date} 
+                                className="p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-center"
+                              >
+                                <div className="text-xs text-gray-400 mb-1">{dayName}</div>
+                                <img 
+                                  src={`https://openweathermap.org/img/wn/${day.icon}.png`}
+                                  alt={day.description}
+                                  className="w-10 h-10 mx-auto"
+                                />
+                                <div className="text-sm font-semibold">{day.high}°</div>
+                                <div className="text-xs text-gray-500">{day.low}°</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

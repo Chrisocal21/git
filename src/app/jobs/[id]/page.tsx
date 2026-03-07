@@ -94,6 +94,11 @@ export default function FldrDetailPage() {
   const [generatingPDF, setGeneratingPDF] = useState<'quick' | 'full' | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [showParseEmailModal, setShowParseEmailModal] = useState<'flight' | 'hotel' | 'rental_car' | null>(null)
+  const [parseEmailText, setParseEmailText] = useState('')
+  const [parseEmailImage, setParseEmailImage] = useState<string | null>(null)
+  const [parseInputMode, setParseInputMode] = useState<'text' | 'image'>('text')
+  const [parsingEmail, setParsingEmail] = useState(false)
 
   // Memoize map locations to prevent unnecessary re-renders
   const mapLocations = useMemo(() => {
@@ -392,11 +397,11 @@ export default function FldrDetailPage() {
       if (!fldr) return
       
       // Determine location from available fields
-      const location = fldr.location || 
+      const baseLocation = fldr.location || 
                       fldr.venue_info?.address || 
                       fldr.hotel_info?.address
       
-      if (!location) {
+      if (!baseLocation) {
         setWeatherData(null)
         setWeatherError(null)
         return
@@ -405,16 +410,79 @@ export default function FldrDetailPage() {
       setWeatherLoading(true)
       setWeatherError(null)
 
-      try {
-        const response = await fetch(`/api/weather?location=${encodeURIComponent(location)}`)
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to fetch weather')
-        }
+      // State abbreviation mapping
+      const stateMap: Record<string, string> = {
+        'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
+        'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
+        'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+        'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+        'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
+        'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey',
+        'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+        'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+        'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
+        'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
+      }
 
-        const data = await response.json()
-        setWeatherData(data)
+      // Generate location variants to try
+      const locationVariants: string[] = []
+      
+      // Check if location has state abbreviation (e.g., "Las Vegas, NV")
+      const stateAbbrevMatch = baseLocation.match(/,\s*([A-Z]{2})(\s|$|,)/i)
+      if (stateAbbrevMatch) {
+        const stateAbbrev = stateAbbrevMatch[1].toUpperCase()
+        const fullStateName = stateMap[stateAbbrev]
+        
+        if (fullStateName) {
+          const cityPart = baseLocation.substring(0, stateAbbrevMatch.index)
+          // Try full state name first (most reliable)
+          locationVariants.push(`${cityPart}, ${fullStateName}, US`)
+          locationVariants.push(`${cityPart}, ${fullStateName}`)
+          // Then abbreviation with US
+          locationVariants.push(`${cityPart}, ${stateAbbrev}, US`)
+          // Then just city
+          locationVariants.push(cityPart.trim())
+        }
+      } else {
+        // No state abbreviation detected
+        locationVariants.push(`${baseLocation}, US`)
+        locationVariants.push(baseLocation)
+        // Try extracting just city name if comma exists
+        const commaIndex = baseLocation.indexOf(',')
+        if (commaIndex > 0) {
+          locationVariants.push(baseLocation.substring(0, commaIndex).trim())
+        }
+      }
+
+      try {
+        let success = false
+        let lastError = null
+        
+        for (const location of locationVariants) {
+          try {
+            console.log(`Trying weather location: "${location}"`)
+            const response = await fetch(`/api/weather?location=${encodeURIComponent(location)}`)
+            
+            if (response.ok) {
+              const data = await response.json()
+              console.log('✅ Weather data received for:', location)
+              setWeatherData(data)
+              success = true
+              break
+            } else {
+              const errorData = await response.json()
+              console.warn(`❌ Failed for "${location}":`, errorData.error)
+              lastError = errorData
+            }
+          } catch (err) {
+            console.warn(`❌ Error for "${location}":`, err)
+            lastError = err
+          }
+        }
+        
+        if (!success && lastError) {
+          throw new Error(lastError.details || lastError.error || 'Could not find location')
+        }
       } catch (error) {
         console.error('Weather fetch error:', error)
         setWeatherError(error instanceof Error ? error.message : 'Failed to load weather')
@@ -932,6 +1000,99 @@ export default function FldrDetailPage() {
     const updated = { ...rentalCarInfo, [field]: value || null }
     setFldr({ ...fldr, rental_car_info: updated })
     debouncedSave({ rental_car_info: updated })
+  }
+
+  const parseEmail = async () => {
+    if (!fldr || !showParseEmailModal) return
+    if (parseInputMode === 'text' && !parseEmailText.trim()) return
+    if (parseInputMode === 'image' && !parseEmailImage) return
+
+    setParsingEmail(true)
+
+    try {
+      const response = await fetch('/api/parse-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailText: parseInputMode === 'text' ? parseEmailText : undefined,
+          imageData: parseInputMode === 'image' ? parseEmailImage : undefined,
+          type: showParseEmailModal
+        })
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to parse email')
+      }
+
+      const data = result.data
+
+      // Apply parsed data based on type
+      if (showParseEmailModal === 'flight') {
+        // Create new flight segment with parsed data
+        const currentSegments = fldr.flight_info || []
+        const newSegment: FlightSegment = {
+          id: crypto.randomUUID(),
+          departure_airport: data.departure_airport || null,
+          departure_code: data.departure_code || null,
+          departure_address: null,
+          departure_time: data.departure_time || null,
+          arrival_airport: data.arrival_airport || null,
+          arrival_code: data.arrival_code || null,
+          arrival_address: null,
+          arrival_time: data.arrival_time || null,
+          flight_number: data.flight_number || null,
+          airline: data.airline || null,
+          confirmation: data.confirmation || null,
+          notes: data.notes || null,
+          segment_type: currentSegments.length === 0 ? 'outbound' : 'connection',
+        }
+        const segments = [...currentSegments, newSegment]
+        setFldr({ ...fldr, flight_info: segments })
+        debouncedSave({ flight_info: segments })
+      } else if (showParseEmailModal === 'hotel') {
+        const hotelInfo: HotelInfo = {
+          name: data.name || null,
+          address: data.address || null,
+          phone: data.phone || null,
+          confirmation: data.confirmation || null,
+          check_in: data.check_in || null,
+          check_out: data.check_out || null,
+          notes: data.notes || null,
+        }
+        setFldr({ ...fldr, hotel_info: hotelInfo })
+        debouncedSave({ hotel_info: hotelInfo })
+        setExpandedCards(prev => ({ ...prev, hotel: true }))
+      } else if (showParseEmailModal === 'rental_car') {
+        const rentalCarInfo: RentalCarInfo = {
+          company: data.company || null,
+          confirmation: data.confirmation || null,
+          pickup_location: data.pickup_location || null,
+          pickup_time: data.pickup_time || null,
+          dropoff_location: data.dropoff_location || null,
+          dropoff_time: data.dropoff_time || null,
+          vehicle_type: data.vehicle_type || null,
+          insurance_policy_number: null,
+          travel_reservation: null,
+          notes: data.notes || null,
+        }
+        setFldr({ ...fldr, rental_car_info: rentalCarInfo })
+        debouncedSave({ rental_car_info: rentalCarInfo })
+        setExpandedCards(prev => ({ ...prev, rentalCar: true }))
+      }
+
+      // Close modal and reset
+      setShowParseEmailModal(null)
+      setParseEmailText('')
+      setParseEmailImage(null)
+      setParseInputMode('text')
+    } catch (error) {
+      console.error('Parse email error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to parse email')
+    } finally {
+      setParsingEmail(false)
+    }
   }
 
   const updateJobInfo = (field: keyof JobInfo, value: any) => {
@@ -2574,8 +2735,15 @@ export default function FldrDetailPage() {
                     <div className="text-xs text-gray-400 mb-2">5-Day Forecast</div>
                     <div className="grid grid-cols-5 gap-2">
                       {weatherData.daily.map((day: any, index: number) => {
-                        const date = new Date(day.date)
-                        const dayName = index === 0 ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' })
+                        // Get today's date in YYYY-MM-DD format for proper comparison
+                        const today = new Date()
+                        const todayStr = today.getFullYear() + '-' + 
+                          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(today.getDate()).padStart(2, '0')
+                        
+                        const date = new Date(day.date + 'T12:00:00') // Parse as noon local time to avoid timezone issues
+                        const isToday = day.date === todayStr
+                        const dayName = isToday ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' })
                         const isEventDay = fldr.date_start && fldr.date_end && 
                           day.date >= fldr.date_start.split('T')[0] && 
                           day.date <= fldr.date_end.split('T')[0]
@@ -2757,16 +2925,30 @@ export default function FldrDetailPage() {
             </div>
             {expandedCards.flight && (
               <div className="px-4 pb-4 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-gray-400">
                     {fldr.flight_info?.length || 0} {(fldr.flight_info?.length || 0) === 1 ? 'segment' : 'segments'}
                   </span>
-                  <button
-                    onClick={addFlightSegment}
-                    className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
-                  >
-                    + Add Flight Segment
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setShowParseEmailModal('flight')
+                        setParseEmailText('')
+                      }}
+                      className="text-xs text-[#10b981] hover:text-[#059669] flex items-center gap-1"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      Parse Email
+                    </button>
+                    <button
+                      onClick={addFlightSegment}
+                      className="text-xs text-[#3b82f6] hover:text-[#2563eb]"
+                    >
+                      + Add Flight Segment
+                    </button>
+                  </div>
                 </div>
 
                 {/* Round Trip Toggle */}
@@ -3005,6 +3187,20 @@ export default function FldrDetailPage() {
             </div>
             {expandedCards.hotel && (
               <div className="px-4 pb-4 space-y-3">
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={() => {
+                      setShowParseEmailModal('hotel')
+                      setParseEmailText('')
+                    }}
+                    className="text-xs text-[#10b981] hover:text-[#059669] flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Parse Email
+                  </button>
+                </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Hotel Name</label>
                   <input
@@ -3187,6 +3383,20 @@ export default function FldrDetailPage() {
             </div>
             {expandedCards.rentalCar && (
               <div className="px-4 pb-4 space-y-3">
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={() => {
+                      setShowParseEmailModal('rental_car')
+                      setParseEmailText('')
+                    }}
+                    className="text-xs text-[#10b981] hover:text-[#059669] flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Parse Email
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Company</label>
@@ -4262,6 +4472,186 @@ export default function FldrDetailPage() {
       )}
 
       {/* Overview Modal */}
+      {/* Parse Email Modal */}
+      {showParseEmailModal && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            setShowParseEmailModal(null)
+            setParseEmailText('')
+          }}
+        >
+          <div 
+            className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6 max-w-2xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">
+                Parse {showParseEmailModal === 'flight' ? 'Flight' : showParseEmailModal === 'hotel' ? 'Hotel' : 'Rental Car'} Confirmation Email
+              </h3>
+              <button
+                onClick={() => {
+                  setShowParseEmailModal(null)
+                  setParseEmailText('')
+                  setParseEmailImage(null)
+                  setParseInputMode('text')
+                }}
+                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Input mode tabs */}
+            <div className="flex gap-2 mb-4 border-b border-[#2a2a2a]">
+              <button
+                onClick={() => setParseInputMode('text')}
+                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  parseInputMode === 'text'
+                    ? 'text-[#3b82f6] border-[#3b82f6]'
+                    : 'text-gray-400 border-transparent hover:text-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Paste Text
+                </div>
+              </button>
+              <button
+                onClick={() => setParseInputMode('image')}
+                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  parseInputMode === 'image'
+                    ? 'text-[#3b82f6] border-[#3b82f6]'
+                    : 'text-gray-400 border-transparent hover:text-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Upload Screenshot
+                </div>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {parseInputMode === 'text' ? (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">
+                    Paste your confirmation email below:
+                  </label>
+                  <textarea
+                    value={parseEmailText}
+                    onChange={(e) => setParseEmailText(e.target.value)}
+                    className="w-full h-64 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm font-mono resize-none"
+                    placeholder={`Paste the entire confirmation email here...\n\nExample:\nYour ${showParseEmailModal === 'flight' ? 'flight' : showParseEmailModal === 'hotel' ? 'hotel reservation' : 'rental car booking'} has been confirmed!\n\n${showParseEmailModal === 'flight' ? 'Flight: AA123\nFrom: Los Angeles (LAX) - Mar 15, 2024 at 2:30 PM\nTo: New York (JFK) - Mar 15, 2024 at 10:45 PM\nConfirmation: ABC123' : showParseEmailModal === 'hotel' ? 'Hotel: Marriott Downtown\nAddress: 123 Main St, New York, NY 10001\nCheck-in: Mar 15, 2024 at 3:00 PM\nCheck-out: Mar 18, 2024 at 11:00 AM\nConfirmation: ABC123' : 'Company: Hertz\nVehicle: Economy\nPick-up: LAX Airport - Mar 15, 2024 at 2:00 PM\nDrop-off: LAX Airport - Mar 18, 2024 at 10:00 AM\nConfirmation: ABC123'}`}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">
+                    Upload a screenshot of your confirmation email:
+                  </label>
+                  {!parseEmailImage ? (
+                    <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-[#2a2a2a] rounded-lg cursor-pointer hover:border-[#3b82f6] transition-colors bg-[#0a0a0a]">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg className="w-12 h-12 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p className="mb-2 text-sm text-gray-400">
+                          <span className="font-semibold">Click to upload</span> or drag and drop
+                        </p>
+                        <p className="text-xs text-gray-500">PNG, JPG, JPEG (MAX. 10MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/png,image/jpeg,image/jpg"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            if (file.size > 10 * 1024 * 1024) {
+                              alert('File is too large. Maximum size is 10MB.')
+                              return
+                            }
+                            const reader = new FileReader()
+                            reader.onload = (event) => {
+                              setParseEmailImage(event.target?.result as string)
+                            }
+                            reader.readAsDataURL(file)
+                          }
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    <div className="relative">
+                      <img
+                        src={parseEmailImage}
+                        alt="Confirmation screenshot"
+                        className="w-full h-64 object-contain bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg"
+                      />
+                      <button
+                        onClick={() => setParseEmailImage(null)}
+                        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">
+                  AI will extract and populate the form fields automatically
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowParseEmailModal(null)
+                      setParseEmailText('')
+                      setParseEmailImage(null)
+                      setParseInputMode('text')
+                    }}
+                    className="px-4 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg text-sm hover:bg-[#1a1a1a] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={parseEmail}
+                    disabled={(parseInputMode === 'text' && !parseEmailText.trim()) || (parseInputMode === 'image' && !parseEmailImage) || parsingEmail}
+                    className="px-4 py-2 bg-[#10b981] text-white rounded-lg text-sm hover:bg-[#059669] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {parsingEmail ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Parsing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        Parse & Fill
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showOverviewModal && (
         <div 
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
