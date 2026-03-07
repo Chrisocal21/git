@@ -3251,8 +3251,8 @@ export default function FldrDetailPage() {
                   }
                   if (fldr.hotel_info?.check_in) scheduledEvents.push({ date: new Date(fldr.hotel_info.check_in), type: 'hotel_checkin', event: fldr.hotel_info })
                   if (fldr.hotel_info?.check_out) scheduledEvents.push({ date: new Date(fldr.hotel_info.check_out), type: 'hotel_checkout', event: fldr.hotel_info })
-                  if (fldr.venue_info?.event_start) scheduledEvents.push({ date: new Date(fldr.venue_info.event_start), type: 'event_start', event: fldr.venue_info })
-                  if (fldr.venue_info?.event_end) scheduledEvents.push({ date: new Date(fldr.venue_info.event_end), type: 'event_end', event: fldr.venue_info })
+                  if (fldr.job_info?.job_start_time) scheduledEvents.push({ date: new Date(fldr.job_info.job_start_time), type: 'event_start', event: fldr.job_info })
+                  if (fldr.job_info?.job_end_time) scheduledEvents.push({ date: new Date(fldr.job_info.job_end_time), type: 'event_end', event: fldr.job_info })
                   
                   scheduledEvents.sort((a, b) => a.date.getTime() - b.date.getTime())
                   
