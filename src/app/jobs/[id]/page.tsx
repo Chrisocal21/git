@@ -1271,7 +1271,7 @@ export default function FldrDetailPage() {
         const venueParts: string[] = []
         if (fldr.venue_info.name) venueParts.push(`Name: ${fldr.venue_info.name}`)
         if (fldr.venue_info.address) venueParts.push(`Address: ${fldr.venue_info.address}`)
-        if (fldr.venue_info.phone) venueParts.push(`Phone: ${fldr.venue_info.phone}`)
+        if (fldr.venue_info.contact_phone) venueParts.push(`Phone: ${fldr.venue_info.contact_phone}`)
         jobData.venue = venueParts.join(' | ')
       }
 
