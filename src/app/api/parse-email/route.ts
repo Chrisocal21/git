@@ -28,27 +28,36 @@ export async function POST(request: NextRequest) {
 
     // Configure prompt and response format based on type
     if (type === 'flight') {
-      systemPrompt = `Extract flight information from the provided confirmation email or text.
-Return ONLY valid JSON with these exact fields (use null for missing data):
+      systemPrompt = `Extract ALL flight information from the provided confirmation email or text.
+Return ONLY valid JSON with these exact fields:
 {
-  "airline": "airline name",
-  "flight_number": "flight number (e.g., AA123)",
-  "confirmation": "confirmation/record locator number",
-  "departure_airport": "full departure airport name",
-  "departure_code": "3-letter IATA code",
-  "departure_time": "ISO 8601 datetime (e.g., 2024-03-15T14:30:00)",
-  "arrival_airport": "full arrival airport name",
-  "arrival_code": "3-letter IATA code",
-  "arrival_time": "ISO 8601 datetime",
-  "notes": "any additional relevant information"
+  "flights": [
+    {
+      "airline": "airline name",
+      "flight_number": "flight number (e.g., AA123)",
+      "confirmation": "confirmation/record locator number",
+      "departure_airport": "full departure airport name",
+      "departure_code": "3-letter IATA code",
+      "departure_time": "ISO 8601 datetime (e.g., 2024-03-15T14:30:00)",
+      "arrival_airport": "full arrival airport name",
+      "arrival_code": "3-letter IATA code",
+      "arrival_time": "ISO 8601 datetime",
+      "notes": "any additional relevant information",
+      "segment_type": "outbound, connection, or return"
+    }
+  ]
 }
 
-Important:
+CRITICAL: Extract ALL flights found in the email:
+- For connecting flights, include each flight segment as a separate object in the array
+- For round-trip bookings, include both outbound and return flights
+- Mark the first flight as "outbound", connecting flights as "connection", and return flights as "return"
+- Use the same confirmation number for all segments if they share one
 - For times, use ISO 8601 format with the flight's local timezone
 - If year is missing, assume current year
 - Extract airport codes from the email (LAX, JFK, ORD, etc.)
-- Include confirmation/record locator number if present
-- Put passenger name, seat assignments, or other details in notes`
+- Put passenger name, seat assignments, or other details in notes
+- If only one flight is found, return an array with one object`
 
       responseFormat = {
         type: 'json_object'

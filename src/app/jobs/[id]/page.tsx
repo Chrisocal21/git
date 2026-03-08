@@ -1095,25 +1095,39 @@ export default function FldrDetailPage() {
 
       // Apply parsed data based on type
       if (showParseEmailModal === 'flight') {
-        // Create new flight segment with parsed data
+        // Handle multiple flight segments (connecting flights, return flights, etc.)
         const currentSegments = fldr.flight_info || []
-        const newSegment: FlightSegment = {
-          id: crypto.randomUUID(),
-          departure_airport: data.departure_airport || null,
-          departure_code: data.departure_code || null,
-          departure_address: null,
-          departure_time: data.departure_time || null,
-          arrival_airport: data.arrival_airport || null,
-          arrival_code: data.arrival_code || null,
-          arrival_address: null,
-          arrival_time: data.arrival_time || null,
-          flight_number: data.flight_number || null,
-          airline: data.airline || null,
-          confirmation: data.confirmation || null,
-          notes: data.notes || null,
-          segment_type: currentSegments.length === 0 ? 'outbound' : 'connection',
-        }
-        const segments = [...currentSegments, newSegment]
+        const parsedFlights = data.flights || (data.flight_number ? [data] : []) // Handle both new array format and legacy single object format
+        
+        const newSegments: FlightSegment[] = parsedFlights.map((flight: any, index: number) => {
+          // Determine segment type based on parsed data or position
+          let segmentType: 'outbound' | 'connection' | 'return' = 'outbound'
+          if (flight.segment_type) {
+            segmentType = flight.segment_type as 'outbound' | 'connection' | 'return'
+          } else if (currentSegments.length > 0 || index > 0) {
+            // If there are existing segments or this isn't the first parsed flight
+            segmentType = 'connection'
+          }
+          
+          return {
+            id: crypto.randomUUID(),
+            departure_airport: flight.departure_airport || null,
+            departure_code: flight.departure_code || null,
+            departure_address: null,
+            departure_time: flight.departure_time || null,
+            arrival_airport: flight.arrival_airport || null,
+            arrival_code: flight.arrival_code || null,
+            arrival_address: null,
+            arrival_time: flight.arrival_time || null,
+            flight_number: flight.flight_number || null,
+            airline: flight.airline || null,
+            confirmation: flight.confirmation || null,
+            notes: flight.notes || null,
+            segment_type: segmentType,
+          }
+        })
+        
+        const segments = [...currentSegments, ...newSegments]
         setFldr({ ...fldr, flight_info: segments })
         debouncedSave({ flight_info: segments })
       } else if (showParseEmailModal === 'hotel') {
