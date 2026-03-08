@@ -1672,8 +1672,11 @@ export default function FldrDetailPage() {
       // Check if using daily schedule mode
       if (fldr.job_info.use_daily_schedule && fldr.date_start && fldr.date_end) {
         // Generate events for each day in the date range
-        const startDate = new Date(fldr.date_start)
-        const endDate = new Date(fldr.date_end)
+        // Parse dates in local timezone to avoid day-off errors
+        const [startYear, startMonth, startDay] = fldr.date_start.split('-').map(Number)
+        const [endYear, endMonth, endDay] = fldr.date_end.split('-').map(Number)
+        const startDate = new Date(startYear, startMonth - 1, startDay)
+        const endDate = new Date(endYear, endMonth - 1, endDay)
         
         // Loop through each day
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -1681,8 +1684,11 @@ export default function FldrDetailPage() {
           
           // Daily start time
           if (fldr.job_info.daily_start_time) {
+            // Parse time in local timezone by constructing date from components
+            const [hours, minutes] = fldr.job_info.daily_start_time.split(':').map(Number)
+            const eventDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hours, minutes)
             events.push({
-              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_start_time}`),
+              dateTime: eventDate,
               type: 'job',
               title: 'Job Start',
               details: [
@@ -1694,8 +1700,10 @@ export default function FldrDetailPage() {
           
           // Daily break start
           if (fldr.job_info.daily_break_start) {
+            const [hours, minutes] = fldr.job_info.daily_break_start.split(':').map(Number)
+            const eventDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hours, minutes)
             events.push({
-              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_break_start}`),
+              dateTime: eventDate,
               type: 'job',
               title: 'Break Start',
               details: []
@@ -1704,8 +1712,10 @@ export default function FldrDetailPage() {
           
           // Daily break end
           if (fldr.job_info.daily_break_end) {
+            const [hours, minutes] = fldr.job_info.daily_break_end.split(':').map(Number)
+            const eventDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hours, minutes)
             events.push({
-              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_break_end}`),
+              dateTime: eventDate,
               type: 'job',
               title: 'Break End',
               details: []
@@ -1714,8 +1724,10 @@ export default function FldrDetailPage() {
           
           // Daily end time
           if (fldr.job_info.daily_end_time) {
+            const [hours, minutes] = fldr.job_info.daily_end_time.split(':').map(Number)
+            const eventDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hours, minutes)
             events.push({
-              dateTime: new Date(`${dateStr}T${fldr.job_info.daily_end_time}`),
+              dateTime: eventDate,
               type: 'job',
               title: 'Job End',
               details: [
@@ -2252,6 +2264,48 @@ export default function FldrDetailPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+// Copy flight info to clipboard
+  const copyFlightInfo = () => {
+    if (!fldr?.flight_info || fldr.flight_info.length === 0) return
+
+    const formatted = fldr.flight_info.map((segment, idx) => {
+      const parts = [
+        `Flight ${idx + 1} - ${segment.segment_type || 'Flight'}`,
+        segment.airline && segment.flight_number ? `${segment.airline} ${segment.flight_number}` : segment.airline || segment.flight_number || '',
+        segment.confirmation ? `Confirmation: ${segment.confirmation}` : '',
+        '',
+        segment.departure_airport ? `Depart: ${segment.departure_airport}${segment.departure_code ? ` (${segment.departure_code})` : ''}` : '',
+        segment.departure_time ? new Date(segment.departure_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+        '',
+        segment.arrival_airport ? `Arrive: ${segment.arrival_airport}${segment.arrival_code ? ` (${segment.arrival_code})` : ''}` : '',
+        segment.arrival_time ? new Date(segment.arrival_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+        segment.notes ? `\nNotes: ${segment.notes}` : ''
+      ].filter(p => p)
+
+      return parts.join('\n')
+    }).join('\n\n---\n\n')
+
+    navigator.clipboard.writeText(formatted)
+  }
+
+  // Copy hotel info to clipboard
+  const copyHotelInfo = () => {
+    if (!fldr?.hotel_info) return
+
+    const parts = [
+      fldr.hotel_info.name || '',
+      fldr.hotel_info.address || '',
+      fldr.hotel_info.phone || '',
+      fldr.hotel_info.confirmation ? `Confirmation: ${fldr.hotel_info.confirmation}` : '',
+      '',
+      fldr.hotel_info.check_in ? `Check-in: ${new Date(fldr.hotel_info.check_in).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : '',
+      fldr.hotel_info.check_out ? `Check-out: ${new Date(fldr.hotel_info.check_out).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : '',
+      fldr.hotel_info.notes ? `\nNotes: ${fldr.hotel_info.notes}` : ''
+    ].filter(p => p)
+
+    navigator.clipboard.writeText(parts.join('\n'))
   }
 
   const generateOverview = async () => {
@@ -3053,6 +3107,31 @@ export default function FldrDetailPage() {
               
               {weatherData && (
                 <div className="space-y-4">
+                  {/* Weather Alerts - Show prominently at top */}
+                  {weatherData.alerts && weatherData.alerts.length > 0 && (
+                    <div className="space-y-2">
+                      {weatherData.alerts.map((alert: any, index: number) => (
+                        <div key={index} className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <div className="flex-1">
+                              <div className="font-semibold text-red-300">{alert.event}</div>
+                              <div className="text-xs text-gray-400 mt-1">
+                                {new Date(alert.start * 1000).toLocaleString()} — {new Date(alert.end * 1000).toLocaleString()}
+                              </div>
+                              <div className="text-sm text-red-200 mt-2 whitespace-pre-wrap">{alert.description}</div>
+                              {alert.sender_name && (
+                                <div className="text-xs text-gray-500 mt-2">Source: {alert.sender_name}</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Location Info */}
                   <div className="flex items-center justify-between">
                     <div>
@@ -3134,6 +3213,18 @@ export default function FldrDetailPage() {
                       <div className="text-xs text-gray-400">Feels Like</div>
                       <div className="text-sm font-semibold">{weatherData.current.feels_like}°F</div>
                     </div>
+                    {weatherData.current.pressure && (
+                      <div className="p-2 bg-[#0a0a0a] rounded-lg text-center">
+                        <div className="text-xs text-gray-400">Pressure</div>
+                        <div className="text-sm font-semibold">{weatherData.current.pressure} hPa</div>
+                      </div>
+                    )}
+                    {weatherData.current.visibility && (
+                      <div className="p-2 bg-[#0a0a0a] rounded-lg text-center">
+                        <div className="text-xs text-gray-400">Visibility</div>
+                        <div className="text-sm font-semibold">{weatherData.current.visibility} mi</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -3498,12 +3589,26 @@ export default function FldrDetailPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => disableModule('flight_info')}
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-2">
+                {fldr.flight_info && fldr.flight_info.length > 0 && (
+                  <button
+                    onClick={copyFlightInfo}
+                    className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded border border-[#2a2a2a] hover:bg-white/5 transition-colors flex items-center gap-1"
+                    title="Copy all flight details"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy
+                  </button>
+                )}
+                <button
+                  onClick={() => disableModule('flight_info')}
+                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
             {expandedCards.flight && (
               <div className="px-4 pb-4 space-y-4">
@@ -3760,12 +3865,26 @@ export default function FldrDetailPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => disableModule('hotel_info')}
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-2">
+                {fldr.hotel_info && (fldr.hotel_info.name || fldr.hotel_info.address) && (
+                  <button
+                    onClick={copyHotelInfo}
+                    className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded border border-[#2a2a2a] hover:bg-white/5 transition-colors flex items-center gap-1"
+                    title="Copy hotel details"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy
+                  </button>
+                )}
+                <button
+                  onClick={() => disableModule('hotel_info')}
+                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
             {expandedCards.hotel && (
               <div className="px-4 pb-4 space-y-3">
@@ -3807,13 +3926,24 @@ export default function FldrDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Phone</label>
-                  <input
-                    type="tel"
-                    value={fldr.hotel_info?.phone || ''}
-                    onChange={(e) => updateHotelInfo('phone', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                    placeholder="Hotel phone number"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="tel"
+                      value={fldr.hotel_info?.phone || ''}
+                      onChange={(e) => updateHotelInfo('phone', e.target.value)}
+                      className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Hotel phone number"
+                    />
+                    {fldr.hotel_info?.phone && (
+                      <a
+                        href={`tel:${fldr.hotel_info.phone}`}
+                        className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium"
+                        title="Call hotel"
+                      >
+                        Call
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -3918,13 +4048,24 @@ export default function FldrDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Contact Phone</label>
-                  <input
-                    type="tel"
-                    value={fldr.venue_info?.contact_phone || ''}
-                    onChange={(e) => updateVenueInfo('contact_phone', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
-                    placeholder="Venue contact phone"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="tel"
+                      value={fldr.venue_info?.contact_phone || ''}
+                      onChange={(e) => updateVenueInfo('contact_phone', e.target.value)}
+                      className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      placeholder="Venue contact phone"
+                    />
+                    {fldr.venue_info?.contact_phone && (
+                      <a
+                        href={`tel:${fldr.venue_info.contact_phone}`}
+                        className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium"
+                        title="Call venue"
+                      >
+                        Call
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Notes</label>
@@ -4255,7 +4396,15 @@ export default function FldrDetailPage() {
                         className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                         placeholder="Phone"
                       />
-                      <CopyButton text={fldr.job_info?.client_contact_phone || ''} label="Copy phone" />
+                      {fldr.job_info?.client_contact_phone && (
+                        <a
+                          href={`tel:${fldr.job_info.client_contact_phone}`}
+                          className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium"
+                          title="Call contact"
+                        >
+                          Call
+                        </a>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -4268,7 +4417,15 @@ export default function FldrDetailPage() {
                         className="flex-1 px-3 py-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                         placeholder="Email"
                       />
-                      <CopyButton text={fldr.job_info?.client_contact_email || ''} label="Copy email" />
+                      {fldr.job_info?.client_contact_email && (
+                        <a
+                          href={`mailto:${fldr.job_info.client_contact_email}`}
+                          className="px-3 py-2 bg-[#3b82f6]/10 border border-[#3b82f6]/30 text-[#3b82f6] rounded-lg hover:bg-[#3b82f6]/20 transition-colors text-xs font-medium"
+                          title="Send email"
+                        >
+                          Email
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -4627,25 +4784,39 @@ export default function FldrDetailPage() {
                       placeholder="Role"
                     />
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="flex items-center gap-2">
+                      <div>
                         <input
                           type="tel"
                           value={person.phone || ''}
                           onChange={(e) => updatePerson(index, 'phone', e.target.value)}
-                          className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                           placeholder="Phone"
                         />
-                        <CopyButton text={person.phone || ''} label="Copy phone" />
+                        {person.phone && (
+                          <a
+                            href={`tel:${person.phone}`}
+                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded hover:bg-[#10b981]/20 transition-colors text-xs"
+                          >
+                            Call
+                          </a>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div>
                         <input
                           type="email"
                           value={person.email || ''}
                           onChange={(e) => updatePerson(index, 'email', e.target.value)}
-                          className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
                           placeholder="Email"
                         />
-                        <CopyButton text={person.email || ''} label="Copy email" />
+                        {person.email && (
+                          <a
+                            href={`mailto:${person.email}`}
+                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-[#3b82f6]/10 border border-[#3b82f6]/30 text-[#3b82f6] rounded hover:bg-[#3b82f6]/20 transition-colors text-xs"
+                          >
+                            Email
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>

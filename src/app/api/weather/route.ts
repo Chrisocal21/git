@@ -64,6 +64,23 @@ export async function GET(request: NextRequest) {
     const weatherData = await weatherResponse.json()
     console.log('[Weather] Weather data retrieved:', weatherData.list?.length, 'forecasts')
 
+    // Step 3: Get weather alerts from One Call API 3.0 (free tier includes alerts)
+    let alerts = []
+    try {
+      const oneCallUrl = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial&exclude=minutely,hourly,daily`
+      const oneCallResponse = await fetch(oneCallUrl)
+      
+      if (oneCallResponse.ok) {
+        const oneCallData = await oneCallResponse.json()
+        alerts = oneCallData.alerts || []
+        console.log('[Weather] Alerts retrieved:', alerts.length)
+      } else {
+        console.log('[Weather] One Call API not accessible (may require paid plan):', oneCallResponse.status)
+      }
+    } catch (alertError) {
+      console.log('[Weather] Could not fetch alerts (likely requires paid plan):', alertError)
+    }
+
     // Format hourly forecast
     const hourly = weatherData.list.slice(0, 8).map((item: any) => ({
       dt: item.dt,
@@ -115,9 +132,18 @@ export async function GET(request: NextRequest) {
         icon: weatherData.list[0].weather[0].icon,
         humidity: weatherData.list[0].main.humidity,
         wind_speed: Math.round(weatherData.list[0].wind.speed),
+        pressure: weatherData.list[0].main.pressure,
+        visibility: weatherData.list[0].visibility ? Math.round(weatherData.list[0].visibility / 1609.34) : null, // meters to miles
       },
       hourly,
       daily,
+      alerts: alerts.map((alert: any) => ({
+        event: alert.event,
+        start: alert.start,
+        end: alert.end,
+        description: alert.description,
+        sender_name: alert.sender_name,
+      })),
     })
   } catch (error) {
     console.error('Weather API error:', error)
