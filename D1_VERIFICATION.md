@@ -36,7 +36,7 @@ Now that D1 is enabled, let's verify cross-device sync is working!
 1. Open a Fldr
 2. Fill in Quick Reference (hotel address, flight info)
 3. Watch console - should see "Saving..." then "Saved just now"
-4. Wait 2 seconds (for debounce)
+4. Wait 30 seconds (for debounce)
 5. Look for: `✅ Fldr synced to D1: [id]`
 
 **On Computer B:**

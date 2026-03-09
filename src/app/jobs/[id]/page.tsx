@@ -866,7 +866,7 @@ export default function FldrDetailPage() {
     setSaving(true)
     saveTimeoutRef.current = setTimeout(() => {
       saveFldr(updates)
-    }, 1000) // Save 1 second after typing stops
+    }, 30000) // Save 30 seconds after typing stops
   }, [saveFldr])
 
   // Cleanup timeout on unmount

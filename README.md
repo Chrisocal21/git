@@ -1,6 +1,6 @@
-# GIT - Get It Together
+# burrow
 
-Personal Operations System - A PWA for managing job trips, events, and communications.
+A companion tool for Swanky event pros - Manage your job trips, events, and communications.
 
 ## Development
 

@@ -8,8 +8,7 @@ import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
 import { getCurrentUser, canEditJob, filterJobsByUser } from '@/lib/auth'
-import ProfileButton from '@/components/ProfileButton'
-import SanDiegoClock from '@/components/SanDiegoClock'
+import MenuButton from '@/components/MenuButton'
 import WeatherIcon from '@/components/WeatherIcon'
 
 type FilterOption = 'all' | 'upcoming' | 'complete'
@@ -319,13 +318,16 @@ export default function JobsPage() {
     return (
       <div className="p-4 max-w-lg mx-auto pb-24">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">GIT</h1>
+          <h1 className="text-3xl font-bold text-[#E8B44D]">Burrow</h1>
           <button
             disabled
-            className="p-2 bg-gray-700 rounded-lg opacity-50 cursor-not-allowed"
+            className="px-4 py-2 bg-gray-700 rounded-xl opacity-50 cursor-not-allowed text-sm font-semibold"
             aria-label="Create new Job"
           >
-            <PlusIcon className="w-5 h-5" />
+            <div className="flex items-center gap-1.5">
+              <PlusIcon className="w-4 h-4" />
+              <span>New</span>
+            </div>
           </button>
         </div>
         <FldrListSkeleton />
@@ -366,104 +368,80 @@ export default function JobsPage() {
       
       {/* Clean header - minimal single row */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">GIT</h1>
+        <h1 className="text-3xl font-bold text-[#E8B44D]">Burrow</h1>
         
         {/* Right side: Minimal actions */}
-        <div className="flex items-center gap-2">
-          <SanDiegoClock />
-          <ProfileButton />
-          
-          {/* Delete mode toggle */}
-          <button
-            onClick={() => setShowDeleteButtons(!showDeleteButtons)}
-            className={`p-2 rounded-lg transition-colors ${
-              showDeleteButtons
-                ? 'bg-red-600 hover:bg-red-700 text-white'
-                : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
-            }`}
-            title={showDeleteButtons ? 'Done' : 'Delete mode'}
-          >
-            {showDeleteButtons ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            )}
-          </button>
+        <div className="flex items-center gap-3">
+          <MenuButton />
           
           {/* Create button */}
           <button
             onClick={() => router.push('/jobs/create')}
-            className="p-2 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg transition-colors"
+            className="px-4 py-2 bg-[#E8B44D] hover:bg-[#D4A03C] rounded-xl transition-colors text-black font-semibold text-sm shadow-lg"
             aria-label="Create new Job"
           >
-            <PlusIcon className="w-5 h-5" />
+            <div className="flex items-center gap-1.5">
+              <PlusIcon className="w-4 h-4" />
+              <span>New</span>
+            </div>
           </button>
         </div>
       </div>
 
       {/* Unified Filter Section */}
-      <div className="bg-[#1a1a1a] rounded-lg p-3 mb-4 space-y-3">
+      <div className="space-y-2.5 mb-4">
         {/* Team/My Jobs toggle */}
-        <div className="flex items-center justify-between">
-          <div className="flex bg-[#0a0a0a] rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode('team')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                viewMode === 'team'
-                  ? 'bg-[#3b82f6] text-white'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              Team
-            </button>
-            <button
-              onClick={() => setViewMode('my')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                viewMode === 'my'
-                  ? 'bg-[#3b82f6] text-white'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              My Jobs
-            </button>
-          </div>
-          {viewMode === 'my' && (
-            <span className="text-xs text-gray-500">I am attending</span>
-          )}
+        <div className="flex bg-[#1c1c1e]/80 backdrop-blur-xl rounded-xl p-1">
+          <button
+            onClick={() => setViewMode('team')}
+            className={`flex-1 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
+              viewMode === 'team'
+                ? 'bg-[#3A6B86] text-[#E8B44D]'
+                : 'text-white/50'
+            }`}
+          >
+            Team
+          </button>
+          <button
+            onClick={() => setViewMode('my')}
+            className={`flex-1 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
+              viewMode === 'my'
+                ? 'bg-[#3A6B86] text-[#E8B44D]'
+                : 'text-white/50'
+            }`}
+          >
+            My Jobs
+          </button>
         </div>
         
         {/* Status filters */}
-        <div className="flex gap-2">
+        <div className="flex bg-[#1c1c1e]/80 backdrop-blur-xl rounded-xl p-1 gap-1">
           <button
             onClick={() => setFilter('all')}
-            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
               filter === 'all'
-                ? 'bg-[#3b82f6] text-white'
-                : 'bg-[#0a0a0a] text-gray-400 hover:bg-gray-800'
+                ? 'bg-[#3A6B86] text-[#E8B44D]'
+                : 'text-white/50'
             }`}
           >
             All ({fldrs.length})
           </button>
           <button
             onClick={() => setFilter('upcoming')}
-            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
               filter === 'upcoming'
-                ? 'bg-[#3b82f6] text-white'
-                : 'bg-[#0a0a0a] text-gray-400 hover:bg-gray-800'
+                ? 'bg-[#3A6B86] text-[#E8B44D]'
+                : 'text-white/50'
             }`}
           >
             Current ({fldrs.filter(f => f.status === 'incomplete' || f.status === 'ready' || f.status === 'active').length})
           </button>
           <button
             onClick={() => setFilter('complete')}
-            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
               filter === 'complete'
-                ? 'bg-[#3b82f6] text-white'
-                : 'bg-[#0a0a0a] text-gray-400 hover:bg-gray-800'
+                ? 'bg-[#3A6B86] text-[#E8B44D]'
+                : 'text-white/50'
             }`}
           >
             Complete ({fldrs.filter(f => f.status === 'complete').length})
@@ -479,7 +457,7 @@ export default function JobsPage() {
           {filter === 'all' && viewMode === 'team' && (
             <button
               onClick={() => router.push('/jobs/create')}
-              className="px-6 py-2 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg transition-colors"
+              className="px-6 py-2 bg-[#E8B44D] hover:bg-[#D4A03C] text-black rounded-lg transition-colors font-semibold"
             >
               Create Your First Job
             </button>
@@ -498,18 +476,18 @@ export default function JobsPage() {
               <div key={fldr.id} className="relative">
                 <button
                   onClick={() => router.push(`/jobs/${fldr.id}`)}
-                  className={`w-full rounded-2xl text-left transition-all bg-[#1c1c1e] backdrop-blur-xl ${
+                  className={`w-full rounded-2xl text-left transition-all bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl ${
                     isCurrent 
-                      ? 'shadow-[0_8px_30px_rgba(59,130,246,0.3)] ring-2 ring-blue-500/30' 
-                      : 'shadow-[0_2px_10px_rgba(0,0,0,0.3)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.4)]'
+                      ? 'shadow-[0_8px_30px_rgba(232,180,77,0.3)] ring-2 ring-[#E8B44D]/30' 
+                      : 'shadow-[0_2px_10px_rgba(0,0,0,0.3)] hover:shadow-[0_4px_20px_rgba(232,180,77,0.2)]'
                   }`}
                 >
                   <div className="p-4">
                     {/* Top Row: Location & Days Until */}
                     <div className="flex items-start justify-between mb-1">
                       <div className="flex-1">
-                        <h3 className="font-bold text-[22px] text-white tracking-tight leading-tight">{fldr.location || fldr.title}</h3>
-                        <div className="text-[15px] text-white/80 font-medium mt-0.5">{fldr.title}</div>
+                        <h3 className="font-bold text-[22px] text-[#E8B44D] tracking-tight leading-tight">{fldr.location || fldr.title}</h3>
+                        <div className="text-[15px] text-white/90 font-medium mt-0.5">{fldr.title}</div>
                       </div>
                       {/* Countdown with Border */}
                       {(() => {
@@ -518,10 +496,10 @@ export default function JobsPage() {
                         const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
                         
                         if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob >= 0)) {
-                          const borderColor = soonest <= 2 ? 'ring-2 ring-red-400' : soonest <= 7 ? 'ring-2 ring-yellow-400' : 'ring-2 ring-green-400'
+                          const borderColor = soonest <= 2 ? 'ring-2 ring-red-400' : soonest <= 7 ? 'ring-2 ring-[#E8B44D]' : 'ring-2 ring-emerald-400'
                           return (
-                            <div className={`px-3 py-1.5 rounded-xl bg-white/10 ${borderColor} flex items-baseline gap-1`}>
-                              <div className="text-[16px] font-light text-white tracking-tighter leading-none">{soonest}</div>
+                            <div className={`px-3 py-1.5 rounded-xl bg-black/30 ${borderColor} flex items-baseline gap-1`}>
+                              <div className="text-[16px] font-light text-[#E8B44D] tracking-tighter leading-none">{soonest}</div>
                               <div className="text-[8px] text-white/70 uppercase tracking-wide">{soonest === 1 ? 'day' : 'days'}</div>
                             </div>
                           )
@@ -565,25 +543,13 @@ export default function JobsPage() {
                           {fldr.status}
                         </span>
                         {(fldr.attending ?? false) ? (
-                          <AirplaneIcon className="w-5 h-5 text-blue-400" />
+                          <AirplaneIcon className="w-5 h-5 text-[#E8B44D]" />
                         ) : (
                           <HomeIcon className="w-5 h-5 text-gray-500" />
                         )}
                       </div>
                     </div>
                   </div>
-
-                  {/* Delete Button */}
-                  {showDeleteButtons && (
-                    <div className="px-4 pb-4">
-                      <button
-                        onClick={(e) => handleDelete(fldr.id, e)}
-                        className="w-full px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-medium rounded-xl transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
                 </button>
               </div>
             )

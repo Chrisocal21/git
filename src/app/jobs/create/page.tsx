@@ -44,7 +44,7 @@ export default function CreateFldrPage() {
   return (
     <div className="p-4 max-w-lg mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">GIT</h1>
+        <h1 className="text-3xl font-bold text-[#E8B44D]">Burrow</h1>
         <button
           onClick={() => router.back()}
           className="text-gray-400 hover:text-gray-300"

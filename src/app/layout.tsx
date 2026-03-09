@@ -12,12 +12,12 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'GIT - Get It Together',
-  description: 'Personal Operations System',
+  title: 'burrow',
+  description: 'A companion tool for Swanky event pros',
   manifest: '/manifest.json',
   appleWebApp: {
     statusBarStyle: 'black-translucent',
-    title: 'GIT',
+    title: 'burrow',
   },
   icons: {
     icon: '/favicon.svg',

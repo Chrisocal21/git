@@ -1,6 +1,6 @@
 # Project Handoff Document
-### GIT - Get It Together
-#### Personal Operations System
+### burrow
+#### Where you keep your sh*t organized
 **Version:** 1.0  
 **Date:** February 8, 2026  
 **For:** Claude in VS Code (Builder)
