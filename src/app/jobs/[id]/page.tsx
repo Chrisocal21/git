@@ -1192,7 +1192,7 @@ export default function FldrDetailPage() {
     // Find the earliest departure
     const departures = fldr.flight_info
       .filter(f => f.departure_time)
-      .map(f => new Date(f.departure_time))
+      .map(f => new Date(f.departure_time!))
     if (departures.length === 0) return null
     
     const earliestFlight = new Date(Math.min(...departures.map(d => d.getTime())))
