@@ -534,7 +534,7 @@ export default function JobsPage() {
                     <div className="flex items-center justify-between mb-3">
                       <div className="text-[15px] text-white/70 leading-snug flex-1">
                         {(() => {
-                          const flights = fldr.flights || []
+                          const flights = fldr.flight_info || []
                           const earliestFlight = flights
                             .filter(f => f.departure_time)
                             .sort((a, b) => new Date(a.departure_time!).getTime() - new Date(b.departure_time!).getTime())[0]
