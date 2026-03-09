@@ -557,7 +557,7 @@ export default function JobsPage() {
                       <div>
                         {fldr.people && fldr.people.length > 0 
                           ? fldr.people.map(p => p.name).join(', ')
-                          : fldr.job_info?.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info?.job_type === 'personalization' ? 'Personalization' : ''
+                          : fldr.job_info?.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info?.job_type === 'names_monograms' ? 'Names/Monograms' : ''
                         }
                       </div>
                       <div className="flex items-center gap-2">

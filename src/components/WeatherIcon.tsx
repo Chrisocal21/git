@@ -21,11 +21,19 @@ export default function WeatherIcon({ location }: { location: string }) {
         })
         if (response.ok) {
           const data = await response.json()
-          console.log(`[Weather] ${location}:`, data.current.temp, '°F -', data.current.main)
-          setWeather({
-            temp: data.current.temp,
-            condition: data.current.main || data.current.description
-          })
+          // Check if data has the expected structure
+          if (data.current && typeof data.current.temp === 'number') {
+            console.log(`[Weather] ${location}:`, data.current.temp, '°F -', data.current.main)
+            setWeather({
+              temp: data.current.temp,
+              condition: data.current.main || data.current.description
+            })
+          } else {
+            console.warn('[Weather] Invalid data structure:', data)
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}))
+          console.warn('[Weather] API returned error:', response.status, errorData)
         }
       } catch (error) {
         console.error('Failed to fetch weather:', error)
