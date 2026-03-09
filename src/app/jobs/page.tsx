@@ -10,6 +10,7 @@ import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineSt
 import { getCurrentUser, canEditJob, filterJobsByUser } from '@/lib/auth'
 import ProfileButton from '@/components/ProfileButton'
 import SanDiegoClock from '@/components/SanDiegoClock'
+import WeatherIcon from '@/components/WeatherIcon'
 
 type FilterOption = 'all' | 'upcoming' | 'complete'
 
@@ -490,93 +491,99 @@ export default function JobsPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {userFilteredFldrs.map((fldr) => {
             const isCurrent = isCurrentEvent(fldr)
             return (
               <div key={fldr.id} className="relative">
                 <button
                   onClick={() => router.push(`/jobs/${fldr.id}`)}
-                  className={`w-full p-4 rounded-lg text-left transition-all bg-[#1a1a1a] border-2 ${
+                  className={`w-full rounded-2xl text-left transition-all bg-[#1c1c1e] backdrop-blur-xl ${
                     isCurrent 
-                      ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:border-blue-500/70 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]' 
-                      : 'border-transparent hover:border-gray-700'
+                      ? 'shadow-[0_8px_30px_rgba(59,130,246,0.3)] ring-2 ring-blue-500/30' 
+                      : 'shadow-[0_2px_10px_rgba(0,0,0,0.3)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.4)]'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-lg">{fldr.title}</h3>
-                        <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(fldr.status)}`}>
-                          {fldr.status}
-                        </span>
-                        {(fldr.attending ?? false) ? (
-                          <AirplaneIcon className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <HomeIcon className="w-4 h-4 text-gray-500" />
-                        )}
+                  <div className="p-4">
+                    {/* Top Row: Location & Days Until */}
+                    <div className="flex items-start justify-between mb-1">
+                      <div className="flex-1">
+                        <h3 className="font-bold text-[22px] text-white tracking-tight leading-tight">{fldr.location || fldr.title}</h3>
+                        <div className="text-[15px] text-white/80 font-medium mt-0.5">{fldr.title}</div>
                       </div>
-                      <div className="text-sm text-gray-400">
-                        {formatDate(fldr.date_start)}
-                        {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
-                      </div>
-                      
-                      {/* Countdown Timers */}
+                      {/* Countdown with Border */}
                       {(() => {
                         const daysUntilFlight = getDaysUntilFlight(fldr)
                         const daysUntilJob = getDaysUntilJob(fldr.date_start)
                         const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
                         
-                        if ((daysUntilFlight !== null && daysUntilFlight >= 0 && daysUntilFlight <= 30) || (daysUntilJob >= 0 && daysUntilJob <= 30)) {
-                          const urgencyColor = soonest <= 2 ? 'text-red-400' : soonest <= 7 ? 'text-yellow-400' : 'text-green-400'
+                        if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob >= 0)) {
+                          const borderColor = soonest <= 2 ? 'ring-2 ring-red-400' : soonest <= 7 ? 'ring-2 ring-yellow-400' : 'ring-2 ring-green-400'
                           return (
-                            <div className="flex items-center gap-3 mt-2">
-                              {daysUntilFlight !== null && daysUntilFlight >= 0 && daysUntilFlight <= 30 && (
-                                <div className="flex items-center gap-1.5">
-                                  <svg className={`w-3.5 h-3.5 ${urgencyColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-                                  </svg>
-                                  <span className={`text-xs font-medium ${urgencyColor}`}>
-                                    {daysUntilFlight === 0 ? 'Flight today!' : daysUntilFlight === 1 ? '1 day' : `${daysUntilFlight} days`}
-                                  </span>
-                                </div>
-                              )}
-                              {daysUntilJob >= 0 && daysUntilJob <= 30 && (
-                                <div className="flex items-center gap-1.5">
-                                  <svg className={`w-3.5 h-3.5 ${urgencyColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  <span className={`text-xs font-medium ${urgencyColor}`}>
-                                    {daysUntilJob === 0 ? 'Job today!' : daysUntilJob === 1 ? '1 day' : `${daysUntilJob} days`}
-                                  </span>
-                                </div>
-                              )}
+                            <div className={`px-3 py-1.5 rounded-xl bg-white/10 ${borderColor} flex items-baseline gap-1`}>
+                              <div className="text-[16px] font-light text-white tracking-tighter leading-none">{soonest}</div>
+                              <div className="text-[8px] text-white/70 uppercase tracking-wide">{soonest === 1 ? 'day' : 'days'}</div>
                             </div>
                           )
                         }
                         return null
                       })()}
-                      
-                      {fldr.location && (
-                        <div className="text-sm text-gray-500 mt-1">
-                          {fldr.location}
-                        </div>
-                      )}
-                      {fldr.job_info?.job_title && (
-                        <div className="text-sm text-[#3b82f6] mt-1 font-medium">
-                          {fldr.job_info.job_title}
-                        </div>
-                      )}
                     </div>
-                    {showDeleteButtons && (
+
+                    {/* Middle Row: Dates & Weather */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-[15px] text-white/70 leading-snug flex-1">
+                        {(() => {
+                          const flights = fldr.flights || []
+                          const earliestFlight = flights
+                            .filter(f => f.departure_time)
+                            .sort((a, b) => new Date(a.departure_time!).getTime() - new Date(b.departure_time!).getTime())[0]
+                          
+                          if (earliestFlight) {
+                            const flightDate = formatDate(earliestFlight.departure_time!)
+                            const eventDate = formatDate(fldr.date_start)
+                            const endDate = fldr.date_end ? formatDate(fldr.date_end) : null
+                            return `${flightDate} → ${eventDate}${endDate && endDate !== eventDate ? ` - ${endDate}` : ''}`
+                          }
+                          return `${formatDate(fldr.date_start)}${fldr.date_end ? ` - ${formatDate(fldr.date_end)}` : ''}`
+                        })()}
+                      </div>
+                      {/* Weather with icon */}
+                      <WeatherIcon location={fldr.location || fldr.title} />
+                    </div>
+
+                    {/* Bottom Row: Team/Type & Status/Attending */}
+                    <div className="flex items-center justify-between text-[15px] text-white/70">
+                      <div>
+                        {fldr.people && fldr.people.length > 0 
+                          ? fldr.people.map(p => p.name).join(', ')
+                          : fldr.job_info?.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info?.job_type === 'personalization' ? 'Personalization' : ''
+                        }
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium uppercase tracking-wide">
+                          {fldr.status}
+                        </span>
+                        {(fldr.attending ?? false) ? (
+                          <AirplaneIcon className="w-5 h-5 text-blue-400" />
+                        ) : (
+                          <HomeIcon className="w-5 h-5 text-gray-500" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delete Button */}
+                  {showDeleteButtons && (
+                    <div className="px-4 pb-4">
                       <button
                         onClick={(e) => handleDelete(fldr.id, e)}
-                        className="ml-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+                        className="w-full px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-medium rounded-xl transition-colors"
                       >
                         Delete
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </button>
               </div>
             )

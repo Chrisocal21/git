@@ -17,28 +17,41 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Step 1: Geocode the location
-    const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${apiKey}`
+    // Step 1: Geocode the location - try multiple formats
+    let geoData: any[] = []
+    const locationVariants = [
+      location,
+      `${location}, US`,
+      location.replace(/,\s*([A-Z]{2})$/, ', $1, US'), // "City, ST" -> "City, ST, US"
+    ]
     
-    console.log('[Weather] Geocoding request:', { location, url: geoUrl.replace(apiKey, 'REDACTED') })
-    
-    const geoResponse = await fetch(geoUrl)
-    
-    if (!geoResponse.ok) {
-      console.error('[Weather] Geocoding failed:', geoResponse.status, geoResponse.statusText)
-      if (geoResponse.status === 401) {
-        return NextResponse.json({ 
-          error: 'OpenWeather API key is invalid or not activated yet'
-        }, { status: 401 })
+    for (const variant of locationVariants) {
+      const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(variant)}&limit=1&appid=${apiKey}`
+      
+      console.log('[Weather] Trying geocoding:', { variant })
+      
+      const geoResponse = await fetch(geoUrl)
+      
+      if (!geoResponse.ok) {
+        console.error('[Weather] Geocoding failed:', geoResponse.status, geoResponse.statusText)
+        if (geoResponse.status === 401) {
+          return NextResponse.json({ 
+            error: 'OpenWeather API key is invalid or not activated yet'
+          }, { status: 401 })
+        }
+        continue
       }
-      throw new Error(`Geocoding failed: ${geoResponse.statusText}`)
+
+      const data = await geoResponse.json()
+      if (data && data.length > 0) {
+        geoData = data
+        console.log('[Weather] Geocoding success with variant:', variant, data)
+        break
+      }
     }
 
-    const geoData = await geoResponse.json()
-    console.log('[Weather] Geocoding response:', geoData)
-
     if (!geoData || geoData.length === 0) {
-      console.error('[Weather] Location not found:', location)
+      console.error('[Weather] Location not found after all attempts:', location)
       return NextResponse.json({ 
         error: 'Location not found',
         details: `Could not find location: "${location}". Try "City, State" or "City, Country" format.`
@@ -49,22 +62,41 @@ export async function GET(request: NextRequest) {
 
     console.log('[Weather] Found location:', { name, state, country, lat, lon })
 
-    // Step 2: Get weather forecast
-    const weatherUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial`
+    // Step 2: Get CURRENT weather (actual real-time data)
+    const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial`
     
-    console.log('[Weather] Weather request:', { lat, lon })
+    console.log('[Weather] Current weather request:', { lat, lon })
+    
+    const currentWeatherResponse = await fetch(currentWeatherUrl)
+    
+    if (!currentWeatherResponse.ok) {
+      console.error('[Weather] Current weather API failed:', currentWeatherResponse.status, currentWeatherResponse.statusText)
+      throw new Error(`Current weather API failed: ${currentWeatherResponse.statusText}`)
+    }
+
+    const currentWeatherData = await currentWeatherResponse.json()
+    console.log('[Weather] Current weather retrieved:', {
+      location: `${name}, ${state || country}`,
+      coords: { lat, lon },
+      temp: currentWeatherData.main.temp,
+      condition: currentWeatherData.weather[0].main,
+      timestamp: new Date().toISOString()
+    })
+
+    // Step 3: Get weather forecast for hourly/daily
+    const weatherUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial`
     
     const weatherResponse = await fetch(weatherUrl)
     
     if (!weatherResponse.ok) {
-      console.error('[Weather] Weather API failed:', weatherResponse.status, weatherResponse.statusText)
-      throw new Error(`Weather API failed: ${weatherResponse.statusText}`)
+      console.error('[Weather] Forecast API failed:', weatherResponse.status, weatherResponse.statusText)
+      throw new Error(`Forecast API failed: ${weatherResponse.statusText}`)
     }
 
     const weatherData = await weatherResponse.json()
-    console.log('[Weather] Weather data retrieved:', weatherData.list?.length, 'forecasts')
+    console.log('[Weather] Forecast data retrieved:', weatherData.list?.length, 'forecasts')
 
-    // Step 3: Get weather alerts from One Call API 3.0 (free tier includes alerts)
+    // Step 4: Get weather alerts from One Call API 3.0 (free tier includes alerts)
     let alerts = []
     try {
       const oneCallUrl = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial&exclude=minutely,hourly,daily`
@@ -125,15 +157,15 @@ export async function GET(request: NextRequest) {
         country,
       },
       current: {
-        temp: Math.round(weatherData.list[0].main.temp),
-        feels_like: Math.round(weatherData.list[0].main.feels_like),
-        description: weatherData.list[0].weather[0].description,
-        main: weatherData.list[0].weather[0].main,
-        icon: weatherData.list[0].weather[0].icon,
-        humidity: weatherData.list[0].main.humidity,
-        wind_speed: Math.round(weatherData.list[0].wind.speed),
-        pressure: weatherData.list[0].main.pressure,
-        visibility: weatherData.list[0].visibility ? Math.round(weatherData.list[0].visibility / 1609.34) : null, // meters to miles
+        temp: Math.round(currentWeatherData.main.temp),
+        feels_like: Math.round(currentWeatherData.main.feels_like),
+        description: currentWeatherData.weather[0].description,
+        main: currentWeatherData.weather[0].main,
+        icon: currentWeatherData.weather[0].icon,
+        humidity: currentWeatherData.main.humidity,
+        wind_speed: Math.round(currentWeatherData.wind.speed),
+        pressure: currentWeatherData.main.pressure,
+        visibility: currentWeatherData.visibility ? Math.round(currentWeatherData.visibility / 1609.34) : null, // meters to miles
       },
       hourly,
       daily,
@@ -144,6 +176,12 @@ export async function GET(request: NextRequest) {
         description: alert.description,
         sender_name: alert.sender_name,
       })),
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     })
   } catch (error) {
     console.error('Weather API error:', error)
