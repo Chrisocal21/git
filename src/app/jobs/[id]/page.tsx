@@ -1186,6 +1186,26 @@ export default function FldrDetailPage() {
     return diffDays
   }
 
+  // Helper function to calculate days until first flight
+  const getDaysUntilFlight = () => {
+    if (!fldr?.flight_info || fldr.flight_info.length === 0) return null
+    // Find the earliest departure
+    const departures = fldr.flight_info
+      .filter(f => f.departure_time)
+      .map(f => new Date(f.departure_time))
+    if (departures.length === 0) return null
+    
+    const earliestFlight = new Date(Math.min(...departures.map(d => d.getTime())))
+    earliestFlight.setHours(0, 0, 0, 0)
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const diffTime = earliestFlight.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
   const generateSmartItinerary = async () => {
     if (!fldr) return
 
@@ -1572,12 +1592,26 @@ export default function FldrDetailPage() {
 
     const events: ItineraryEvent[] = []
 
+    // Helper function to parse datetime strings consistently in local timezone
+    const parseDateTime = (dateTimeStr: string): Date => {
+      // Handle datetime-local format: "YYYY-MM-DDTHH:mm"
+      if (dateTimeStr.includes('T')) {
+        const [datePart, timePart] = dateTimeStr.split('T')
+        const [year, month, day] = datePart.split('-').map(Number)
+        const [hours, minutes] = timePart.split(':').map(Number)
+        return new Date(year, month - 1, day, hours, minutes)
+      }
+      // Handle date-only format: "YYYY-MM-DD"
+      const [year, month, day] = dateTimeStr.split('-').map(Number)
+      return new Date(year, month - 1, day)
+    }
+
     // Add flight segments
     if (fldr.flight_info && Array.isArray(fldr.flight_info)) {
       fldr.flight_info.forEach(segment => {
         if (segment.departure_time) {
           events.push({
-            dateTime: new Date(segment.departure_time),
+            dateTime: parseDateTime(segment.departure_time),
             type: 'flight',
             title: `Flight Departure${segment.segment_type === 'return' ? ' (Return)' : ''}`,
             details: [
@@ -1590,7 +1624,7 @@ export default function FldrDetailPage() {
         }
         if (segment.arrival_time) {
           events.push({
-            dateTime: new Date(segment.arrival_time),
+            dateTime: parseDateTime(segment.arrival_time),
             type: 'flight',
             title: `Flight Arrival${segment.segment_type === 'return' ? ' (Return)' : ''}`,
             details: [
@@ -1605,7 +1639,7 @@ export default function FldrDetailPage() {
     if (fldr.hotel_info) {
       if (fldr.hotel_info.check_in) {
         events.push({
-          dateTime: new Date(fldr.hotel_info.check_in),
+          dateTime: parseDateTime(fldr.hotel_info.check_in),
           type: 'hotel',
           title: 'Hotel Check-in',
           details: [
@@ -1617,7 +1651,7 @@ export default function FldrDetailPage() {
       }
       if (fldr.hotel_info.check_out) {
         events.push({
-          dateTime: new Date(fldr.hotel_info.check_out),
+          dateTime: parseDateTime(fldr.hotel_info.check_out),
           type: 'hotel',
           title: 'Hotel Check-out',
           details: [
@@ -1631,7 +1665,7 @@ export default function FldrDetailPage() {
     if (fldr.rental_car_info) {
       if (fldr.rental_car_info.pickup_time) {
         events.push({
-          dateTime: new Date(fldr.rental_car_info.pickup_time),
+          dateTime: parseDateTime(fldr.rental_car_info.pickup_time),
           type: 'rental',
           title: 'Rental Car Pickup',
           details: [
@@ -1644,7 +1678,7 @@ export default function FldrDetailPage() {
       }
       if (fldr.rental_car_info.dropoff_time) {
         events.push({
-          dateTime: new Date(fldr.rental_car_info.dropoff_time),
+          dateTime: parseDateTime(fldr.rental_car_info.dropoff_time),
           type: 'rental',
           title: 'Rental Car Dropoff',
           details: [
@@ -1659,7 +1693,7 @@ export default function FldrDetailPage() {
       // Show up time (always single event if provided)
       if (fldr.job_info.show_up_time) {
         events.push({
-          dateTime: new Date(fldr.job_info.show_up_time),
+          dateTime: parseDateTime(fldr.job_info.show_up_time),
           type: 'job',
           title: 'Show Up Time',
           details: [
@@ -1740,7 +1774,7 @@ export default function FldrDetailPage() {
         // Single event times (original behavior)
         if (fldr.job_info.job_start_time) {
           events.push({
-            dateTime: new Date(fldr.job_info.job_start_time),
+            dateTime: parseDateTime(fldr.job_info.job_start_time),
             type: 'job',
             title: 'Job Start',
             details: [
@@ -1751,7 +1785,7 @@ export default function FldrDetailPage() {
         }
         if (fldr.job_info.break_start_time) {
           events.push({
-            dateTime: new Date(fldr.job_info.break_start_time),
+            dateTime: parseDateTime(fldr.job_info.break_start_time),
             type: 'job',
             title: 'Break Start',
             details: []
@@ -1759,7 +1793,7 @@ export default function FldrDetailPage() {
         }
         if (fldr.job_info.break_end_time) {
           events.push({
-            dateTime: new Date(fldr.job_info.break_end_time),
+            dateTime: parseDateTime(fldr.job_info.break_end_time),
             type: 'job',
             title: 'Break End',
             details: []
@@ -1767,7 +1801,7 @@ export default function FldrDetailPage() {
         }
         if (fldr.job_info.job_end_time) {
           events.push({
-            dateTime: new Date(fldr.job_info.job_end_time),
+            dateTime: parseDateTime(fldr.job_info.job_end_time),
             type: 'job',
             title: 'Job End',
             details: [
@@ -2734,6 +2768,56 @@ export default function FldrDetailPage() {
               {formatDate(fldr.date_start)}
               {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
             </div>
+            
+            {/* Countdown Timers */}
+            {(() => {
+              const daysUntilFlight = getDaysUntilFlight()
+              const daysUntilJob = getDaysUntilJob()
+              
+              // Determine urgency based on whichever is sooner
+              const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
+              
+              if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob !== null && daysUntilJob >= 0)) {
+                const urgencyColor = soonest !== null && soonest <= 2 ? 'text-red-400' : soonest !== null && soonest <= 7 ? 'text-yellow-400' : 'text-green-400'
+                const urgencyBg = soonest !== null && soonest <= 2 ? 'bg-red-500/10 border-red-500/30' : soonest !== null && soonest <= 7 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30'
+                
+                return (
+                  <div className={`mt-3 px-4 py-3 ${urgencyBg} border rounded-lg space-y-2`}>
+                    {daysUntilFlight !== null && daysUntilFlight >= 0 && (
+                      <div className="flex items-center gap-3">
+                        <svg className={`w-5 h-5 ${urgencyColor} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                        <div className="flex-1">
+                          <div className={`text-sm font-semibold ${urgencyColor}`}>
+                            {daysUntilFlight === 0 ? 'Flight Today!' : daysUntilFlight === 1 ? '1 Day Until Flight' : `${daysUntilFlight} Days Until Flight`}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {daysUntilJob !== null && daysUntilJob >= 0 && (
+                      <div className="flex items-center gap-3">
+                        <svg className={`w-5 h-5 ${urgencyColor} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1">
+                          <div className={`text-sm font-semibold ${urgencyColor}`}>
+                            {daysUntilJob === 0 ? 'Job is Today!' : daysUntilJob === 1 ? '1 Day Until Job' : `${daysUntilJob} Days Until Job`}
+                          </div>
+                          {daysUntilJob > 0 && (
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              Starting {formatDate(fldr.date_start)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+              return null
+            })()}
+            
             {fldr.location && (
               <div className="flex items-center gap-2 mt-1">
                 <div className="text-gray-500">{fldr.location}</div>
@@ -3270,35 +3354,17 @@ export default function FldrDetailPage() {
 
         {/* Itinerary Card - Always shown, auto-generated from time data */}
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
-          <div className="w-full px-4 py-3 flex items-center justify-between">
-            <button
-              onClick={() => toggleCard('itinerary')}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-            >
-              <span className="font-semibold">Itinerary</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
-                  expandedCards.itinerary ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-            {fldr.ai_itinerary_items && fldr.ai_itinerary_items.length > 0 && (
-              <button
-                onClick={() => {
-                  if (confirm('Regenerate AI timing suggestions? This will replace existing AI suggestions.')) {
-                    generateSmartItinerary()
-                  }
-                }}
-                disabled={generatingItinerary}
-                className="text-xs text-[#f59e0b] hover:text-[#fb923c] px-2 py-1 rounded border border-[#f59e0b]/30 hover:bg-[#f59e0b]/10 transition-colors disabled:opacity-50"
-              >
-                <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Regenerate AI
-              </button>
-            )}
-          </div>
+          <button
+            onClick={() => toggleCard('itinerary')}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1f1f1f] transition-colors"
+          >
+            <span className="font-semibold">Itinerary</span>
+            <ChevronDownIcon
+              className={`w-5 h-5 transition-transform ${
+                expandedCards.itinerary ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
           {expandedCards.itinerary && (
             <div className="px-4 pb-4">
               {/* Info banner about itinerary features */}
@@ -3307,180 +3373,14 @@ export default function FldrDetailPage() {
                   <svg className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="flex-1 text-xs text-gray-400 space-y-1">
-                    <p className="flex items-center gap-1 flex-wrap">
-                      <span className="inline-flex items-center gap-0.5">
-                        <span className="w-2 h-2 rounded-full bg-[#f59e0b]"></span>
-                        <span className="text-[#f59e0b]">Orange highlight</span>
-                      </span>
-                      <span>= AI timing suggestions •</span>
-                      <span className="inline-flex items-center gap-0.5">
-                        <span className="w-2 h-2 rounded-full bg-[#3b82f6]"></span>
-                        <span className="text-[#3b82f6]">Blue highlight</span>
-                      </span>
-                      <span>= Your scheduled events</span>
-                    </p>
+                  <div className="flex-1 text-xs text-gray-400">
                     <p className="text-gray-500">Past items automatically strike through • Next upcoming item highlights in green</p>
                   </div>
                 </div>
               </div>
-              
-              {/* Generating indicator */}
-              {generatingItinerary && (
-                <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#10b981]/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <svg className="animate-spin h-5 w-5 text-[#10b981]" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-300">Calculating optimal timing...</p>
-                      <p className="text-xs text-gray-500 mt-0.5">Considering flights, traffic, TSA, and setup times</p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {(() => {
                 const itinerary = generateItinerary()
-                const days = Object.keys(itinerary)
-                
-                // Merge AI-generated timing recommendations into the itinerary
-                if (generatedItineraryItems.length > 0) {
-                  // Build a map of scheduled events for smart matching
-                  const scheduledEvents: Array<{date: Date, type: string, event: any}> = []
-                  
-                  if (fldr.flight_info) {
-                    fldr.flight_info.forEach(f => {
-                      if (f.departure_time) scheduledEvents.push({ date: new Date(f.departure_time), type: 'flight_departure', event: f })
-                      if (f.arrival_time) scheduledEvents.push({ date: new Date(f.arrival_time), type: 'flight_arrival', event: f })
-                    })
-                  }
-                  if (fldr.hotel_info?.check_in) scheduledEvents.push({ date: new Date(fldr.hotel_info.check_in), type: 'hotel_checkin', event: fldr.hotel_info })
-                  if (fldr.hotel_info?.check_out) scheduledEvents.push({ date: new Date(fldr.hotel_info.check_out), type: 'hotel_checkout', event: fldr.hotel_info })
-                  if (fldr.job_info?.job_start_time) scheduledEvents.push({ date: new Date(fldr.job_info.job_start_time), type: 'event_start', event: fldr.job_info })
-                  if (fldr.job_info?.job_end_time) scheduledEvents.push({ date: new Date(fldr.job_info.job_end_time), type: 'event_end', event: fldr.job_info })
-                  
-                  scheduledEvents.sort((a, b) => a.date.getTime() - b.date.getTime())
-                  
-                  generatedItineraryItems.forEach(aiItem => {
-                    // Parse the time from AI recommendation (e.g., "7:30 AM")
-                    const timeMatch = aiItem.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-                    if (!timeMatch) return
-                    
-                    const hours = parseInt(timeMatch[1])
-                    const minutes = parseInt(timeMatch[2])
-                    const isPM = timeMatch[3].toUpperCase() === 'PM'
-                    const hour24 = isPM && hours !== 12 ? hours + 12 : !isPM && hours === 12 ? 0 : hours
-                    
-                    const actionLower = aiItem.action.toLowerCase()
-                    
-                    // Find the relevant scheduled event this AI suggestion relates to
-                    let targetEvent = null
-                    
-                    // Match to specific event types
-                    if (actionLower.includes('depart for airport') || actionLower.includes('leave for airport') || 
-                        actionLower.includes('airport') || actionLower.includes('tsa')) {
-                      // Find the nearest flight AFTER any currently processed AI time
-                      targetEvent = scheduledEvents.find(e => e.type === 'flight_departure')
-                    }
-                    else if (actionLower.includes('board') || actionLower.includes('gate')) {
-                      targetEvent = scheduledEvents.find(e => e.type === 'flight_departure')
-                    }
-                    else if (actionLower.includes('flight departs') || actionLower.includes('takeoff')) {
-                      targetEvent = scheduledEvents.find(e => e.type === 'flight_departure')
-                    }
-                    else if (actionLower.includes('land') || actionLower.includes('arrive') && actionLower.includes('airport')) {
-                      targetEvent = scheduledEvents.find(e => e.type === 'flight_arrival')
-                    }
-                    else if (actionLower.includes('hotel') && (actionLower.includes('arrive') || actionLower.includes('check'))) {
-                      targetEvent = scheduledEvents.find(e => e.type === 'hotel_checkin')
-                    }
-                    else if (actionLower.includes('leave hotel') || actionLower.includes('checkout')) {
-                      targetEvent = scheduledEvents.find(e => e.type === 'hotel_checkout')
-                    }
-                    else if (actionLower.includes('venue') || actionLower.includes('event') || actionLower.includes('setup')) {
-                      targetEvent = scheduledEvents.find(e => e.type === 'event_start')
-                    }
-                    
-                    // Default to first flight if no match
-                    if (!targetEvent && scheduledEvents.length > 0) {
-                      targetEvent = scheduledEvents[0]
-                    }
-                    
-                    if (targetEvent) {
-                      // Use the same DATE as the target event, but with the AI's suggested TIME
-                      const targetDate = new Date(targetEvent.date)
-                      targetDate.setHours(hour24, minutes, 0, 0)
-                      
-                      // If this is a "before" action (depart, leave) and the suggested time is AFTER the event time,
-                      // it means the AI wants us to depart the day before
-                      // Example: Flight at 6:20 AM Thursday, AI says "depart 8:00 PM" → must be Wednesday 8 PM
-                      const isBeforeAction = actionLower.includes('depart') || actionLower.includes('leave')
-                      const suggestedIsAfterEvent = targetDate.getTime() > targetEvent.date.getTime()
-                      
-                      if (isBeforeAction && suggestedIsAfterEvent) {
-                        targetDate.setDate(targetDate.getDate() - 1)
-                      }
-                      
-                      // Boundary check: ensure AI recommendations stay within trip dates
-                      // This prevents spurious "Monday" entries when trip is Wed-Thu
-                      // IMPORTANT: Parse dates in local timezone to avoid UTC/local mismatches
-                      if (fldr.date_start && fldr.date_end) {
-                        const [startYear, startMonth, startDay] = fldr.date_start.split('-').map(Number)
-                        const [endYear, endMonth, endDay] = fldr.date_end.split('-').map(Number)
-                        const tripStart = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0)
-                        const tripEnd = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999)
-                        
-                        // Clamp to trip range
-                        if (targetDate < tripStart) {
-                          targetDate.setFullYear(startYear, startMonth - 1, startDay)
-                          targetDate.setHours(hour24, minutes, 0, 0)
-                        } else if (targetDate > tripEnd) {
-                          targetDate.setFullYear(endYear, endMonth - 1, endDay)
-                          targetDate.setHours(hour24, minutes, 0, 0)
-                        }
-                      } else if (fldr.date_start) {
-                        // If only start date, ensure not before it
-                        const [startYear, startMonth, startDay] = fldr.date_start.split('-').map(Number)
-                        const tripStart = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0)
-                        if (targetDate < tripStart) {
-                          targetDate.setFullYear(startYear, startMonth - 1, startDay)
-                          targetDate.setHours(hour24, minutes, 0, 0)
-                        }
-                      }
-                      
-                      const dayKey = targetDate.toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })
-                      
-                      // Add AI recommendation as an event
-                      if (!itinerary[dayKey]) {
-                        itinerary[dayKey] = []
-                      }
-                      
-                      itinerary[dayKey].push({
-                        dateTime: targetDate,
-                        type: aiItem.type || 'transition',
-                        title: aiItem.action,
-                        details: [
-                          aiItem.duration ? `${aiItem.duration}` : '',
-                          aiItem.reason || ''
-                        ].filter(d => d),
-                        isAI: true,
-                        personalized: aiItem.personalized || false
-                      })
-                    }
-                  })
-                  
-                  // Re-sort events within each day
-                  Object.keys(itinerary).forEach(day => {
-                    itinerary[day].sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())
-                  })
-                }
                 
                 if (Object.keys(itinerary).length === 0) {
                   return (
@@ -3511,8 +3411,6 @@ export default function FldrDetailPage() {
                         </div>
                         <div className="space-y-3">
                           {itinerary[day].map((event, eventIndex) => {
-                            const isAIGenerated = (event as any).isAI
-                            const isPersonalized = (event as any).personalized
                             const isPast = event.dateTime.getTime() < currentTime.getTime()
                             
                             // Mark as "NEXT" only if this is THE first upcoming event across the entire itinerary
@@ -3526,9 +3424,7 @@ export default function FldrDetailPage() {
                                     ? 'border-[#3b82f6]/20 opacity-50' 
                                     : isNext 
                                       ? 'border-[#10b981] bg-[#10b981]/5 shadow-sm' 
-                                      : isAIGenerated 
-                                        ? 'border-[#f59e0b]/50 bg-[#f59e0b]/5' 
-                                        : 'border-[#3b82f6]/30'
+                                      : 'border-[#3b82f6]/30'
                                 }`}
                               >
                                 <div className="flex items-baseline gap-2 mb-1">
@@ -3542,9 +3438,7 @@ export default function FldrDetailPage() {
                                   <span className={`text-sm flex items-center gap-1.5 ${
                                     isPast 
                                       ? 'line-through text-gray-600' 
-                                      : isAIGenerated 
-                                        ? 'text-gray-300' 
-                                        : 'font-medium text-white'
+                                      : 'font-medium text-white'
                                   }`}>
                                     {event.title}
                                     {isNext && (

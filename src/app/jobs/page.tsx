@@ -240,6 +240,37 @@ export default function JobsPage() {
     }
   }
 
+  // Helper function to calculate days until job starts
+  const getDaysUntilJob = (dateStart: string) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const [year, month, day] = dateStart.split('-').map(Number)
+    const jobDate = new Date(year, month - 1, day)
+    const diffTime = jobDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
+  // Helper function to calculate days until first flight
+  const getDaysUntilFlight = (fldr: Fldr) => {
+    if (!fldr.flight_info || fldr.flight_info.length === 0) return null
+    // Find the earliest departure
+    const departures = fldr.flight_info
+      .filter(f => f.departure_time)
+      .map(f => new Date(f.departure_time))
+    if (departures.length === 0) return null
+    
+    const earliestFlight = new Date(Math.min(...departures.map(d => d.getTime())))
+    earliestFlight.setHours(0, 0, 0, 0)
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const diffTime = earliestFlight.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
   const filteredFldrs = fldrs
     .filter(fldr => {
       if (filter === 'all') return true
@@ -489,6 +520,43 @@ export default function JobsPage() {
                         {formatDate(fldr.date_start)}
                         {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
                       </div>
+                      
+                      {/* Countdown Timers */}
+                      {(() => {
+                        const daysUntilFlight = getDaysUntilFlight(fldr)
+                        const daysUntilJob = getDaysUntilJob(fldr.date_start)
+                        const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
+                        
+                        if ((daysUntilFlight !== null && daysUntilFlight >= 0 && daysUntilFlight <= 30) || (daysUntilJob >= 0 && daysUntilJob <= 30)) {
+                          const urgencyColor = soonest <= 2 ? 'text-red-400' : soonest <= 7 ? 'text-yellow-400' : 'text-green-400'
+                          return (
+                            <div className="flex items-center gap-3 mt-2">
+                              {daysUntilFlight !== null && daysUntilFlight >= 0 && daysUntilFlight <= 30 && (
+                                <div className="flex items-center gap-1.5">
+                                  <svg className={`w-3.5 h-3.5 ${urgencyColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                                  </svg>
+                                  <span className={`text-xs font-medium ${urgencyColor}`}>
+                                    {daysUntilFlight === 0 ? 'Flight today!' : daysUntilFlight === 1 ? '1 day' : `${daysUntilFlight} days`}
+                                  </span>
+                                </div>
+                              )}
+                              {daysUntilJob >= 0 && daysUntilJob <= 30 && (
+                                <div className="flex items-center gap-1.5">
+                                  <svg className={`w-3.5 h-3.5 ${urgencyColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span className={`text-xs font-medium ${urgencyColor}`}>
+                                    {daysUntilJob === 0 ? 'Job today!' : daysUntilJob === 1 ? '1 day' : `${daysUntilJob} days`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
+                      
                       {fldr.location && (
                         <div className="text-sm text-gray-500 mt-1">
                           {fldr.location}
