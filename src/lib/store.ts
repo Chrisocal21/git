@@ -32,6 +32,8 @@ export const fldrStore = {
       date_end: newFldr.date_end || null,
       location: newFldr.location || null,
       status: 'incomplete',
+      job_status: 'pending',
+      archived: false,
       attending: false,
       // TODO: Set created_by to current user ID once auth is implemented
       created_by: null,
