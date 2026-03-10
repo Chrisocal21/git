@@ -11,7 +11,7 @@ class GoogleMapsLoader {
   private callbacks: Array<() => void> = []
 
   isLoaded(): boolean {
-    return typeof window !== 'undefined' && !!window.google?.maps
+    return typeof window !== 'undefined' && !!window.google?.maps?.Map
   }
 
   load(): Promise<void> {
@@ -65,15 +65,23 @@ class GoogleMapsLoader {
       const script = document.createElement('script')
       
       // Only load places library - geocoding is done server-side via /api/timezone
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async&v=weekly`
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
       script.async = true
-      script.defer= true
+      script.defer = true
 
       script.onload = () => {
-        this.status = 'loaded'
-        this.callbacks.forEach(cb => cb())
-        this.callbacks = []
-        resolve()
+        // Wait for google.maps.Map to be available
+        const checkReady = () => {
+          if (window.google?.maps?.Map) {
+            this.status = 'loaded'
+            this.callbacks.forEach(cb => cb())
+            this.callbacks = []
+            resolve()
+          } else {
+            setTimeout(checkReady, 50)
+          }
+        }
+        checkReady()
       }
 
       script.onerror = () => {

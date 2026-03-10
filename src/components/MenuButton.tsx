@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, TEAM_PROFILES, setCurrentProfile } from '@/lib/auth'
 
 export default function MenuButton() {
   const router = useRouter()
@@ -77,23 +77,69 @@ export default function MenuButton() {
           {/* User Info */}
           {user && (
             <div className="p-3 border-b border-white/10">
-              <div className="text-sm font-medium text-white">{user.name}</div>
-              <div className="text-xs text-white/70 mt-0.5">{user.email}</div>
-              <div className="flex items-center gap-2 mt-2">
-                {isDevelopment && (
-                  <span className="px-2 py-0.5 text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded">
-                    Dev Mode
-                  </span>
-                )}
-                <span className="px-2 py-0.5 text-xs bg-[#E8B44D]/20 text-[#E8B44D] border border-[#E8B44D]/30 rounded">
-                  {user.role === 'admin' ? 'Admin' : 'Viewer'}
-                </span>
+              <div className="text-xs text-white/50 mb-2">Your Profile</div>
+              <div className="space-y-1">
+                {TEAM_PROFILES.map(profile => (
+                  <button
+                    key={profile.id}
+                    onClick={() => {
+                      if (profile.id !== user.id) {
+                        setCurrentProfile(profile.id)
+                      }
+                    }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                      profile.id === user.id
+                        ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
+                        : 'hover:bg-white/5'
+                    }`}
+                  >
+                    {/* Avatar circle with initials */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                      profile.id === user.id
+                        ? 'bg-[#E8B44D] text-black'
+                        : 'bg-white/10 text-white/70'
+                    }`}>
+                      {profile.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className={`text-sm font-medium ${
+                        profile.id === user.id ? 'text-[#E8B44D]' : 'text-white'
+                      }`}>
+                        {profile.name}
+                        {profile.id === user.id && (
+                          <span className="ml-2 text-xs text-[#E8B44D]/70">(You)</span>
+                        )}
+                      </div>
+                    </div>
+                    {profile.id === user.id && (
+                      <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 text-xs text-white/50">
+                Switch profiles to see your personal trip history
               </div>
             </div>
           )}
           
           {/* Menu Items */}
           <div className="p-2">
+            <button
+              onClick={() => {
+                router.push('/map')
+                setIsOpen(false)
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              My Flight Map
+            </button>
+            
             <button
               onClick={() => {
                 router.push('/about')

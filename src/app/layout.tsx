@@ -31,14 +31,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* PWA capability tags */}
         <meta name="mobile-web-app-capable" content="yes" />
         {/* iOS still needs this for PWA to work - deprecation warning is expected */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <ServiceWorkerRegistration />
         <div className="min-h-screen pb-16">
           {children}

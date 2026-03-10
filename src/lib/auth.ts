@@ -1,13 +1,9 @@
 /**
- * Authentication & Authorization Utilities
+ * Profile-Based User System
  * 
- * This file is prepared for future authentication implementation.
- * Current state: All functions return permissive values (all users are admins, see all jobs)
- * 
- * TODO: Implement with Clerk.com or similar auth provider
- * - Replace mock functions with real authentication
- * - Connect to actual user session
- * - Implement role-based access control
+ * Instead of traditional authentication, users select their profile.
+ * Each profile sees only the jobs they were on (listed in the people array).
+ * All data lives in the same place, filtered by profile.
  */
 
 export type UserRole = 'admin' | 'viewer'
@@ -20,28 +16,46 @@ export interface User {
   avatar?: string
 }
 
+// Pre-defined team profiles
+export const TEAM_PROFILES = [
+  { id: 'chris', name: 'Chris', email: 'chris@example.com', role: 'admin' as UserRole },
+  { id: 'michael', name: 'Michael', email: 'michael@example.com', role: 'admin' as UserRole },
+  { id: 'jaclyn', name: 'Jaclyn', email: 'jaclyn@example.com', role: 'admin' as UserRole },
+  { id: 'zemirah', name: 'Zemirah', email: 'zemirah@example.com', role: 'admin' as UserRole },
+]
+
 /**
- * Get current user (mock - returns admin user for now)
- * TODO: Replace with real auth provider (Clerk.useUser())
+ * Get currently selected profile from localStorage
  */
 export function getCurrentUser(): User | null {
-  // Mock user for development - all users are admins until auth is implemented
-  return {
-    id: 'dev-user-1',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    role: 'admin'
+  if (typeof window === 'undefined') return null
+  
+  const selectedProfile = localStorage.getItem('selected-profile')
+  if (!selectedProfile) {
+    // Default to first profile (Chris) if none selected
+    return TEAM_PROFILES[0]
   }
+  
+  const profile = TEAM_PROFILES.find(p => p.id === selectedProfile)
+  return profile || TEAM_PROFILES[0]
+}
+
+/**
+ * Set the active profile
+ */
+export function setCurrentProfile(profileId: string): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('selected-profile', profileId)
+  // Reload to apply new profile filter
+  window.location.reload()
 }
 
 /**
  * Check if current user is admin
- * TODO: Replace with real role check from auth provider
  */
 export function isAdmin(): boolean {
   const user = getCurrentUser()
-  // For now, everyone is admin (no auth yet)
-  return true // TODO: return user?.role === 'admin'
+  return user?.role === 'admin' ?? true
 }
 
 /**
@@ -62,9 +76,14 @@ export function canEditJob(jobCreatedBy?: string | null, jobAssignedTo?: string[
 }
 
 /**
- * Filter jobs based on current user's permissions
+ * Filter jobs based on current user's profile
  */
-export function filterJobsByUser<T extends { created_by?: string | null; assigned_to?: string[] | null; attending?: boolean }>(
+export function filterJobsByUser<T extends { 
+  created_by?: string | null; 
+  assigned_to?: string[] | null; 
+  attending?: boolean;
+  people?: Array<{ name: string; role?: string | null; phone?: string | null; email?: string | null }> | null;
+}>(
   jobs: T[],
   viewMode: 'team' | 'my' = 'team'
 ): T[] {
@@ -76,10 +95,19 @@ export function filterJobsByUser<T extends { created_by?: string | null; assigne
     return jobs
   }
   
-  // My Jobs mode: filter by attending flag
+  // My Jobs mode: show only jobs where this user is listed in the people array
   if (viewMode === 'my') {
-    // Filter to only jobs where attending === true
-    return jobs.filter(job => job.attending === true)
+    return jobs.filter(job => {
+      // If no people array, fall back to attending flag
+      if (!job.people || job.people.length === 0) {
+        return job.attending === true
+      }
+      
+      // Check if user's name appears in the people array
+      return job.people.some(person => 
+        person.name.toLowerCase() === user.name.toLowerCase()
+      )
+    })
   }
   
   return jobs

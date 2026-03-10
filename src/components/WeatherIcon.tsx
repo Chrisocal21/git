@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 interface WeatherData {
   temp: number
   condition: string
+  hasBadWeather?: boolean
+  alertType?: 'rain' | 'severe' | null
 }
 
 export default function WeatherIcon({ location }: { location: string }) {
@@ -24,9 +26,25 @@ export default function WeatherIcon({ location }: { location: string }) {
           // Check if data has the expected structure
           if (data.current && typeof data.current.temp === 'number') {
             console.log(`[Weather] ${location}:`, data.current.temp, '°F -', data.current.main)
+            
+            // Determine alert type based on weather condition
+            const condition = (data.current.main || data.current.description || '').toLowerCase()
+            let alertType: 'rain' | 'severe' | null = null
+            let hasBadWeather = false
+            
+            if (condition.includes('thunder') || condition.includes('storm') || condition.includes('tornado') || condition.includes('hurricane')) {
+              alertType = 'severe'
+              hasBadWeather = true
+            } else if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('snow') || condition.includes('sleet')) {
+              alertType = 'rain'
+              hasBadWeather = true
+            }
+            
             setWeather({
               temp: data.current.temp,
-              condition: data.current.main || data.current.description
+              condition: data.current.main || data.current.description,
+              hasBadWeather,
+              alertType
             })
           } else {
             console.warn('[Weather] Invalid data structure:', data)
@@ -151,9 +169,16 @@ export default function WeatherIcon({ location }: { location: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2 self-center">
+    <div className="flex items-center gap-2 self-center relative">
       {getWeatherIcon(weather.condition)}
       <span className="text-[32px] font-light text-white leading-none">{Math.round(weather.temp)}°</span>
+      
+      {/* Weather Alert Badge */}
+      {weather.hasBadWeather && (
+        <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-[#2F5F7F] ${
+          weather.alertType === 'severe' ? 'bg-red-500' : 'bg-yellow-500'
+        }`} title={weather.alertType === 'severe' ? 'Severe weather alert' : 'Rain expected'} />
+      )}
     </div>
   )
 }

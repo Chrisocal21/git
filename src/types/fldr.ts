@@ -1,4 +1,5 @@
 export type FldrStatus = 'incomplete' | 'ready' | 'active' | 'complete'
+export type JobStatus = 'pending' | 'confirmed' | 'in_progress' | 'complete'
 export type JobType = 'caricatures' | 'names_monograms'
 
 export interface ReferenceLink {
@@ -129,6 +130,8 @@ export interface Fldr {
   date_end: string | null
   location: string | null
   status: FldrStatus
+  job_status: JobStatus | null // Granular job state: pending, confirmed, in_progress, complete
+  archived: boolean // Archive completed jobs to keep main list clean
   attending: boolean // Whether user is personally attending this trip
   
   // Team/User Management (prepared for multi-user - not enforced yet)

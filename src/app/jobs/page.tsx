@@ -11,13 +11,13 @@ import { getCurrentUser, canEditJob, filterJobsByUser } from '@/lib/auth'
 import MenuButton from '@/components/MenuButton'
 import WeatherIcon from '@/components/WeatherIcon'
 
-type FilterOption = 'all' | 'upcoming' | 'complete'
+type FilterOption = 'all' | 'upcoming'
 
 export default function JobsPage() {
   const router = useRouter()
   const [fldrs, setFldrs] = useState<Fldr[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<FilterOption>('upcoming')
+  const [filter, setFilter] = useState<FilterOption>('all')
   const [showDeleteButtons, setShowDeleteButtons] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
   const [isPulling, setIsPulling] = useState(false)
@@ -25,6 +25,7 @@ export default function JobsPage() {
   const [touchStartY, setTouchStartY] = useState(0)
   const [online, setOnline] = useState(true)
   const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = assigned to me
+  const [showArchived, setShowArchived] = useState(false) // Show/hide archived jobs
   
   // Get current user for permission checks
   const currentUser = getCurrentUser()
@@ -204,7 +205,9 @@ export default function JobsPage() {
 
   const formatDate = (date: string) => {
     // Parse date string in local timezone to avoid day-off errors
-    const [year, month, day] = date.split('-').map(Number)
+    // Handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm" formats
+    const dateOnly = date.split('T')[0] // Extract date part if datetime string
+    const [year, month, day] = dateOnly.split('-').map(Number)
     const localDate = new Date(year, month - 1, day)
     return localDate.toLocaleDateString('en-US', { 
       month: 'short',
@@ -273,18 +276,44 @@ export default function JobsPage() {
 
   const filteredFldrs = fldrs
     .filter(fldr => {
+      // Filter out archived jobs unless showArchived is true
+      if (!showArchived && fldr.archived) return false
+      
+      // IMPORTANT: Filter out completed jobs from main view (they go to Completed Archive)
+      // Check job_status field (pending/confirmed/in_progress/complete)
+      if (!showArchived && fldr.job_status === 'complete') return false
+      
       if (filter === 'all') return true
       if (filter === 'upcoming') {
         // Show upcoming AND active jobs by default
         return fldr.status === 'incomplete' || fldr.status === 'ready' || fldr.status === 'active'
       }
-      return fldr.status === filter
+      return true
     })
     .sort((a, b) => {
-      // Sort by start date ascending (earliest first)
-      const dateA = new Date(a.date_start).getTime()
-      const dateB = new Date(b.date_start).getTime()
-      return dateA - dateB
+      // Smart sort: upcoming/current jobs at top, past jobs at bottom
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      const dateA = new Date(a.date_start)
+      dateA.setHours(0, 0, 0, 0)
+      const dateB = new Date(b.date_start)
+      dateB.setHours(0, 0, 0, 0)
+      
+      const aIsPast = dateA < today
+      const bIsPast = dateB < today
+      
+      // If one is past and one is future, future comes first
+      if (aIsPast && !bIsPast) return 1  // a goes down
+      if (!aIsPast && bIsPast) return -1 // a goes up
+      
+      // If both are future/current, sort ascending (soonest first)
+      if (!aIsPast && !bIsPast) {
+        return dateA.getTime() - dateB.getTime()
+      }
+      
+      // If both are past, sort descending (most recent past first)
+      return dateB.getTime() - dateA.getTime()
     })
 
   // Apply user-based filtering (prepared for auth - currently shows all)
@@ -389,62 +418,106 @@ export default function JobsPage() {
       </div>
 
       {/* Unified Filter Section */}
-      <div className="space-y-2.5 mb-4">
-        {/* Team/My Jobs toggle */}
-        <div className="flex bg-[#1c1c1e]/80 backdrop-blur-xl rounded-xl p-1">
-          <button
-            onClick={() => setViewMode('team')}
-            className={`flex-1 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
-              viewMode === 'team'
-                ? 'bg-[#3A6B86] text-[#E8B44D]'
-                : 'text-white/50'
-            }`}
-          >
-            Team
-          </button>
-          <button
-            onClick={() => setViewMode('my')}
-            className={`flex-1 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
-              viewMode === 'my'
-                ? 'bg-[#3A6B86] text-[#E8B44D]'
-                : 'text-white/50'
-            }`}
-          >
-            My Jobs
-          </button>
-        </div>
+      <div className="space-y-1.5 mb-3">
+        {/* Job Stats Dashboard */}
+        {fldrs.length > 0 && (() => {
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const oneWeekFromNow = new Date(today)
+          oneWeekFromNow.setDate(today.getDate() + 7)
+          
+          // Filter based on viewMode first, and exclude archived AND completed jobs
+          const visibleFldrs = filterJobsByUser(fldrs.filter(f => !f.archived && f.job_status !== 'complete'), viewMode)
+          
+          // Calculate stats
+          const totalJobs = visibleFldrs.length
+          const upcomingThisWeek = visibleFldrs.filter(f => {
+            const startDate = new Date(f.date_start)
+            startDate.setHours(0, 0, 0, 0)
+            return startDate >= today && startDate <= oneWeekFromNow && f.job_status !== 'complete'
+          }).length
+          
+          const pendingCount = visibleFldrs.filter(f => f.job_status === 'pending').length
+          const confirmedCount = visibleFldrs.filter(f => f.job_status === 'confirmed').length
+          const inProgressCount = visibleFldrs.filter(f => f.job_status === 'in_progress').length
+          
+          return (
+            <div className="bg-gradient-to-br from-[#3A6B86]/40 to-[#2F5F7F]/40 backdrop-blur-xl rounded-xl p-2.5 border border-[#E8B44D]/20">
+              <div className="grid grid-cols-3 gap-2">
+                {/* Upcoming This Week */}
+                <div className="text-center">
+                  <div className="text-xl font-bold text-[#E8B44D]">{upcomingThisWeek}</div>
+                  <div className="text-[10px] text-white/60 mt-0.5">This Week</div>
+                </div>
+                
+                {/* Total Active Jobs */}
+                <div className="text-center border-x border-white/10">
+                  <div className="text-xl font-bold text-white">{totalJobs}</div>
+                  <div className="text-[10px] text-white/60 mt-0.5">Total Jobs</div>
+                </div>
+                
+                {/* Pending Confirmation */}
+                <div className="text-center">
+                  <div className="text-xl font-bold text-white/90">{pendingCount}</div>
+                  <div className="text-[10px] text-white/60 mt-0.5">Pending</div>
+                </div>
+              </div>
+              
+              {/* Secondary row for other statuses */}
+              {(confirmedCount > 0 || inProgressCount > 0) && (
+                <div className="flex gap-3 justify-center mt-2 pt-2 border-t border-white/10">
+                  {confirmedCount > 0 && (
+                    <div className="text-center">
+                      <span className="text-xs font-semibold text-emerald-400">{confirmedCount}</span>
+                      <span className="text-[10px] text-white/50 ml-1">Confirmed</span>
+                    </div>
+                  )}
+                  {inProgressCount > 0 && (
+                    <div className="text-center">
+                      <span className="text-xs font-semibold text-blue-400">{inProgressCount}</span>
+                      <span className="text-[10px] text-white/50 ml-1">In Progress</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
         
-        {/* Status filters */}
-        <div className="flex bg-[#1c1c1e]/80 backdrop-blur-xl rounded-xl p-1 gap-1">
+        {/* Combined filters */}
+        <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.3)] rounded-xl p-2 space-y-1.5">
+          <div className="flex gap-1">
+            <button
+              onClick={() => setViewMode('team')}
+              className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'team'
+                  ? 'bg-[#3A6B86] text-[#E8B44D]'
+                  : 'text-white/50'
+              }`}
+            >
+              All ({fldrs.filter(f => !f.archived && f.job_status !== 'complete').length})
+            </button>
+            <button
+              onClick={() => setViewMode('my')}
+              className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'my'
+                  ? 'bg-[#3A6B86] text-[#E8B44D]'
+                  : 'text-white/50'
+              }`}
+            >
+              My Jobs
+            </button>
+          </div>
+          
+          {/* Archived toggle - compact */}
           <button
-            onClick={() => setFilter('all')}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
-              filter === 'all'
-                ? 'bg-[#3A6B86] text-[#E8B44D]'
-                : 'text-white/50'
-            }`}
+            onClick={() => setShowArchived(!showArchived)}
+            className="w-full px-2.5 py-1 rounded-lg text-[10px] text-white/50 hover:text-white/70 transition-all flex items-center justify-center gap-1.5 border border-white/10 hover:border-white/20"
           >
-            All ({fldrs.length})
-          </button>
-          <button
-            onClick={() => setFilter('upcoming')}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
-              filter === 'upcoming'
-                ? 'bg-[#3A6B86] text-[#E8B44D]'
-                : 'text-white/50'
-            }`}
-          >
-            Current ({fldrs.filter(f => f.status === 'incomplete' || f.status === 'ready' || f.status === 'active').length})
-          </button>
-          <button
-            onClick={() => setFilter('complete')}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${
-              filter === 'complete'
-                ? 'bg-[#3A6B86] text-[#E8B44D]'
-                : 'text-white/50'
-            }`}
-          >
-            Complete ({fldrs.filter(f => f.status === 'complete').length})
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            Completed Archive ({fldrs.filter(f => f.archived || f.job_status === 'complete').length})
           </button>
         </div>
       </div>
@@ -452,7 +525,7 @@ export default function JobsPage() {
       {userFilteredFldrs.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-400 mb-4">
-            {filter === 'all' ? 'No jobs yet' : filter === 'upcoming' ? 'No current jobs' : `No ${filter} jobs`}
+            {filter === 'all' ? 'No jobs yet' : 'No current jobs'}
           </p>
           {filter === 'all' && viewMode === 'team' && (
             <button
@@ -513,17 +586,30 @@ export default function JobsPage() {
                       <div className="text-[15px] text-white/70 leading-snug flex-1">
                         {(() => {
                           const flights = fldr.flight_info || []
-                          const earliestFlight = flights
-                            .filter(f => f.departure_time)
-                            .sort((a, b) => new Date(a.departure_time!).getTime() - new Date(b.departure_time!).getTime())[0]
                           
-                          if (earliestFlight) {
-                            const flightDate = formatDate(earliestFlight.departure_time!)
-                            const eventDate = formatDate(fldr.date_start)
-                            const endDate = fldr.date_end ? formatDate(fldr.date_end) : null
-                            return `${flightDate} → ${eventDate}${endDate && endDate !== eventDate ? ` - ${endDate}` : ''}`
+                          if (flights.length > 0 && flights.some(f => f.departure_time || f.arrival_time)) {
+                            // Find earliest departure (leaving home)
+                            const departureFlights = flights.filter(f => f.departure_time)
+                            const earliestDeparture = departureFlights.length > 0
+                              ? departureFlights.sort((a, b) => new Date(a.departure_time!).getTime() - new Date(b.departure_time!).getTime())[0]
+                              : null
+                            
+                            // Find latest arrival (returning home)
+                            const arrivalFlights = flights.filter(f => f.arrival_time)
+                            const latestArrival = arrivalFlights.length > 0
+                              ? arrivalFlights.sort((a, b) => new Date(b.arrival_time!).getTime() - new Date(a.arrival_time!).getTime())[0]
+                              : null
+                            
+                            // Determine the complete travel span
+                            const tripStart = earliestDeparture ? formatDate(earliestDeparture.departure_time!) : formatDate(fldr.date_start)
+                            const tripEnd = latestArrival ? formatDate(latestArrival.arrival_time!) : (fldr.date_end ? formatDate(fldr.date_end) : tripStart)
+                            
+                            // Show the full travel duration
+                            return tripStart === tripEnd ? tripStart : `${tripStart} - ${tripEnd}`
                           }
-                          return `${formatDate(fldr.date_start)}${fldr.date_end ? ` - ${formatDate(fldr.date_end)}` : ''}`
+                          
+                          // No flights - just show event dates
+                          return `${formatDate(fldr.date_start)}${fldr.date_end && formatDate(fldr.date_end) !== formatDate(fldr.date_start) ? ` - ${formatDate(fldr.date_end)}` : ''}`
                         })()}
                       </div>
                       {/* Weather with icon */}
@@ -532,11 +618,25 @@ export default function JobsPage() {
 
                     {/* Bottom Row: Team/Type & Status/Attending */}
                     <div className="flex items-center justify-between text-[15px] text-white/70">
-                      <div>
-                        {fldr.people && fldr.people.length > 0 
-                          ? fldr.people.map(p => p.name).join(', ')
-                          : fldr.job_info?.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info?.job_type === 'names_monograms' ? 'Names/Monograms' : ''
-                        }
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {fldr.people && fldr.people.length > 0 
+                            ? fldr.people.map(p => p.name).join(', ')
+                            : fldr.job_info?.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info?.job_type === 'names_monograms' ? 'Names/Monograms' : ''
+                          }
+                        </span>
+                        {/* Job Status Badge */}
+                        {fldr.job_status && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide ${
+                            fldr.job_status === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                            fldr.job_status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                            fldr.job_status === 'in_progress' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                            fldr.job_status === 'complete' ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30' :
+                            'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                          }`}>
+                            {fldr.job_status.replace('_', ' ')}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[13px] font-medium uppercase tracking-wide">
