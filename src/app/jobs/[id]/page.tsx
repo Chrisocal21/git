@@ -2370,6 +2370,8 @@ export default function FldrDetailPage() {
         date_end: fldr.date_end,
         location: fldr.location,
         status: 'incomplete',
+        job_status: 'pending',
+        archived: false,
         attending: fldr.attending,
         created_by: null,
         assigned_to: null,
