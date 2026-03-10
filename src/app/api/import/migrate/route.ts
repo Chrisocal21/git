@@ -117,6 +117,8 @@ export async function POST(request: Request) {
         date_start: trip.startDate || null,
         date_end: trip.endDate || null,
         status,
+        job_status: 'pending',
+        archived: false,
         attending: false,
         created_by: null,
         assigned_to: null,
