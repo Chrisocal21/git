@@ -3093,10 +3093,10 @@ export default function FldrDetailPage() {
                 value={fldr.job_status || ''}
                 onChange={async (e) => {
                   if (!fldr) return
-                  const newStatus = e.target.value || null
+                  const newStatus = (e.target.value || null) as JobStatus | null
                   setSaving(true)
                   try {
-                    setFldr({ ...fldr, job_status: newStatus as any })
+                    setFldr({ ...fldr, job_status: newStatus })
                     await saveFldr({ job_status: newStatus })
                   } finally {
                     setSaving(false)
