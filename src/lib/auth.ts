@@ -55,7 +55,7 @@ export function setCurrentProfile(profileId: string): void {
  */
 export function isAdmin(): boolean {
   const user = getCurrentUser()
-  return user?.role === 'admin' ?? true
+  return user?.role === 'admin' || false
 }
 
 /**
