@@ -291,10 +291,24 @@ export default function JobsPage() {
       return true
     })
     .sort((a, b) => {
-      // Smart sort: upcoming/current jobs at top, past jobs at bottom
+      // Smart sort: CURRENT jobs at top, then upcoming, then past
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       
+      // Check if each job is currently happening
+      const aIsCurrent = isCurrentEvent(a)
+      const bIsCurrent = isCurrentEvent(b)
+      
+      // CURRENT jobs always go to the top
+      if (aIsCurrent && !bIsCurrent) return -1 // a goes up
+      if (!aIsCurrent && bIsCurrent) return 1  // b goes up
+      
+      // If both are current, sort by start date (earlier start first)
+      if (aIsCurrent && bIsCurrent) {
+        return new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
+      }
+      
+      // For non-current jobs, determine if they're past or future
       const dateA = new Date(a.date_start)
       dateA.setHours(0, 0, 0, 0)
       const dateB = new Date(b.date_start)
@@ -307,7 +321,7 @@ export default function JobsPage() {
       if (aIsPast && !bIsPast) return 1  // a goes down
       if (!aIsPast && bIsPast) return -1 // a goes up
       
-      // If both are future/current, sort ascending (soonest first)
+      // If both are future, sort ascending (soonest first)
       if (!aIsPast && !bIsPast) {
         return dateA.getTime() - dateB.getTime()
       }
@@ -642,7 +656,8 @@ export default function JobsPage() {
                         <span className="text-[13px] font-medium uppercase tracking-wide">
                           {fldr.status}
                         </span>
-                        {(fldr.attending ?? false) ? (
+                        {/* Show airplane if current user is on this job, home if not */}
+                        {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) ? (
                           <AirplaneIcon className="w-5 h-5 text-[#E8B44D]" />
                         ) : (
                           <HomeIcon className="w-5 h-5 text-gray-500" />

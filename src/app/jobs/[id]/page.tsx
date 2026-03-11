@@ -3102,13 +3102,13 @@ export default function FldrDetailPage() {
                     setSaving(false)
                   }
                 }}
-                className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm text-white"
               >
-                <option value="">Not Set</option>
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="in_progress">In Progress</option>
-                <option value="complete">Complete</option>
+                <option value="" className="bg-gray-800 text-white">Not Set</option>
+                <option value="pending" className="bg-gray-800 text-white">Pending</option>
+                <option value="confirmed" className="bg-gray-800 text-white">Confirmed</option>
+                <option value="in_progress" className="bg-gray-800 text-white">In Progress</option>
+                <option value="complete" className="bg-gray-800 text-white">Complete</option>
               </select>
             </div>
           </div>
@@ -3312,27 +3312,61 @@ export default function FldrDetailPage() {
             )}
 
             {/* Hotel & Venue */}
-            {(fldr.hotel_info?.name || fldr.venue_info?.name) && (
+            {(fldr.flight_info?.some(f => f.departure_address || f.arrival_address) || fldr.hotel_info?.name || fldr.venue_info?.name) && (
               <div className="p-3 bg-black/30 border border-white/10 rounded-lg backdrop-blur-sm space-y-2">
                 <div className="font-semibold text-[#E8B44D] mb-2">Locations</div>
+                
+                {/* Hotel */}
                 {fldr.hotel_info?.name && (
                   <div>
                     <div className="text-gray-400 text-xs">Hotel</div>
                     <div>{fldr.hotel_info.name}</div>
                     {fldr.hotel_info.address && (
-                      <div className="text-gray-500 text-xs">{fldr.hotel_info.address}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-gray-500 text-xs flex-1">{fldr.hotel_info.address}</div>
+                        <CopyButton text={fldr.hotel_info.address} label="Copy" />
+                      </div>
                     )}
                   </div>
                 )}
+                
+                {/* Venue */}
                 {fldr.venue_info?.name && (
                   <div>
                     <div className="text-gray-400 text-xs">Venue</div>
                     <div>{fldr.venue_info.name}</div>
                     {fldr.venue_info.address && (
-                      <div className="text-gray-500 text-xs">{fldr.venue_info.address}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-gray-500 text-xs flex-1">{fldr.venue_info.address}</div>
+                        <CopyButton text={fldr.venue_info.address} label="Copy" />
+                      </div>
                     )}
                   </div>
                 )}
+                
+                {/* Airports */}
+                {fldr.flight_info && fldr.flight_info.length > 0 && (() => {
+                  // Get unique airports
+                  const airports = new Map<string, string>()
+                  fldr.flight_info.forEach(flight => {
+                    if (flight.departure_code && flight.departure_address) {
+                      airports.set(flight.departure_code, flight.departure_address)
+                    }
+                    if (flight.arrival_code && flight.arrival_address) {
+                      airports.set(flight.arrival_code, flight.arrival_address)
+                    }
+                  })
+                  
+                  return Array.from(airports.entries()).map(([code, address]) => (
+                    <div key={code}>
+                      <div className="text-gray-400 text-xs">{code} Airport</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-gray-500 text-xs flex-1">{address}</div>
+                        <CopyButton text={address} label="Copy" />
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
             )}
 
@@ -3695,7 +3729,7 @@ export default function FldrDetailPage() {
                                 }`}
                               >
                                 <div className="flex items-baseline gap-2 mb-1">
-                                  <span className={`text-xs font-medium ${isPast ? 'text-gray-600' : isNext ? 'text-[#10b981]' : 'text-[#E8B44D]'}`}>
+                                  <span className={`text-xs font-medium ${isPast ? 'text-gray-400' : isNext ? 'text-[#10b981]' : 'text-[#E8B44D]'}`}>
                                     {event.dateTime.toLocaleTimeString('en-US', {
                                       hour: 'numeric',
                                       minute: '2-digit',
@@ -3704,7 +3738,7 @@ export default function FldrDetailPage() {
                                   </span>
                                   <span className={`text-sm flex items-center gap-1.5 ${
                                     isPast 
-                                      ? 'line-through text-gray-600' 
+                                      ? 'line-through text-gray-400' 
                                       : 'font-medium text-gray-100'
                                   }`}>
                                     {event.title}
@@ -3716,7 +3750,7 @@ export default function FldrDetailPage() {
                                   </span>
                                 </div>
                                 {event.details.length > 0 && (
-                                  <div className={`text-xs space-y-0.5 ml-16 ${isPast ? 'text-gray-600 line-through' : 'text-gray-400'}`}>
+                                  <div className={`text-xs space-y-0.5 ml-16 ${isPast ? 'text-gray-400 line-through' : 'text-gray-400'}`}>
                                     {event.details.map((detail, i) => (
                                       <div key={i}>{detail}</div>
                                     ))}
@@ -4557,11 +4591,11 @@ export default function FldrDetailPage() {
                   <select
                     value={fldr.job_info?.job_type || ''}
                     onChange={(e) => updateJobInfo('job_type', e.target.value || null)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm text-white"
                   >
-                    <option value="">Select type</option>
-                    <option value="caricatures">Caricatures</option>
-                    <option value="names_monograms">Names/Monograms</option>
+                    <option value="" className="bg-gray-800 text-white">Select type</option>
+                    <option value="caricatures" className="bg-gray-800 text-white">Caricatures</option>
+                    <option value="names_monograms" className="bg-gray-800 text-white">Names/Monograms</option>
                   </select>
                 </div>
                 <div>

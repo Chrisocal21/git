@@ -133,7 +133,7 @@ import { Fldr } from '@/types/fldr'
  * Fetch all fldrs from the database
  */
 export async function getAllFldrs(): Promise<Fldr[]> {
-  const results = await queryD1('SELECT id, data FROM fldrs ORDER BY updated_at DESC');
+  const results = await queryD1('SELECT id, data FROM fldrs');
   return results.map(row => {
     const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
     return data as Fldr;
