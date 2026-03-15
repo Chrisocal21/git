@@ -37,12 +37,21 @@ export async function GET(request: NextRequest) {
       // Determine location from venue info or fallback to general location
       const location = fldr.venue_info?.address || fldr.location || null
 
+      // Ensure dates are in full YYYY-MM-DD format
+      const formatDate = (dateStr: string | null) => {
+        if (!dateStr) return null
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return dateStr // Return as-is if invalid
+        // Format as YYYY-MM-DD
+        return date.toISOString().split('T')[0]
+      }
+
       return {
         id: fldr.id,
         title: fldr.title,
         location,
-        date: fldr.date_start,
-        end_date: fldr.date_end,
+        date: formatDate(fldr.date_start) || fldr.date_start,
+        end_date: formatDate(fldr.date_end),
       }
     })
 
