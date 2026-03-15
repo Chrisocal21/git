@@ -12,6 +12,8 @@ interface CalendarEvent {
   location: string | null
   date: string
   end_date: string | null
+  attending: boolean
+  icon: string // "✈️" if attending, "" if not
 }
 
 export async function GET(request: NextRequest) {
@@ -52,6 +54,8 @@ export async function GET(request: NextRequest) {
         location,
         date: formatDate(fldr.date_start) || fldr.date_start,
         end_date: formatDate(fldr.date_end),
+        attending: fldr.attending || false,
+        icon: fldr.attending ? "✈️" : "",
       }
     })
 
