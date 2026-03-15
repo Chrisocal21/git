@@ -66,16 +66,44 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({
-      events: filteredEvents,
-      count: filteredEvents.length,
-      generated_at: new Date().toISOString(),
-    })
+    return NextResponse.json(
+      {
+        events: filteredEvents,
+        count: filteredEvents.length,
+        generated_at: new Date().toISOString(),
+      },
+      {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      }
+    )
   } catch (error) {
     console.error('[Calendar API] Error:', error)
     return NextResponse.json(
       { error: 'Failed to fetch calendar events' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
     )
   }
+}
+
+// Handle CORS preflight requests
+export async function OPTIONS() {
+  return NextResponse.json(
+    {},
+    {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    }
+  )
 }
