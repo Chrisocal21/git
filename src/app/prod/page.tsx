@@ -164,7 +164,7 @@ export default function ProdPage() {
       return cat === 'production' || cat === 'onsite' || cat === 'teardown' || cat === 'general'
     }) || []
     
-    const productsDone = products.filter(p => (p.waste || 0) === 0).length // Simplified: assume products with no waste are "ready"
+    const productsDone = products.length // Count all products as ready since waste tracking isn't in Product type
     const tasksDone = tasks.filter(t => t.completed).length
     
     const totalItems = products.length + tasks.length
