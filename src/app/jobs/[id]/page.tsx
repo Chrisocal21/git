@@ -3442,7 +3442,7 @@ export default function FldrDetailPage() {
                 hotelAddress={fldr.hotel_info?.address ?? undefined}
                 airportAddress={
                   fldr.flight_info && fldr.flight_info.length > 0 
-                    ? (fldr.flight_info[0].arrival_address || fldr.flight_info[0].departure_address)
+                    ? ((fldr.flight_info[0].arrival_address || fldr.flight_info[0].departure_address) ?? undefined)
                     : undefined
                 }
                 onNearbyTypeChange={handleNearbyTypeChange}
