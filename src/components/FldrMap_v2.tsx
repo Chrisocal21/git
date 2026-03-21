@@ -7,9 +7,6 @@ interface Location {
   label: string
   address: string
   coordinates?: [number, number]
-  phone?: string
-  notes?: string
-  additionalInfo?: string
 }
 
 interface NearbyPlace {
@@ -52,9 +49,7 @@ function FldrMap({
   const [isRefReady, setIsRefReady] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [gettingCurrentLocation, setGettingCurrentLocation] = useState(false)
-  const [sidebarVisible, setSidebarVisible] = useState(true)
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null)
   const googleMapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
 
@@ -110,7 +105,6 @@ function FldrMap({
         const map = new google.maps.Map(element, {
           center: { lat: validLocations[0].coordinates[0], lng: validLocations[0].coordinates[1] },
           zoom: 12,
-          fullscreenControl: false,
           styles: [
             { "elementType": "geometry", "stylers": [{ "color": "#212121" }] },
             { "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
@@ -131,54 +125,8 @@ function FldrMap({
             title: loc.label,
           })
 
-          // Build info window content with available fields
-          let contentHTML = `
-            <div style="color: #000; padding: 12px; min-width: 200px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-              <div style="font-weight: 600; margin-bottom: 8px; font-size: 15px; color: #1a1a1a;">${loc.label}</div>
-          `
-          
-          if (loc.address) {
-            contentHTML += `
-              <div style="font-size: 13px; color: #555; margin-bottom: 6px; line-height: 1.4;">
-                <svg style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
-                </svg>
-                ${loc.address}
-              </div>
-            `
-          }
-          
-          if (loc.phone) {
-            contentHTML += `
-              <div style="font-size: 13px; color: #555; margin-bottom: 6px;">
-                <svg style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/>
-                </svg>
-                <a href="tel:${loc.phone}" style="color: #2563eb; text-decoration: none;">${loc.phone}</a>
-              </div>
-            `
-          }
-          
-          if (loc.additionalInfo) {
-            contentHTML += `
-              <div style="font-size: 12px; color: #666; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e5e5; line-height: 1.4;">
-                ${loc.additionalInfo}
-              </div>
-            `
-          }
-          
-          if (loc.notes) {
-            contentHTML += `
-              <div style="font-size: 12px; color: #888; margin-top: 6px; font-style: italic; line-height: 1.4;">
-                📝 ${loc.notes}
-              </div>
-            `
-          }
-          
-          contentHTML += `</div>`
-
           const infoWindow = new google.maps.InfoWindow({
-            content: contentHTML
+            content: `<div style="color: #000; padding: 8px;"><div style="font-weight: 600; margin-bottom: 4px;">${loc.label}</div><div style="font-size: 12px; color: #666;">${loc.address}</div></div>`
           })
 
           marker.addListener('click', () => infoWindow.open(map, marker))
@@ -214,39 +162,16 @@ function FldrMap({
     }
   }
 
-  // Listen for fullscreen changes
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!document.fullscreenElement
-      setIsFullscreen(isCurrentlyFullscreen)
-      
-      // When entering fullscreen, reset sidebar visibility and default to venue if available
-      if (isCurrentlyFullscreen) {
-        setSidebarVisible(true)
-        if (!selectedLocation && venueAddress) {
-          setSelectedLocation(venueAddress)
-          if (onSearchLocationChange) {
-            onSearchLocationChange(venueAddress)
-          }
-        }
-      }
-    }
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [selectedLocation, venueAddress, onSearchLocationChange])
-
-  const toggleFullscreen = async () => {
-    if (!fullscreenContainerRef.current) return
+  const toggleFullscreen = () => {
+    const newFullscreenState = !isFullscreen
+    setIsFullscreen(newFullscreenState)
     
-    try {
-      if (!document.fullscreenElement) {
-        await fullscreenContainerRef.current.requestFullscreen()
-      } else {
-        await document.exitFullscreen()
+    // When entering fullscreen, default to venue if available
+    if (newFullscreenState && !selectedLocation && venueAddress) {
+      setSelectedLocation(venueAddress)
+      if (onSearchLocationChange) {
+        onSearchLocationChange(venueAddress)
       }
-    } catch (err) {
-      console.error('Error toggling fullscreen:', err)
     }
   }
 
@@ -282,64 +207,21 @@ function FldrMap({
     )
   }
 
-  return (
-    <div ref={fullscreenContainerRef} className="relative h-64 md:h-96 lg:h-[500px] xl:h-[600px] rounded-lg overflow-hidden border border-white/10">
-      {loading && (
-        <div className="absolute inset-0 bg-[#0a0a0a] flex items-center justify-center z-10">
-          <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-        </div>
-      )}
-
-      {error && (
-        <div className="absolute inset-0 bg-[#0a0a0a] flex items-center justify-center z-10">
-          <div className="text-red-400 text-sm">{error}</div>
-        </div>
-      )}
-
-      {/* Custom Fullscreen Button (shown when NOT in fullscreen) */}
-      {!isFullscreen && (
-        <button
-          onClick={toggleFullscreen}
-          className="absolute top-3 right-3 z-[1000] bg-white hover:bg-gray-100 rounded-sm shadow-md p-2 transition-colors"
-          title="Toggle fullscreen view"
-        >
-          <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
-          </svg>
-        </button>
-      )}
-
-      {/* Sidebar (visible only in fullscreen) */}
-      {isFullscreen && (
-        <div className={`absolute inset-y-0 left-0 z-[9999] w-full md:w-96 lg:w-[420px] bg-gradient-to-b from-[#2F5F7F] via-[#2a5570] to-[#1e3a4a] flex flex-col border-r border-white/10 shadow-2xl overflow-hidden transition-transform duration-300 ${
-          sidebarVisible ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        }`}>
+  // Fullscreen overlay with sidebar
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#0a1929] flex flex-col md:flex-row">
+        {/* Sidebar */}
+        <div className="w-full md:w-96 lg:w-[420px] bg-gradient-to-b from-[#2F5F7F] via-[#2a5570] to-[#1e3a4a] flex flex-col border-r border-white/10 shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="flex-shrink-0 p-4 border-b border-white/20 bg-black/10">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold text-lg">Nearby Places</h2>
-              <div className="flex items-center gap-2">
-                {/* Mobile Close Button */}
-                <button 
-                  onClick={() => setSidebarVisible(false)}
-                  className="md:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  title="Hide sidebar"
-                >
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                {/* Desktop Exit Fullscreen Button */}
-                <button 
-                  onClick={toggleFullscreen}
-                  className="hidden md:block p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  title="Exit fullscreen"
-                >
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-                  </svg>
-                </button>
-              </div>
+              <button onClick={toggleFullscreen} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             {/* Location Toggles */}
@@ -511,36 +393,46 @@ function FldrMap({
             )}
           </div>
         </div>
+
+        {/* Map */}
+        <div className="flex-1 relative">
+          <div ref={setMapRef} className="w-full h-full" />
+          {loading && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Regular view
+  return (
+    <div className="relative">
+      {loading && (
+        <div className="absolute inset-0 bg-[#0a0a0a] rounded-lg flex items-center justify-center z-10">
+          <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+        </div>
       )}
 
-      {/* Floating toggle button for mobile (when sidebar is hidden) */}
-      {isFullscreen && !sidebarVisible && (
-        <button
-          onClick={() => setSidebarVisible(true)}
-          className="md:hidden absolute top-4 left-4 z-[10000] bg-gradient-to-b from-[#2F5F7F] to-[#1e3a4a] text-white p-3 rounded-lg shadow-2xl hover:scale-110 transition-transform"
-          title="Show sidebar"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+      {error && (
+        <div className="absolute inset-0 bg-[#0a0a0a] rounded-lg flex items-center justify-center z-10">
+          <div className="text-red-400 text-sm">{error}</div>
+        </div>
       )}
 
-      {/* Mobile Exit Fullscreen Button (when sidebar is hidden) */}
-      {isFullscreen && !sidebarVisible && (
-        <button
-          onClick={toggleFullscreen}
-          className="md:hidden absolute top-4 right-4 z-[10000] bg-white text-gray-700 p-3 rounded-lg shadow-2xl hover:scale-110 transition-transform"
-          title="Exit fullscreen"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-          </svg>
-        </button>
-      )}
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-4 right-4 z-[1000] p-3 bg-black/60 hover:bg-black/80 backdrop-blur-xl rounded-xl border border-white/20 transition-all hover:scale-110 shadow-xl"
+        title="Open Nearby Places"
+      >
+        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+        </svg>
+      </button>
 
-      {/* Map */}
-      <div ref={setMapRef} className="w-full h-full" />
+      <div ref={setMapRef} className="h-64 md:h-96 lg:h-[500px] xl:h-[600px] rounded-lg overflow-hidden border border-white/10" />
     </div>
   )
 }

@@ -108,28 +108,67 @@ export default function FldrDetailPage() {
   const mapLocations = useMemo(() => {
     if (!fldr) return []
     
-    return [
-      {
+    const locations = []
+    
+    // Departure Airport
+    if (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].departure_address) {
+      locations.push({
         label: 'Departure Airport',
-        address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].departure_address) || '',
-      },
-      {
+        address: fldr.flight_info[0].departure_address,
+        additionalInfo: fldr.flight_info[0].departure_airport 
+          ? `${fldr.flight_info[0].departure_airport} (${fldr.flight_info[0].departure_code || ''})` 
+          : undefined,
+      })
+    }
+    
+    // Arrival Airport
+    if (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].arrival_address) {
+      locations.push({
         label: 'Arrival Airport',
-        address: (fldr.flight_info && fldr.flight_info.length > 0 && fldr.flight_info[0].arrival_address) || '',
-      },
-      {
+        address: fldr.flight_info[0].arrival_address,
+        additionalInfo: fldr.flight_info[0].arrival_airport 
+          ? `${fldr.flight_info[0].arrival_airport} (${fldr.flight_info[0].arrival_code || ''})` 
+          : undefined,
+      })
+    }
+    
+    // Hotel
+    if (fldr.hotel_info?.address) {
+      locations.push({
         label: 'Hotel',
-        address: fldr.hotel_info?.address || '',
-      },
-      {
+        address: fldr.hotel_info.address,
+        phone: fldr.hotel_info.phone || undefined,
+        notes: fldr.hotel_info.notes || undefined,
+        additionalInfo: fldr.hotel_info.name || undefined,
+      })
+    }
+    
+    // Venue
+    if (fldr.venue_info?.address) {
+      locations.push({
         label: 'Venue',
-        address: fldr.venue_info?.address || '',
-      },
-      {
+        address: fldr.venue_info.address,
+        phone: fldr.venue_info.contact_phone || undefined,
+        notes: fldr.venue_info.notes || undefined,
+        additionalInfo: fldr.venue_info.name 
+          ? `${fldr.venue_info.name}${fldr.venue_info.contact_name ? ' • Contact: ' + fldr.venue_info.contact_name : ''}` 
+          : undefined,
+      })
+    }
+    
+    // Rental Car Pickup
+    if (fldr.rental_car_info?.pickup_location) {
+      locations.push({
         label: 'Rental Car Pickup',
-        address: fldr.rental_car_info?.pickup_location || '',
-      },
-    ].filter(loc => loc.address.trim() !== '')
+        address: fldr.rental_car_info.pickup_location,
+        additionalInfo: fldr.rental_car_info.company || undefined,
+        notes: fldr.rental_car_info.confirmation 
+          ? `Confirmation: ${fldr.rental_car_info.confirmation}` 
+          : undefined,
+      })
+    }
+    
+    return locations
   }, [
     fldr?.flight_info?.[0]?.departure_address,
     fldr?.flight_info?.[0]?.arrival_address,
@@ -3220,26 +3259,14 @@ export default function FldrDetailPage() {
             {fldr.products && fldr.products.length > 0 && (
               <div className="p-3 bg-black/30 border border-white/10 rounded-lg backdrop-blur-sm">
                 <div className="font-semibold text-[#E8B44D] mb-2">
-                  Products ({fldr.products.reduce((sum, p) => sum + p.quantity, 0)} total, {fldr.products.reduce((sum, p) => sum + (p.waste || 0), 0)} wasted)
+                  Products ({fldr.products.reduce((sum, p) => sum + p.quantity, 0)} total)
                 </div>
-                {fldr.products.map((product, idx) => {
-                  const waste = product.waste || 0
-                  const available = product.quantity - waste
-                  return (
-                    <div key={idx} className="flex justify-between items-center">
-                      <span>{product.name}</span>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-gray-400">×{product.quantity}</span>
-                        {waste > 0 && (
-                          <>
-                            <span className="text-red-400/60">(-{waste})</span>
-                            <span className="text-green-400 font-medium">{available} left</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                {fldr.products.map((product, idx) => (
+                  <div key={idx} className="flex justify-between items-center">
+                    <span>{product.name}</span>
+                    <span className="text-gray-400 text-sm">×{product.quantity}</span>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -3412,6 +3439,12 @@ export default function FldrDetailPage() {
               <FldrMap 
                 locations={mapLocations} 
                 venueAddress={fldr.venue_info?.address ?? undefined}
+                hotelAddress={fldr.hotel_info?.address ?? undefined}
+                airportAddress={
+                  fldr.flight_info && fldr.flight_info.length > 0 
+                    ? (fldr.flight_info[0].arrival_address || fldr.flight_info[0].departure_address)
+                    : undefined
+                }
                 onNearbyTypeChange={handleNearbyTypeChange}
                 onSearchLocationChange={handleSearchLocationChange}
                 nearbyPlaces={nearbyPlaces}
