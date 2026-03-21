@@ -106,9 +106,9 @@ export interface Photo {
 export interface Product {
   id: string
   name: string
+  sku: string | null
   quantity: number
   notes: string | null
-  waste: number // Quantity lost/damaged/wasted
 }
 
 export interface AIItineraryItem {

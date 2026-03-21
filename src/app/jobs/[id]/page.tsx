@@ -60,7 +60,6 @@ export default function FldrDetailPage() {
     products: false,
     notes: false,
   })
-  const [generatingWrapUp, setGeneratingWrapUp] = useState(false)
   const [online, setOnline] = useState(true)
   const [hasUnsynced, setHasUnsynced] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -888,8 +887,20 @@ export default function FldrDetailPage() {
     // Don't set saving=true here - let saveFldr do it when save actually starts
     saveTimeoutRef.current = setTimeout(() => {
       saveFldr(updates)
-    }, 2000) // Save 2 seconds after typing stops (was 30 seconds)
+    }, 30000) // Save 30 seconds after typing stops
   }, [saveFldr])
+
+  // Flush and save immediately - used before navigation/UI actions
+  const flushAndSave = useCallback(async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = null
+    }
+    // Save current fldr state immediately
+    if (fldr) {
+      await saveFldr({})
+    }
+  }, [fldr, saveFldr])
 
   // Save before navigating away or closing page
   useEffect(() => {
@@ -930,6 +941,19 @@ export default function FldrDetailPage() {
     }
   }, []) // Empty deps - only run on actual mount/unmount
 
+  // Router cleanup - save on unmount (component navigation)
+  useEffect(() => {
+    return () => {
+      // On unmount (navigation away), flush any pending saves
+      if (saveTimeoutRef.current && fldr) {
+        clearTimeout(saveTimeoutRef.current)
+        // Attempt synchronous save on navigation
+        const fldrData = JSON.stringify(fldr)
+        navigator.sendBeacon?.(`/api/fldrs/${fldr.id}`, fldrData)
+      }
+    }
+  }, [fldr])
+
   // Update "time ago" display every minute
   useEffect(() => {
     if (!lastSaved) return
@@ -940,7 +964,9 @@ export default function FldrDetailPage() {
     return () => clearInterval(interval)
   }, [lastSaved])
 
-  const toggleCard = (cardName: string) => {
+  const toggleCard = async (cardName: string) => {
+    // Flush any pending saves before toggling cards
+    await flushAndSave()
     setExpandedCards(prev => ({
       ...prev,
       [cardName]: !prev[cardName]
@@ -1941,12 +1967,6 @@ export default function FldrDetailPage() {
     return groupedByDay
   }
 
-  const updateWrapUp = (value: string) => {
-    if (!fldr) return
-    setFldr({ ...fldr, wrap_up: value })
-    debouncedSave({ wrap_up: value })
-  }
-
   const addChecklistItem = () => {
     if (!fldr) return
     const checklist = fldr.checklist || []
@@ -2042,9 +2062,9 @@ export default function FldrDetailPage() {
     const newProduct: Product = {
       id: `product_${Date.now()}`,
       name: '',
+      sku: null,
       quantity: 1,
       notes: null,
-      waste: 0,
     }
     const updated = [...products, newProduct]
     setFldr({ ...fldr, products: updated })
@@ -2054,17 +2074,7 @@ export default function FldrDetailPage() {
   const updateProduct = (index: number, field: keyof Product, value: any) => {
     if (!fldr?.products) return
     const products = [...fldr.products]
-    products[index] = { ...products[index], [field]: (field === 'quantity' || field === 'waste') ? Number(value) : (value || null) }
-    setFldr({ ...fldr, products })
-    debouncedSave({ products })
-  }
-
-  const adjustWaste = (index: number, delta: number) => {
-    if (!fldr?.products) return
-    const products = [...fldr.products]
-    const currentWaste = products[index].waste || 0
-    const newWaste = Math.max(0, Math.min(products[index].quantity, currentWaste + delta))
-    products[index] = { ...products[index], waste: newWaste }
+    products[index] = { ...products[index], [field]: field === 'quantity' ? Number(value) : (value || null) }
     setFldr({ ...fldr, products })
     debouncedSave({ products })
   }
@@ -2245,35 +2255,6 @@ export default function FldrDetailPage() {
     }
   }
 
-  const generateWrapUp = async () => {
-    if (!fldr || !fldr.notes.trim()) return
-    
-    setGeneratingWrapUp(true)
-    try {
-      const response = await fetch('/api/wrap-up', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          notes: fldr.notes,
-          fldr_title: fldr.title,
-        }),
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        const wrapUp = data.wrap_up
-        // Save wrap-up to fldr and update local state
-        const updatedFldr = { ...fldr, wrap_up: wrapUp }
-        setFldr(updatedFldr)
-        await saveFldr({ wrap_up: wrapUp })
-      }
-    } catch (error) {
-      console.error('Failed to generate wrap-up:', error)
-    } finally {
-      setGeneratingWrapUp(false)
-    }
-  }
-
   const handleSync = async () => {
     if (!isOnline()) return
     setSaving(true)
@@ -2383,7 +2364,7 @@ export default function FldrDetailPage() {
         checklist: fldr.checklist ? JSON.parse(JSON.stringify(fldr.checklist)).map((item: ChecklistItem) => ({ ...item, completed: false })) : null,
         people: fldr.people ? JSON.parse(JSON.stringify(fldr.people)) : null,
         photos: null, // Don't copy photos
-        products: fldr.products ? JSON.parse(JSON.stringify(fldr.products)).map((p: Product) => ({ ...p, waste: 0 })) : null,
+        products: fldr.products ? JSON.parse(JSON.stringify(fldr.products)) : null,
         notes: fldr.notes || '',
         wrap_up: null, // Don't copy wrap-up
         polished_messages: [],
@@ -2455,7 +2436,7 @@ export default function FldrDetailPage() {
     }
   }
 
-// Copy flight info to clipboard
+  // Copy flight info to clipboard
   const copyFlightInfo = () => {
     if (!fldr?.flight_info || fldr.flight_info.length === 0) return
 
@@ -2701,12 +2682,9 @@ export default function FldrDetailPage() {
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
         {/* Left side - Back button */}
         <button
-          onClick={() => {
+          onClick={async () => {
             // Flush any pending save before navigating
-            if (saveTimeoutRef.current && fldr) {
-              clearTimeout(saveTimeoutRef.current)
-              saveFldr({})
-            }
+            await flushAndSave()
             router.push('/jobs')
           }}
           className="flex items-center gap-1 text-[#3b82f6] hover:text-[#2563eb] text-[15px] font-normal transition-colors"
@@ -2757,7 +2735,10 @@ export default function FldrDetailPage() {
                 <PencilIcon className="w-[18px] h-[18px]" />
               </button>
               <button
-                onClick={duplicateJob}
+                onClick={async () => {
+                  await flushAndSave()
+                  await duplicateJob()
+                }}
                 disabled={saving}
                 className="p-1.5 text-gray-400 hover:text-[#3b82f6] transition-colors disabled:opacity-50"
                 title="Duplicate this job"
@@ -2770,7 +2751,10 @@ export default function FldrDetailPage() {
               {/* Export Dropdown */}
               <div className="relative" ref={exportMenuRef}>
                 <button
-                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  onClick={async () => {
+                    await flushAndSave()
+                    setShowExportMenu(!showExportMenu)
+                  }}
                   disabled={generatingOverview || generatingPDF !== null}
                   className="p-1.5 text-gray-400 hover:text-[#3b82f6] transition-colors disabled:opacity-50"
                   title="Export options"
@@ -2783,7 +2767,8 @@ export default function FldrDetailPage() {
                 {showExportMenu && (
                   <div className="absolute top-full right-0 mt-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-lg py-1 min-w-[200px] z-50">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        await flushAndSave()
                         generateOverview()
                         setShowExportMenu(false)
                       }}
@@ -2866,6 +2851,7 @@ export default function FldrDetailPage() {
                     <button
                       onClick={async () => {
                         if (!fldr) return
+                        await flushAndSave()
                         const newArchiveStatus = !fldr.archived
                         setSaving(true)
                         try {
@@ -2888,7 +2874,8 @@ export default function FldrDetailPage() {
                     <div className="border-t border-[#2a2a2a] my-1"></div>
                     
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        await flushAndSave()
                         deleteJob()
                         setShowExportMenu(false)
                       }}
@@ -3813,7 +3800,8 @@ export default function FldrDetailPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        await flushAndSave()
                         setShowParseEmailModal('flight')
                         setParseEmailText('')
                       }}
@@ -4085,7 +4073,8 @@ export default function FldrDetailPage() {
               <div className="px-4 pb-4 space-y-3">
                 <div className="flex justify-end mb-2">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      await flushAndSave()
                       setShowParseEmailModal('hotel')
                       setParseEmailText('')
                     }}
@@ -4317,7 +4306,8 @@ export default function FldrDetailPage() {
               <div className="px-4 pb-4 space-y-3">
                 <div className="flex justify-end mb-2">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      await flushAndSave()
                       setShowParseEmailModal('rental_car')
                       setParseEmailText('')
                     }}
@@ -4608,48 +4598,46 @@ export default function FldrDetailPage() {
                     placeholder="Contact person"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Phone</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="tel"
-                        value={fldr.job_info?.client_contact_phone || ''}
-                        onChange={(e) => updateJobInfo('client_contact_phone', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
-                        placeholder="Phone"
-                      />
-                      {fldr.job_info?.client_contact_phone && (
-                        <a
-                          href={`tel:${fldr.job_info.client_contact_phone}`}
-                          className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium"
-                          title="Call contact"
-                        >
-                          Call
-                        </a>
-                      )}
-                    </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Phone</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="tel"
+                      value={fldr.job_info?.client_contact_phone || ''}
+                      onChange={(e) => updateJobInfo('client_contact_phone', e.target.value)}
+                      className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                      placeholder="Phone"
+                    />
+                    {fldr.job_info?.client_contact_phone && (
+                      <a
+                        href={`tel:${fldr.job_info.client_contact_phone}`}
+                        className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium whitespace-nowrap"
+                        title="Call contact"
+                      >
+                        Call
+                      </a>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Email</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="email"
-                        value={fldr.job_info?.client_contact_email || ''}
-                        onChange={(e) => updateJobInfo('client_contact_email', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
-                        placeholder="Email"
-                      />
-                      {fldr.job_info?.client_contact_email && (
-                        <a
-                          href={`mailto:${fldr.job_info.client_contact_email}`}
-                          className="px-3 py-2 bg-[#3b82f6]/10 border border-[#3b82f6]/30 text-[#3b82f6] rounded-lg hover:bg-[#3b82f6]/20 transition-colors text-xs font-medium"
-                          title="Send email"
-                        >
-                          Email
-                        </a>
-                      )}
-                    </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Email</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="email"
+                      value={fldr.job_info?.client_contact_email || ''}
+                      onChange={(e) => updateJobInfo('client_contact_email', e.target.value)}
+                      className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                      placeholder="Email"
+                    />
+                    {fldr.job_info?.client_contact_email && (
+                      <a
+                        href={`mailto:${fldr.job_info.client_contact_email}`}
+                        className="px-3 py-2 bg-[#3b82f6]/10 border border-[#3b82f6]/30 text-[#3b82f6] rounded-lg hover:bg-[#3b82f6]/20 transition-colors text-xs font-medium whitespace-nowrap"
+                        title="Send email"
+                      >
+                        Email
+                      </a>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -5198,33 +5186,9 @@ export default function FldrDetailPage() {
             </div>
             {expandedCards.products && (
               <div className="px-4 pb-4 space-y-3">
-                {/* Summary Stats */}
-                <div className="p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg">
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <div className="text-xs text-gray-400">Total</div>
-                      <div className="text-lg font-bold text-gray-100">
-                        {(fldr.products || []).reduce((sum, p) => sum + p.quantity, 0)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-400">Wasted</div>
-                      <div className="text-lg font-bold text-red-400">
-                        {(fldr.products || []).reduce((sum, p) => sum + (p.waste || 0), 0)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-400">Available</div>
-                      <div className="text-lg font-bold text-green-400">
-                        {(fldr.products || []).reduce((sum, p) => sum + (p.quantity - (p.waste || 0)), 0)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400">
-                    Track waste with +/− buttons
+                    {(fldr.products || []).length} {(fldr.products || []).length === 1 ? 'product' : 'products'}
                   </span>
                   <button
                     onClick={addProduct}
@@ -5234,63 +5198,47 @@ export default function FldrDetailPage() {
                   </button>
                 </div>
 
-                {(fldr.products || []).map((product, index) => {
-                  const waste = product.waste || 0
-                  const available = product.quantity - waste
-                  return (
-                    <div key={product.id} className="p-3 bg-white/5 rounded-lg space-y-2 border border-white/10">
-                      {/* Product Name & Quantity Row */}
-                      <div className="flex items-start gap-2">
+                {(fldr.products || []).map((product, index) => (
+                  <div key={product.id} className="p-3 bg-white/5 rounded-lg space-y-2 border border-white/10">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="text"
+                        value={product.name}
+                        onChange={(e) => updateProduct(index, 'name', e.target.value)}
+                        className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm font-medium"
+                        placeholder="Product name"
+                      />
+                      <button
+                        onClick={() => removeProduct(index)}
+                        className="px-2 text-red-500 hover:text-red-400"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">SKU</label>
                         <input
                           type="text"
-                          value={product.name}
-                          onChange={(e) => updateProduct(index, 'name', e.target.value)}
-                          className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm font-medium"
-                          placeholder="Product name"
+                          value={product.sku || ''}
+                          onChange={(e) => updateProduct(index, 'sku', e.target.value)}
+                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                          placeholder="SKU"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Quantity</label>
                         <input
                           type="number"
                           min="1"
                           value={product.quantity}
                           onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
-                          className="w-20 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm text-center"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
                         />
-                        <button
-                          onClick={() => removeProduct(index)}
-                          className="px-2 text-red-500 hover:text-red-400"
-                        >
-                          ×
-                        </button>
                       </div>
-
-                      {/* Waste Tracking Row */}
-                      <div className="flex items-center gap-2 p-2 bg-white/[0.03] rounded-lg border border-white/10">
-                        <span className="text-xs text-gray-400 flex-shrink-0">Waste:</span>
-                        <button
-                          onClick={() => adjustWaste(index, -1)}
-                          disabled={waste === 0}
-                          className="w-8 h-8 flex items-center justify-center rounded bg-white/5 border border-white/20 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg font-bold"
-                        >
-                          −
-                        </button>
-                        <div className="flex-1 flex items-center justify-center gap-2">
-                          <span className="text-sm font-mono text-red-400">{waste}</span>
-                          <span className="text-xs text-gray-500">/</span>
-                          <span className="text-sm font-mono text-gray-400">{product.quantity}</span>
-                        </div>
-                        <button
-                          onClick={() => adjustWaste(index, 1)}
-                          disabled={waste >= product.quantity}
-                          className="w-8 h-8 flex items-center justify-center rounded bg-white/5 border border-white/20 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg font-bold"
-                        >
-                          +
-                        </button>
-                        <div className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 font-medium ml-2">
-                          {available} left
-                        </div>
-                      </div>
-
-                      {/* Notes Row */}
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Notes</label>
                       <input
                         type="text"
                         value={product.notes || ''}
@@ -5299,8 +5247,8 @@ export default function FldrDetailPage() {
                         placeholder="Notes (optional)"
                       />
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
                 {(fldr.products || []).length === 0 && (
                   <p className="text-xs text-gray-500 py-2">No products yet</p>
                 )}
@@ -5310,7 +5258,7 @@ export default function FldrDetailPage() {
         )}
 
         {/* Notes Card */}
-        <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.3)] rounded-lg overflow-hidden">
+        <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.3)] rounded-lg">
           <button
             onClick={() => toggleCard('notes')}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
@@ -5350,30 +5298,6 @@ export default function FldrDetailPage() {
                   />
                 )}
               </div>
-              <button
-                onClick={generateWrapUp}
-                disabled={!fldr.notes.trim() || generatingWrapUp}
-                className="w-full py-2 bg-white/5 border border-[#E8B44D]/30 hover:border-[#E8B44D] disabled:border-white/10 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-              >
-                {generatingWrapUp ? 'Generating Wrap-up...' : 'Generate Wrap-up'}
-              </button>
-              {fldr.wrap_up && (
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Wrap-up Summary</label>
-                  <textarea
-                    value={fldr.wrap_up}
-                    onChange={(e) => updateWrapUp(e.target.value)}
-                    className="w-full min-h-[120px] px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] resize-none"
-                    placeholder="Wrap-up will appear here..."
-                  />
-                  <button
-                    onClick={() => navigator.clipboard.writeText(fldr.wrap_up!)}
-                    className="mt-2 w-full py-2 bg-[#E8B44D] hover:bg-[#D4A03C] rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Copy to Clipboard
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -5499,9 +5423,12 @@ export default function FldrDetailPage() {
       {showParseEmailModal && (
         <div 
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => {
+          onClick={async () => {
+            await flushAndSave()
             setShowParseEmailModal(null)
             setParseEmailText('')
+            setParseEmailImage(null)
+            setParseInputMode('text')
           }}
         >
           <div 
@@ -5513,7 +5440,8 @@ export default function FldrDetailPage() {
                 Parse {showParseEmailModal === 'flight' ? 'Flight' : showParseEmailModal === 'hotel' ? 'Hotel' : 'Rental Car'} Confirmation Email
               </h3>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  await flushAndSave()
                   setShowParseEmailModal(null)
                   setParseEmailText('')
                   setParseEmailImage(null)
@@ -5636,7 +5564,8 @@ export default function FldrDetailPage() {
                 </p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      await flushAndSave()
                       setShowParseEmailModal(null)
                       setParseEmailText('')
                       setParseEmailImage(null)
@@ -5678,7 +5607,10 @@ export default function FldrDetailPage() {
       {showOverviewModal && (
         <div 
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowOverviewModal(false)}
+          onClick={async () => {
+            await flushAndSave()
+            setShowOverviewModal(false)
+          }}
         >
           <div 
             className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] border border-white/20 rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
@@ -5687,7 +5619,10 @@ export default function FldrDetailPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold">Job Overview</h3>
               <button
-                onClick={() => setShowOverviewModal(false)}
+                onClick={async () => {
+                  await flushAndSave()
+                  setShowOverviewModal(false)
+                }}
                 className="p-2 hover:bg-white/5 rounded-lg transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

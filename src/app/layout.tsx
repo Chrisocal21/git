@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
+import PinAuthWrapper from '@/components/PinAuthWrapper'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -40,10 +41,12 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning>
         <ServiceWorkerRegistration />
-        <div className="min-h-screen pb-16">
-          {children}
-        </div>
-        <BottomNav />
+        <PinAuthWrapper>
+          <div className="min-h-screen pb-16">
+            {children}
+          </div>
+          <BottomNav />
+        </PinAuthWrapper>
       </body>
     </html>
   )

@@ -167,6 +167,24 @@ export default function MenuButton() {
             </button>
           </div>
           
+          {/* Sign Out */}
+          <div className="p-2 border-t border-white/10">
+            <button
+              onClick={() => {
+                // Clear PIN auth
+                localStorage.removeItem('burrow-pin-auth')
+                sessionStorage.removeItem('burrow-pin-auth')
+                window.location.reload()
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Sign Out
+            </button>
+          </div>
+          
           {/* Footer */}
           <div className="p-3 border-t border-white/10">
             <div className="text-xs text-white/50 text-center">
