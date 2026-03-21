@@ -660,9 +660,6 @@ export default function ProdPage() {
                 {productsByJob
                   .sort((a, b) => a.daysUntil - b.daysUntil) // Sort by urgency
                   .map((product) => {
-                    const waste = product.waste || 0
-                    const available = product.quantity - waste
-                    
                     return (
                       <div 
                         key={`${product.fldrId}-${product.id}`} 
@@ -678,9 +675,6 @@ export default function ProdPage() {
                           <div className="flex items-center gap-2">
                             <div className="text-right">
                               <div className="text-sm font-medium">×{product.quantity}</div>
-                              {waste > 0 && (
-                                <div className="text-xs text-red-400">-{waste} waste</div>
-                              )}
                             </div>
                           </div>
                         </div>
