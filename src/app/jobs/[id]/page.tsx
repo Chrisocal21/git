@@ -3182,7 +3182,7 @@ export default function FldrDetailPage() {
                   <div><span className="text-gray-400">Distributor:</span> {fldr.job_info.distributor_name}</div>
                 )}
                 {fldr.job_info.job_type && (
-                  <div><span className="text-gray-400">Type:</span> {fldr.job_info.job_type === 'names_monograms' ? 'Personalization' : fldr.job_info.job_type === 'personalization' ? 'Personalization' : fldr.job_info.job_type}</div>
+                  <div><span className="text-gray-400">Type:</span> {(fldr.job_info.job_type as string) === 'names_monograms' || fldr.job_info.job_type === 'personalization' ? 'Personalization' : 'Caricatures'}</div>
                 )}
                 {fldr.job_info.client_contact_name && (
                   <div><span className="text-gray-400">Contact:</span> {fldr.job_info.client_contact_name}</div>
