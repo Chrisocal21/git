@@ -68,6 +68,7 @@ async function fetchFromOpenMeteo(location: string) {
 
   return {
     location: { name, state: admin1 || null, country: country_code || '' },
+    timezone: wx.timezone || null,
     current: {
       temp: Math.round(curr.temperature_2m),
       feels_like: Math.round(curr.apparent_temperature),
@@ -158,7 +159,18 @@ export async function GET(request: NextRequest) {
 
     const { lat, lon, name, state, country } = geoData[0]
 
-    console.log('[Weather] Found location:', { name, state, country, lat, lon })
+    // Fetch IANA timezone from Open-Meteo using the coordinates
+    let owTimezone: string | null = null
+    try {
+      const tzRes = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1&current=temperature_2m`,
+        { cache: 'no-store' }
+      )
+      if (tzRes.ok) {
+        const tzData = await tzRes.json()
+        owTimezone = tzData.timezone || null
+      }
+    } catch {}
 
     // Step 2: Get CURRENT weather (actual real-time data)
     const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial`
@@ -254,6 +266,7 @@ export async function GET(request: NextRequest) {
         state: state || null,
         country,
       },
+      timezone: owTimezone,
       current: {
         temp: Math.round(currentWeatherData.main.temp),
         feels_like: Math.round(currentWeatherData.main.feels_like),

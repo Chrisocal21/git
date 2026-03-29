@@ -12,6 +12,7 @@ interface JobWeather {
   location: string
   dateStart: string
   dateEnd: string | null
+  timezone: string | null
   current: {
     temp: number
     feels_like: number
@@ -42,6 +43,20 @@ function formatDay(dateStr: string) {
   if (dateStr === today) return 'Today'
   const d = new Date(dateStr + 'T12:00:00')
   return d.toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+function getLocalTime(timezone: string | null): string {
+  if (!timezone) return ''
+  try {
+    return new Date().toLocaleTimeString('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+  } catch {
+    return ''
+  }
 }
 
 function isFutureOrCurrent(dateStr: string) {
@@ -80,6 +95,7 @@ export default function WeatherPage() {
         location: f.location || f.venue_info?.address || '',
         dateStart: f.date_start,
         dateEnd: f.date_end || null,
+        timezone: null,
         current: null,
         daily: [],
         loading: true,
@@ -96,6 +112,7 @@ export default function WeatherPage() {
             setJobs(prev => prev.map((j, i) => i !== idx ? j : {
               ...j,
               loading: false,
+              timezone: d?.timezone ?? null,
               current: d?.current ?? null,
               daily: d?.daily ?? [],
               error: !d?.current,
@@ -167,8 +184,12 @@ export default function WeatherPage() {
                 <div className="text-xs text-white/40 mt-1">
                   <span className="text-white/25 uppercase tracking-wider text-[10px] mr-1">Trip</span>
                   {formatDate(job.dateStart)}{job.dateEnd && job.dateEnd !== job.dateStart ? ` – ${formatDate(job.dateEnd)}` : ''}
-                </div>
-              </div>
+                </div>                {job.timezone && (
+                  <div className="text-xs text-white/30 mt-0.5">
+                    <span className="text-white/20 uppercase tracking-wider text-[10px] mr-1">Local</span>
+                    {getLocalTime(job.timezone)}
+                  </div>
+                )}              </div>
 
               {/* Current temp */}
               <div className="flex-shrink-0 flex items-center gap-2">

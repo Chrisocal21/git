@@ -9,7 +9,6 @@ import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
 import { getCurrentUser, canEditJob, filterJobsByUser } from '@/lib/auth'
 import MenuButton from '@/components/MenuButton'
-import WeatherIcon from '@/components/WeatherIcon'
 
 type FilterOption = 'all' | 'upcoming'
 
@@ -631,8 +630,6 @@ export default function JobsPage() {
                           return `${formatDate(fldr.date_start)}${fldr.date_end && formatDate(fldr.date_end) !== formatDate(fldr.date_start) ? ` - ${formatDate(fldr.date_end)}` : ''}`
                         })()}
                       </div>
-                      {/* Weather with icon */}
-                      <WeatherIcon location={fldr.location || fldr.title} />
                     </div>
 
                     {/* Bottom Row: Team/Type & Status/Attending */}
