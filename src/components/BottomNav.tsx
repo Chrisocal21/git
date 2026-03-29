@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FolderIcon, MapIcon } from './Icons'
+import { FolderIcon, MapIcon, CloudIcon } from './Icons'
 
 export default function BottomNav() {
   const pathname = usePathname()
@@ -18,7 +18,7 @@ export default function BottomNav() {
           href="/jobs"
           className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
             isActive('/jobs')
-              ? 'text-[#3b82f6]'
+              ? 'text-[#E8B44D]'
               : 'text-gray-400 hover:text-gray-300'
           }`}
         >
@@ -30,12 +30,24 @@ export default function BottomNav() {
           href="/map"
           className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
             isActive('/map')
-              ? 'text-[#3b82f6]'
+              ? 'text-[#E8B44D]'
               : 'text-gray-400 hover:text-gray-300'
           }`}
         >
           <MapIcon className="w-6 h-6 mb-1" />
           <span className="text-xs font-medium">Map</span>
+        </Link>
+
+        <Link
+          href="/weather"
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            isActive('/weather')
+              ? 'text-[#E8B44D]'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          <CloudIcon className="w-6 h-6 mb-1" />
+          <span className="text-xs font-medium">Weather</span>
         </Link>
       </div>
     </nav>

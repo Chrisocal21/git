@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCurrentUser, TEAM_PROFILES, setCurrentProfile } from '@/lib/auth'
+import { getCurrentUser, TEAM_PROFILES, setCurrentProfile, clearProfile } from '@/lib/auth'
 
 export default function MenuButton() {
   const router = useRouter()
@@ -95,56 +95,75 @@ export default function MenuButton() {
             </div>
           </div>
           
-          {/* User Info */}
-          {user && (
-            <div className="p-3 border-b border-white/10">
-              <div className="text-xs text-white/50 mb-2">Your Profile</div>
-              <div className="space-y-1">
-                {TEAM_PROFILES.map(profile => (
-                  <button
-                    key={profile.id}
-                    onClick={() => {
-                      if (profile.id !== user.id) {
-                        setCurrentProfile(profile.id)
-                      }
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                      profile.id === user.id
-                        ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
-                        : 'hover:bg-white/5'
-                    }`}
-                  >
-                    {/* Avatar circle with initials */}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                      profile.id === user.id
-                        ? 'bg-[#E8B44D] text-black'
-                        : 'bg-white/10 text-white/70'
+          {/* Profile selector — always visible */}
+          <div className="p-3 border-b border-white/10">
+            <div className="text-xs text-white/50 mb-2">Profile</div>
+            <div className="space-y-1">
+              {/* All / Guest option */}
+              <button
+                onClick={() => { clearProfile(); setIsOpen(false) }}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                  !user
+                    ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
+                    : 'hover:bg-white/5'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  !user ? 'bg-[#E8B44D] text-black' : 'bg-white/10 text-white/70'
+                }`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1 text-left">
+                  <div className={`text-sm font-medium ${!user ? 'text-[#E8B44D]' : 'text-white'}`}>All</div>
+                </div>
+                {!user && (
+                  <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Team profiles */}
+              {TEAM_PROFILES.map(profile => (
+                <button
+                  key={profile.id}
+                  onClick={() => {
+                    if (user?.id === profile.id) {
+                      clearProfile()
+                    } else {
+                      setCurrentProfile(profile.id)
+                    }
+                    setIsOpen(false)
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                    user?.id === profile.id
+                      ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
+                      : 'hover:bg-white/5'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    user?.id === profile.id ? 'bg-[#E8B44D] text-black' : 'bg-white/10 text-white/70'
+                  }`}>
+                    {profile.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className={`text-sm font-medium ${
+                      user?.id === profile.id ? 'text-[#E8B44D]' : 'text-white'
                     }`}>
-                      {profile.name.charAt(0)}
+                      {profile.name}
                     </div>
-                    <div className="flex-1 text-left">
-                      <div className={`text-sm font-medium ${
-                        profile.id === user.id ? 'text-[#E8B44D]' : 'text-white'
-                      }`}>
-                        {profile.name}
-                        {profile.id === user.id && (
-                          <span className="ml-2 text-xs text-[#E8B44D]/70">(You)</span>
-                        )}
-                      </div>
-                    </div>
-                    {profile.id === user.id && (
-                      <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 text-xs text-white/50">
-                Switch profiles to see your personal trip history
-              </div>
+                  </div>
+                  {user?.id === profile.id && (
+                    <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
           
           {/* Menu Items */}
           <div className="p-2">

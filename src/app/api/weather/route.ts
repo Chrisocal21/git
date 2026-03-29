@@ -2,6 +2,88 @@
 
 export const dynamic = 'force-dynamic'
 
+// WMO weather code → { main, description }
+function wmoToCondition(code: number): { main: string; description: string } {
+  if (code === 0) return { main: 'Clear', description: 'Clear sky' }
+  if (code === 1) return { main: 'Clear', description: 'Mainly clear' }
+  if (code === 2) return { main: 'Clouds', description: 'Partly cloudy' }
+  if (code === 3) return { main: 'Clouds', description: 'Overcast' }
+  if (code === 45 || code === 48) return { main: 'Fog', description: 'Foggy' }
+  if (code === 51) return { main: 'Drizzle', description: 'Light drizzle' }
+  if (code === 53) return { main: 'Drizzle', description: 'Moderate drizzle' }
+  if (code === 55 || code === 56 || code === 57) return { main: 'Drizzle', description: 'Heavy drizzle' }
+  if (code === 61) return { main: 'Rain', description: 'Light rain' }
+  if (code === 63) return { main: 'Rain', description: 'Moderate rain' }
+  if (code === 65 || code === 66 || code === 67) return { main: 'Rain', description: 'Heavy rain' }
+  if (code === 71) return { main: 'Snow', description: 'Light snow' }
+  if (code === 73) return { main: 'Snow', description: 'Moderate snow' }
+  if (code === 75 || code === 77) return { main: 'Snow', description: 'Heavy snow' }
+  if (code >= 80 && code <= 82) return { main: 'Rain', description: 'Rain showers' }
+  if (code === 85 || code === 86) return { main: 'Snow', description: 'Snow showers' }
+  if (code === 95) return { main: 'Thunderstorm', description: 'Thunderstorm' }
+  if (code === 96 || code === 99) return { main: 'Thunderstorm', description: 'Thunderstorm with hail' }
+  return { main: 'Clouds', description: 'Unknown' }
+}
+
+async function fetchFromOpenMeteo(location: string) {
+  // Geocode
+  const geoRes = await fetch(
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`,
+    { cache: 'no-store' }
+  )
+  if (!geoRes.ok) throw new Error('Open-Meteo geocoding failed')
+  const geoData = await geoRes.json()
+  if (!geoData.results?.length) throw new Error('Open-Meteo: location not found')
+
+  const { latitude, longitude, name, admin1, country_code } = geoData.results[0]
+
+  // Weather
+  const wxRes = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}` +
+    `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+    `&temperature_unit=fahrenheit&wind_speed_unit=mph&forecast_days=5&timezone=auto`,
+    { cache: 'no-store' }
+  )
+  if (!wxRes.ok) throw new Error('Open-Meteo forecast failed')
+  const wx = await wxRes.json()
+
+  const curr = wx.current
+  const currCondition = wmoToCondition(curr.weather_code)
+
+  const daily = wx.daily.time.map((date: string, i: number) => {
+    const cond = wmoToCondition(wx.daily.weather_code[i])
+    return {
+      date,
+      temp: Math.round((wx.daily.temperature_2m_max[i] + wx.daily.temperature_2m_min[i]) / 2),
+      low: Math.round(wx.daily.temperature_2m_min[i]),
+      high: Math.round(wx.daily.temperature_2m_max[i]),
+      main: cond.main,
+      description: cond.description,
+      pop: wx.daily.precipitation_probability_max[i] ?? 0,
+      humidity: 0,
+      wind_speed: 0,
+    }
+  })
+
+  return {
+    location: { name, state: admin1 || null, country: country_code || '' },
+    current: {
+      temp: Math.round(curr.temperature_2m),
+      feels_like: Math.round(curr.apparent_temperature),
+      description: currCondition.description,
+      main: currCondition.main,
+      humidity: curr.relative_humidity_2m,
+      wind_speed: Math.round(curr.wind_speed_10m),
+      pressure: null,
+      visibility: null,
+    },
+    hourly: [],
+    daily,
+    alerts: [],
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
@@ -11,15 +93,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Location is required' }, { status: 400 })
     }
 
+    // Try Open-Meteo first (free, no key required)
+    try {
+      const result = await fetchFromOpenMeteo(location)
+      return NextResponse.json(result, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        }
+      })
+    } catch (meteoErr) {
+      console.warn('[Weather] Open-Meteo failed, falling back to OpenWeather:', meteoErr)
+    }
+
     const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY
 
     if (!apiKey) {
       return NextResponse.json({ 
-        error: 'OpenWeather API key not configured'
+        error: 'Weather service unavailable'
       }, { status: 500 })
     }
 
-    // Step 1: Geocode the location - try multiple formats
+    // OpenWeather fallback — Step 1: Geocode the location - try multiple formats
     let geoData: any[] = []
     const locationVariants = [
       location,

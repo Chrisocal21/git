@@ -26,18 +26,15 @@ export const TEAM_PROFILES = [
 
 /**
  * Get currently selected profile from localStorage
+ * Returns null when no profile is selected ("All" / guest mode)
  */
 export function getCurrentUser(): User | null {
   if (typeof window === 'undefined') return null
   
   const selectedProfile = localStorage.getItem('selected-profile')
-  if (!selectedProfile) {
-    // Default to first profile (Chris) if none selected
-    return TEAM_PROFILES[0]
-  }
+  if (!selectedProfile) return null
   
-  const profile = TEAM_PROFILES.find(p => p.id === selectedProfile)
-  return profile || TEAM_PROFILES[0]
+  return TEAM_PROFILES.find(p => p.id === selectedProfile) || null
 }
 
 /**
@@ -46,7 +43,15 @@ export function getCurrentUser(): User | null {
 export function setCurrentProfile(profileId: string): void {
   if (typeof window === 'undefined') return
   localStorage.setItem('selected-profile', profileId)
-  // Reload to apply new profile filter
+  window.location.reload()
+}
+
+/**
+ * Clear the active profile — returns to "All" / guest mode
+ */
+export function clearProfile(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem('selected-profile')
   window.location.reload()
 }
 
@@ -88,7 +93,8 @@ export function filterJobsByUser<T extends {
   viewMode: 'team' | 'my' = 'team'
 ): T[] {
   const user = getCurrentUser()
-  if (!user) return []
+  // No profile selected (guest/all mode) — always show everything
+  if (!user) return jobs
   
   // Team mode: show all jobs
   if (viewMode === 'team') {
