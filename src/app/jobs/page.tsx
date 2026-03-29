@@ -645,6 +645,8 @@ export default function JobsPage() {
                             {fldr.people && fldr.people.length > 0 ? '·' : ''} {fldr.job_info.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info.job_type === 'personalization' ? 'Personalization' : fldr.job_info.job_type === 'names_monograms' ? 'Personalization' : ''}
                           </span>
                         )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
                         {/* Job Status Badge */}
                         {fldr.job_status && (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide ${
@@ -657,17 +659,17 @@ export default function JobsPage() {
                             {fldr.job_status.replace('_', ' ')}
                           </span>
                         )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-medium uppercase tracking-wide">
-                          {fldr.status}
-                        </span>
-                        {/* Show airplane if current user is on this job, home if not */}
-                        {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) ? (
-                          <AirplaneIcon className="w-5 h-5 text-[#E8B44D]" />
-                        ) : (
-                          <HomeIcon className="w-5 h-5 text-gray-500" />
-                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-medium uppercase tracking-wide">
+                            {fldr.status}
+                          </span>
+                          {/* Show airplane if current user is on this job, home if not */}
+                          {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) ? (
+                            <AirplaneIcon className="w-5 h-5 text-[#E8B44D]" />
+                          ) : (
+                            <HomeIcon className="w-5 h-5 text-gray-500" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
