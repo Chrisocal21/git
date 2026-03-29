@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: '/favicon.svg',
-    apple: '/icon-192.svg',
+    apple: '/icon-192.png',
   },
 }
 
@@ -38,6 +38,8 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         {/* iOS still needs this for PWA to work - deprecation warning is expected */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        {/* Explicit apple touch icon - iOS uses this for home screen */}
+        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body suppressHydrationWarning>
         <ServiceWorkerRegistration />

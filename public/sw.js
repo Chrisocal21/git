@@ -1,4 +1,4 @@
-const CACHE_NAME = 'git-cache-v6' // Increment version to force refresh
+const CACHE_NAME = 'git-cache-v7' // Increment version to force refresh
 const urlsToCache = [
   '/',
   '/fldr',
