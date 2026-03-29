@@ -21,6 +21,7 @@ declare global {
       interface MapOptions {
         center?: LatLng | { lat: number; lng: number }
         zoom?: number
+        mapTypeId?: string
         mapTypeControl?: boolean
         streetViewControl?: boolean
         fullscreenControl?: boolean
@@ -28,6 +29,15 @@ declare global {
         styles?: any[]
         mapId?: string
       }
+
+      const MapTypeId: {
+        ROADMAP: string
+        SATELLITE: string
+        HYBRID: string
+        TERRAIN: string
+      }
+
+      function importLibrary(name: string): Promise<any>
 
       class Map {
         constructor(element: HTMLElement, options?: MapOptions)
@@ -81,6 +91,7 @@ declare global {
 
       namespace event {
         function clearInstanceListeners(instance: any): void
+        function trigger(instance: any, eventName: string): void
       }
 
       namespace places {
