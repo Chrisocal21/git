@@ -30,11 +30,27 @@ export default function MenuButton() {
       const stored = localStorage.getItem(NOTES_KEY)
       if (stored) setNotes(JSON.parse(stored))
     } catch {}
+    // Sync from cloud on mount
+    fetch('/api/notes')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.notes?.length) {
+          setNotes(data.notes)
+          localStorage.setItem(NOTES_KEY, JSON.stringify(data.notes))
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const saveNotes = (updated: QuickNote[]) => {
     setNotes(updated)
     localStorage.setItem(NOTES_KEY, JSON.stringify(updated))
+    // Persist to cloud
+    fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: updated }),
+    }).catch(() => {})
   }
 
   const addNote = () => {
