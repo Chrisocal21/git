@@ -105,6 +105,11 @@ export default function FldrDetailPage() {
   const [generatedItineraryOverview, setGeneratedItineraryOverview] = useState<string>('')
   const [currentTime, setCurrentTime] = useState(new Date())
   const prevItineraryDataRef = useRef<string>('')
+  const fldrRef = useRef<Fldr | null>(null)
+
+  useEffect(() => {
+    fldrRef.current = fldr
+  }, [fldr])
 
   useEffect(() => {
     if (!showMapModal) return
@@ -803,7 +808,8 @@ export default function FldrDetailPage() {
   }, [fldr?.location, fldr?.venue_info?.address])
 
   const saveFldr = useCallback(async (updates: Partial<Fldr>) => {
-    if (!fldr) return
+    const currentFldr = fldrRef.current
+    if (!currentFldr) return
     setSaving(true)
     
     console.log('[Save] saveFldr called with updates:', Object.keys(updates))
@@ -818,7 +824,7 @@ export default function FldrDetailPage() {
     
     try {
       // Check if fldr should be marked as ready/complete
-      const updatedFldr = { ...fldr, ...updates }
+      const updatedFldr = { ...currentFldr, ...updates }
       const hasFlightInfo = updatedFldr.flight_info && Array.isArray(updatedFldr.flight_info) && updatedFldr.flight_info.length > 0 && updatedFldr.flight_info.some(seg =>
         seg.departure_airport || seg.arrival_airport
       )
@@ -841,7 +847,8 @@ export default function FldrDetailPage() {
       }
       
       // Update local state and cache immediately
-      const newFldr = { ...fldr, ...updates }
+      const newFldr = { ...currentFldr, ...updates }
+      fldrRef.current = newFldr
       setFldr(newFldr)
       cacheFldr(newFldr)
       setLastSaved(new Date())
@@ -852,7 +859,7 @@ export default function FldrDetailPage() {
         const listCache = localStorage.getItem('git-fldrs')
         if (listCache) {
           const allFldrs = JSON.parse(listCache)
-          const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+          const index = allFldrs.findIndex((f: Fldr) => f.id === currentFldr.id)
           if (index !== -1) {
             allFldrs[index] = newFldr
             localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
@@ -866,7 +873,7 @@ export default function FldrDetailPage() {
       if (isOnline()) {
         console.log('[Server] Online - sending PATCH request to server...')
         try {
-          const response = await fetch(`/api/fldrs/${fldr.id}`, {
+          const response = await fetch(`/api/fldrs/${currentFldr.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updates),
@@ -874,6 +881,7 @@ export default function FldrDetailPage() {
           if (response.ok) {
             const updated = await response.json()
             console.log('[Server] Server save successful! Server now has', updated.photos?.length || 0, 'photos')
+            fldrRef.current = updated
             setFldr(updated)
             cacheFldr(updated)
             setLastSaved(new Date())
@@ -883,7 +891,7 @@ export default function FldrDetailPage() {
               const listCache = localStorage.getItem('git-fldrs')
               if (listCache) {
                 const allFldrs = JSON.parse(listCache)
-                const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+                const index = allFldrs.findIndex((f: Fldr) => f.id === currentFldr.id)
                 if (index !== -1) {
                   allFldrs[index] = updated
                   localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
@@ -897,7 +905,7 @@ export default function FldrDetailPage() {
             const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
             console.error('[Server] Server save failed:', response.status, errorData)
             // Add to sync queue on server error
-            addToSyncQueue(fldr.id, updates)
+            addToSyncQueue(currentFldr.id, updates)
             setHasUnsynced(true)
             if (updates.photos) {
               console.log('[Sync] Photo save failed on server, added to sync queue')
@@ -906,7 +914,7 @@ export default function FldrDetailPage() {
         } catch (error) {
           // If save fails, add to sync queue
           console.log('[Sync] Server save failed, adding to sync queue:', error)
-          addToSyncQueue(fldr.id, updates)
+          addToSyncQueue(currentFldr.id, updates)
           setHasUnsynced(true)
           if (updates.photos) {
             console.log('[Sync] Photo saved to sync queue, will sync when online')
@@ -915,7 +923,7 @@ export default function FldrDetailPage() {
       } else {
         // Offline: add to sync queue
         console.log('[Network] Offline - adding changes to sync queue')
-        addToSyncQueue(fldr.id, updates)
+        addToSyncQueue(currentFldr.id, updates)
         setHasUnsynced(true)
         if (updates.photos) {
           console.log('[Sync] Photo saved to sync queue, will sync when online')
@@ -926,7 +934,7 @@ export default function FldrDetailPage() {
     } finally {
       setSaving(false)
     }
-  }, [fldr])
+  }, [])
 
   // Flush any pending save immediately
   const flushPendingSave = useCallback(() => {
@@ -1225,8 +1233,9 @@ export default function FldrDetailPage() {
   }
 
   const updateVenueInfo = (field: keyof VenueInfo, value: string) => {
-    if (!fldr) return
-    const venueInfo = fldr.venue_info || {
+    const currentFldr = fldrRef.current
+    if (!currentFldr) return
+    const venueInfo = currentFldr.venue_info || {
       name: null,
       address: null,
       contact_name: null,
@@ -1234,7 +1243,9 @@ export default function FldrDetailPage() {
       notes: null,
     }
     const updated = { ...venueInfo, [field]: value || null }
-    setFldr({ ...fldr, venue_info: updated })
+    const nextFldr = { ...currentFldr, venue_info: updated }
+    fldrRef.current = nextFldr
+    setFldr(nextFldr)
     debouncedSave({ venue_info: updated })
   }
 
