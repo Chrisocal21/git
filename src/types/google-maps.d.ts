@@ -26,6 +26,8 @@ declare global {
         streetViewControl?: boolean
         fullscreenControl?: boolean
         zoomControl?: boolean
+        disableDefaultUI?: boolean
+        gestureHandling?: string
         styles?: any[]
         mapId?: string
       }
