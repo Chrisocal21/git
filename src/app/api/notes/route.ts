@@ -3,13 +3,11 @@ import { queryD1 } from '@/lib/d1'
 
 const NOTES_KEY = '__quick_notes__'
 
-const D1_AVAILABLE =
-  !!process.env.CLOUDFLARE_ACCOUNT_ID &&
-  !!process.env.CLOUDFLARE_DATABASE_ID &&
-  !!process.env.CLOUDFLARE_API_TOKEN
+const useD1 = process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_DATABASE_ID && process.env.CLOUDFLARE_API_TOKEN
+const D1_ENABLED = process.env.D1_ENABLED === 'true'
 
 export async function GET() {
-  if (!D1_AVAILABLE) {
+  if (!D1_ENABLED || !useD1) {
     return NextResponse.json({ notes: [] })
   }
   try {
@@ -24,15 +22,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!D1_AVAILABLE) {
+  if (!D1_ENABLED || !useD1) {
     return NextResponse.json({ ok: true, cloud: false })
   }
   try {
     const { notes } = await req.json()
     const data = JSON.stringify({ notes })
     await queryD1(
-      `INSERT INTO fldrs (id, data, updated_at) VALUES (?, ?, unixepoch())
-       ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = unixepoch()`,
+      `INSERT OR REPLACE INTO fldrs (id, data, updated_at) VALUES (?, ?, unixepoch())`,
       [NOTES_KEY, data]
     )
     return NextResponse.json({ ok: true, cloud: true })

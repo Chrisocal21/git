@@ -216,6 +216,7 @@ export default function JobsPage() {
   }
 
   const isCurrentEvent = (fldr: Fldr) => {
+    if (!fldr.date_start) return false
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     
@@ -293,6 +294,11 @@ export default function JobsPage() {
       // Smart sort: CURRENT jobs at top, then upcoming, then past
       const today = new Date()
       today.setHours(0, 0, 0, 0)
+      
+      // Guard against missing date_start
+      if (!a.date_start && !b.date_start) return 0
+      if (!a.date_start) return 1
+      if (!b.date_start) return -1
       
       // Check if each job is currently happening
       const aIsCurrent = isCurrentEvent(a)

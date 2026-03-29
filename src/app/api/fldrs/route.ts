@@ -87,6 +87,8 @@ export async function GET() {
   if (D1_ENABLED && useD1) {
     try {
       let d1Fldrs = await getAllFldrs()
+      // Filter out internal system records (not real jobs)
+      d1Fldrs = d1Fldrs.filter(f => f.id && !f.id.startsWith('__'))
       console.log(`[D1] Loaded ${d1Fldrs.length} fldrs from D1`)
       
       // Normalize all fldrs and save back if changes were made
