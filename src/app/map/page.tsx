@@ -63,6 +63,7 @@ export default function MapPage() {
   const [people, setPeople] = useState<Person[]>([])
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null)
   const [showPersonPicker, setShowPersonPicker] = useState(false)
+  const [homeWeather, setHomeWeather] = useState<{ temp: number; condition: string } | null>(null)
   const user = getCurrentUser()
 
   useEffect(() => {
@@ -100,6 +101,18 @@ export default function MapPage() {
       processRoutes(fldrs)
     }
   }, [selectedPerson, viewMode])
+
+  // Fetch homebase weather (San Diego)
+  useEffect(() => {
+    fetch('/api/weather?location=San%20Diego%2C%20CA')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.current && typeof data.current.temp === 'number') {
+          setHomeWeather({ temp: Math.round(data.current.temp), condition: data.current.main || data.current.description })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const extractPeople = (fldrsData: Fldr[]) => {
     const peopleSet = new Map<string, Person>()
@@ -303,37 +316,35 @@ export default function MapPage() {
   }
 
   const getAirportVisits = () => {
-    const airportCounts: Record<string, { code: string; name: string; count: number }> = {}
-    
+    // Count unique dates per airport — same-day arrive+depart (connection) shares
+    // the same date so it only counts once. An overnight stay (arrive day 1, depart
+    // day 2) correctly counts as 2 separate visit-days.
+    const airportInfo: Record<string, { code: string; name: string; dates: Set<string> }> = {}
+
+    const addEvent = (code: string, name: string, time: string | null) => {
+      if (!airportInfo[code]) {
+        airportInfo[code] = { code, name, dates: new Set() }
+      }
+      // Use the date portion only; if no timestamp, generate a unique key so
+      // undated segments still contribute to the count.
+      const key = time ? time.split('T')[0] : `undated-${airportInfo[code].dates.size}`
+      airportInfo[code].dates.add(key)
+    }
+
     routes.forEach(route => {
       route.segments.forEach((segment: FlightSegment) => {
-        // Count departure airport
         if (segment.departure_code) {
-          if (!airportCounts[segment.departure_code]) {
-            airportCounts[segment.departure_code] = {
-              code: segment.departure_code,
-              name: segment.departure_airport || segment.departure_code,
-              count: 0
-            }
-          }
-          airportCounts[segment.departure_code].count++
+          addEvent(segment.departure_code, segment.departure_airport || segment.departure_code, segment.departure_time)
         }
-        
-        // Count arrival airport
         if (segment.arrival_code) {
-          if (!airportCounts[segment.arrival_code]) {
-            airportCounts[segment.arrival_code] = {
-              code: segment.arrival_code,
-              name: segment.arrival_airport || segment.arrival_code,
-              count: 0
-            }
-          }
-          airportCounts[segment.arrival_code].count++
+          addEvent(segment.arrival_code, segment.arrival_airport || segment.arrival_code, segment.arrival_time)
         }
       })
     })
-    
-    return Object.values(airportCounts).sort((a, b) => b.count - a.count)
+
+    return Object.values(airportInfo)
+      .map(a => ({ code: a.code, name: a.name, count: a.dates.size }))
+      .sort((a, b) => b.count - a.count)
   }
 
   if (loading) {

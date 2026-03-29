@@ -106,6 +106,7 @@ export default function FldrDetailPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const prevItineraryDataRef = useRef<string>('')
   const fldrRef = useRef<Fldr | null>(null)
+  const saveRequestSeqRef = useRef(0)
 
   useEffect(() => {
     fldrRef.current = fldr
@@ -810,12 +811,15 @@ export default function FldrDetailPage() {
   const saveFldr = useCallback(async (updates: Partial<Fldr>) => {
     const currentFldr = fldrRef.current
     if (!currentFldr) return
+    const hasExplicitUpdates = Object.keys(updates).length > 0
+    const effectiveUpdates: Partial<Fldr> = hasExplicitUpdates ? { ...updates } : { ...currentFldr }
+    const requestSeq = ++saveRequestSeqRef.current
     setSaving(true)
     
-    console.log('[Save] saveFldr called with updates:', Object.keys(updates))
-    if (updates.photos) {
-      console.log('[Save] Saving photos:', updates.photos.length, 'photos')
-      const photosSize = JSON.stringify(updates.photos).length
+    console.log('[Save] saveFldr called with updates:', Object.keys(effectiveUpdates))
+    if (effectiveUpdates.photos) {
+      console.log('[Save] Saving photos:', effectiveUpdates.photos.length, 'photos')
+      const photosSize = JSON.stringify(effectiveUpdates.photos).length
       console.log('[Save] Photos JSON size:', (photosSize / 1024).toFixed(2), 'KB')
       if (photosSize > 500000) {
         console.warn('[Save] WARNING: Photos data is large -', (photosSize / 1024).toFixed(2), 'KB')
@@ -824,7 +828,7 @@ export default function FldrDetailPage() {
     
     try {
       // Check if fldr should be marked as ready/complete
-      const updatedFldr = { ...currentFldr, ...updates }
+      const updatedFldr = { ...currentFldr, ...effectiveUpdates }
       const hasFlightInfo = updatedFldr.flight_info && Array.isArray(updatedFldr.flight_info) && updatedFldr.flight_info.length > 0 && updatedFldr.flight_info.some(seg =>
         seg.departure_airport || seg.arrival_airport
       )
@@ -843,11 +847,11 @@ export default function FldrDetailPage() {
       
       // Auto-update status if it's currently incomplete and has key info
       if (updatedFldr.status === 'incomplete' && (hasFlightInfo || hasHotelInfo || hasVenueInfo || hasJobInfo)) {
-        updates.status = 'ready'
+        effectiveUpdates.status = 'ready'
       }
       
       // Update local state and cache immediately
-      const newFldr = { ...currentFldr, ...updates }
+      const newFldr = { ...currentFldr, ...effectiveUpdates }
       fldrRef.current = newFldr
       setFldr(newFldr)
       cacheFldr(newFldr)
@@ -876,10 +880,13 @@ export default function FldrDetailPage() {
           const response = await fetch(`/api/fldrs/${currentFldr.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updates),
+            body: JSON.stringify(effectiveUpdates),
           })
           if (response.ok) {
             const updated = await response.json()
+            if (requestSeq !== saveRequestSeqRef.current) {
+              return
+            }
             console.log('[Server] Server save successful! Server now has', updated.photos?.length || 0, 'photos')
             fldrRef.current = updated
             setFldr(updated)
@@ -905,27 +912,27 @@ export default function FldrDetailPage() {
             const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
             console.error('[Server] Server save failed:', response.status, errorData)
             // Add to sync queue on server error
-            addToSyncQueue(currentFldr.id, updates)
+            addToSyncQueue(currentFldr.id, effectiveUpdates)
             setHasUnsynced(true)
-            if (updates.photos) {
+            if (effectiveUpdates.photos) {
               console.log('[Sync] Photo save failed on server, added to sync queue')
             }
           }
         } catch (error) {
           // If save fails, add to sync queue
           console.log('[Sync] Server save failed, adding to sync queue:', error)
-          addToSyncQueue(currentFldr.id, updates)
+          addToSyncQueue(currentFldr.id, effectiveUpdates)
           setHasUnsynced(true)
-          if (updates.photos) {
+          if (effectiveUpdates.photos) {
             console.log('[Sync] Photo saved to sync queue, will sync when online')
           }
         }
       } else {
         // Offline: add to sync queue
         console.log('[Network] Offline - adding changes to sync queue')
-        addToSyncQueue(currentFldr.id, updates)
+        addToSyncQueue(currentFldr.id, effectiveUpdates)
         setHasUnsynced(true)
-        if (updates.photos) {
+        if (effectiveUpdates.photos) {
           console.log('[Sync] Photo saved to sync queue, will sync when online')
         }
       }
@@ -972,10 +979,14 @@ export default function FldrDetailPage() {
 
   // Manual save to server
   const manualSave = useCallback(async () => {
-    if (!fldr) return
+    if (!fldrRef.current) return
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = null
+    }
     await saveFldr({})
     setUnsavedChanges(false)
-  }, [fldr, saveFldr])
+  }, [saveFldr])
 
   // Debounced save - clear existing timeout and set new one
   const debouncedSave = useCallback((updates: Partial<Fldr>) => {
@@ -1695,6 +1706,7 @@ export default function FldrDetailPage() {
     const jobInfo = fldr.job_info || {
       job_title: null,
       client_name: null,
+      distributor_name: null,
       item: null,
       quantity: null,
       job_type: null,
@@ -1726,6 +1738,7 @@ export default function FldrDetailPage() {
     const jobInfo = fldr.job_info || {
       job_title: null,
       client_name: null,
+      distributor_name: null,
       item: null,
       quantity: null,
       job_type: null,
@@ -1769,6 +1782,7 @@ export default function FldrDetailPage() {
     const jobInfo = fldr.job_info || {
       job_title: null,
       client_name: null,
+      distributor_name: null,
       item: null,
       quantity: null,
       job_type: null,
@@ -2253,6 +2267,7 @@ export default function FldrDetailPage() {
       const jobInfo: JobInfo = {
         job_title: null,
         client_name: null,
+        distributor_name: null,
         item: null,
         quantity: null,
         job_type: null,
@@ -3029,7 +3044,7 @@ export default function FldrDetailPage() {
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D]"
-                placeholder="Trip or event name"
+                placeholder="Client name"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -3270,6 +3285,9 @@ export default function FldrDetailPage() {
                 )}
                 {fldr.job_info.client_name && (
                   <div><span className="text-gray-400">Client:</span> {fldr.job_info.client_name}</div>
+                )}
+                {fldr.job_info.distributor_name && (
+                  <div><span className="text-gray-400">Distributor:</span> {fldr.job_info.distributor_name}</div>
                 )}
                 {fldr.job_info.job_type && (
                   <div><span className="text-gray-400">Type:</span> {fldr.job_info.job_type}</div>
@@ -4705,6 +4723,16 @@ export default function FldrDetailPage() {
                     onChange={(e) => updateJobInfo('client_name', e.target.value)}
                     className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
                     placeholder="Client/company name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Distributor Name</label>
+                  <input
+                    type="text"
+                    value={fldr.job_info?.distributor_name || ''}
+                    onChange={(e) => updateJobInfo('distributor_name', e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                    placeholder="Distributor name (if applicable)"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">

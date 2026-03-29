@@ -574,7 +574,12 @@ export default function JobsPage() {
                     <div className="flex items-start justify-between mb-1">
                       <div className="flex-1">
                         <h3 className="font-bold text-[22px] text-[#E8B44D] tracking-tight leading-tight">{fldr.location || fldr.title}</h3>
-                        <div className="text-[15px] text-white/90 font-medium mt-0.5">{fldr.title}</div>
+                        <div className="text-[15px] text-white/90 font-medium mt-0.5">
+                          {fldr.title}
+                          {fldr.job_info?.distributor_name && (
+                            <span className="text-white/50 ml-1.5">· {fldr.job_info.distributor_name}</span>
+                          )}
+                        </div>
                       </div>
                       {/* Countdown with Border */}
                       {(() => {

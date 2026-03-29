@@ -346,6 +346,8 @@ export default function FlightMapGoogle({ routes, locations, selectedRouteId }: 
         const map = new google.maps.Map(mapContainerRef.current, {
           center: { lat: 39.8283, lng: -98.5795 }, // Center of USA
           zoom: 4,
+          disableDefaultUI: true,
+          gestureHandling: 'greedy',
           styles: [
             { elementType: 'geometry', stylers: [{ color: '#212121' }] },
             { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },

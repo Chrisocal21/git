@@ -58,6 +58,7 @@ export interface RentalCarInfo {
 export interface JobInfo {
   job_title: string | null
   client_name: string | null
+  distributor_name: string | null
   item: string | null
   quantity: number | null
   job_type: JobType | null

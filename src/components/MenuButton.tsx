@@ -9,6 +9,7 @@ export default function MenuButton() {
   const user = getCurrentUser()
   const [isOpen, setIsOpen] = useState(false)
   const [time, setTime] = useState<string>('')
+  const [homeWeather, setHomeWeather] = useState<{ temp: number; condition: string } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   
   // Update San Diego time
@@ -27,6 +28,19 @@ export default function MenuButton() {
     const interval = setInterval(updateTime, 60000)
     return () => clearInterval(interval)
   }, [])
+
+  // Fetch homebase weather once on open
+  useEffect(() => {
+    if (!isOpen || homeWeather) return
+    fetch('/api/weather?location=San%20Diego%2C%20CA')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.current && typeof data.current.temp === 'number') {
+          setHomeWeather({ temp: Math.round(data.current.temp), condition: data.current.main || data.current.description })
+        }
+      })
+      .catch(() => {})
+  }, [isOpen])
   
   // Close menu when clicking outside
   useEffect(() => {
@@ -69,9 +83,16 @@ export default function MenuButton() {
                 </svg>
                 <div className="text-xs text-white/70">Homebase</div>
               </div>
-              <div className="text-sm font-semibold text-[#E8B44D]">{time}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-[#E8B44D]">{time}</div>
+              </div>
             </div>
-            <div className="text-xs text-white/50 mt-1">San Diego, CA</div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-white/50 mt-1">San Diego, CA</div>
+              {homeWeather && (
+                <div className="text-xs text-white/50 mt-1">{homeWeather.temp}° {homeWeather.condition}</div>
+              )}
+            </div>
           </div>
           
           {/* User Info */}

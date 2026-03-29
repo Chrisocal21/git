@@ -67,7 +67,7 @@ export default function CreateFldrPage() {
             onChange={(e) => setTitle(e.target.value)}
             required
             className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
-            placeholder="Trip or event name"
+            placeholder="Client name"
           />
         </div>
 
