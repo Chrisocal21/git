@@ -12,8 +12,15 @@ self.addEventListener('install', (event) => {
   self.skipWaiting()
   
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache)
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const results = await Promise.allSettled(
+        urlsToCache.map((url) => cache.add(url))
+      )
+
+      const failed = results.filter((result) => result.status === 'rejected')
+      if (failed.length > 0) {
+        console.log('[SW] Some precache entries failed:', failed.length)
+      }
     })
   )
 })
@@ -21,6 +28,12 @@ self.addEventListener('install', (event) => {
 // Fetch event - network first for everything, fallback to cache when offline
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
+
+  // Never intercept cross-origin requests (Google Maps scripts/tiles, CDNs, etc.)
+  // Let the browser handle them directly to avoid opaque/caching edge cases.
+  if (url.origin !== self.location.origin) {
+    return
+  }
   
   // Skip non-http(s) requests (chrome-extension, etc.)
   if (!url.protocol.startsWith('http')) {

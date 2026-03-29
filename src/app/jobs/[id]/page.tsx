@@ -90,6 +90,7 @@ export default function FldrDetailPage() {
   const [searchFromAddress, setSearchFromAddress] = useState<string | undefined>(undefined)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [generatedOverview, setGeneratedOverview] = useState<string>('')
+  const [showMapModal, setShowMapModal] = useState(false)
   const [generatingOverview, setGeneratingOverview] = useState(false)
   const [generatingPDF, setGeneratingPDF] = useState<'quick' | 'full' | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -104,6 +105,19 @@ export default function FldrDetailPage() {
   const [generatedItineraryOverview, setGeneratedItineraryOverview] = useState<string>('')
   const [currentTime, setCurrentTime] = useState(new Date())
   const prevItineraryDataRef = useRef<string>('')
+
+  useEffect(() => {
+    if (!showMapModal) return
+
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowMapModal(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [showMapModal])
 
   // Memoize map locations to prevent unnecessary re-renders
   const mapLocations = useMemo(() => {
@@ -705,9 +719,13 @@ export default function FldrDetailPage() {
       }
 
       setNearbyLoading(true)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
 
       try {
-        const response = await fetch(`/api/nearby?address=${encodeURIComponent(addressToSearch)}&type=${nearbyType}`)
+        const response = await fetch(`/api/nearby?address=${encodeURIComponent(addressToSearch)}&type=${nearbyType}`, {
+          signal: controller.signal
+        })
         
         if (!response.ok) {
           throw new Error('Failed to fetch nearby places')
@@ -719,6 +737,7 @@ export default function FldrDetailPage() {
         console.error('Nearby search error:', error)
         setNearbyPlaces(null)
       } finally {
+        clearTimeout(timeoutId)
         setNearbyLoading(false)
       }
     }
@@ -945,10 +964,10 @@ export default function FldrDetailPage() {
 
   // Manual save to server
   const manualSave = useCallback(async () => {
-    if (!fldr || !unsavedChanges) return
+    if (!fldr) return
     await saveFldr({})
     setUnsavedChanges(false)
-  }, [fldr, unsavedChanges, saveFldr])
+  }, [fldr, saveFldr])
 
   // Debounced save - clear existing timeout and set new one
   const debouncedSave = useCallback((updates: Partial<Fldr>) => {
@@ -2311,21 +2330,6 @@ export default function FldrDetailPage() {
     }
   }
 
-  const updateAttending = async (attending: boolean) => {
-    if (!fldr) return
-    setSaving(true)
-    try {
-      // When marking as attending, auto-detect job status
-      const autoStatus = attending ? autoDetectJobStatus(fldr) : null
-      const updates = autoStatus ? { attending, job_status: autoStatus } : { attending }
-      
-      setFldr({ ...fldr, ...updates })
-      await saveFldr(updates)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleSync = async () => {
     if (!isOnline()) return
     setSaving(true)
@@ -2799,16 +2803,17 @@ export default function FldrDetailPage() {
           {/* Manual Save Button */}
           <button
             onClick={manualSave}
-            disabled={!unsavedChanges || saving}
+            disabled={saving || !fldr}
             className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
               unsavedChanges
                 ? 'bg-[#E8B44D] hover:bg-[#D4A03C] text-black shadow-lg'
-                : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                : 'bg-white/10 hover:bg-white/15 text-gray-200'
             }`}
-            title={unsavedChanges ? 'Save changes to server' : 'No unsaved changes'}
+            title={unsavedChanges ? 'Save changes to server' : 'Save now'}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
             </svg>
             <span>{saving ? 'Saving...' : 'Save'}</span>
             {unsavedChanges && !saving && (
@@ -3149,19 +3154,6 @@ export default function FldrDetailPage() {
                 )}
               </div>
             )}
-            {/* Attending checkbox */}
-            <div className="mt-3 flex items-center gap-2 p-3 bg-black/30 border border-white/10 rounded-lg">
-              <input
-                type="checkbox"
-                id="attending-checkbox"
-                checked={fldr.attending ?? false}
-                onChange={(e) => updateAttending(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-500 text-[#3b82f6] focus:ring-[#3b82f6] focus:ring-offset-0 bg-black/40 cursor-pointer"
-              />
-              <label htmlFor="attending-checkbox" className="text-sm text-gray-200 cursor-pointer select-none">
-                I am attending this trip
-              </label>
-            </div>
             
             {/* Job Status Selector */}
             <div className="mt-3 p-3 bg-black/30 border border-white/10 rounded-lg">
@@ -3234,6 +3226,14 @@ export default function FldrDetailPage() {
           )}
         </div>
       )}
+
+      {/* Map Button */}
+      <button
+        onClick={() => setShowMapModal(true)}
+        className="w-full mb-4 px-4 py-3 bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] border border-[#4A7B96]/60 hover:from-[#4A7B96] hover:to-[#3F6F8F] hover:border-[#5A8BA6]/80 rounded-lg font-medium transition-all shadow-[0_2px_8px_rgba(58,107,134,0.25)] text-white"
+      >
+        🗺️ Open Google Maps & Nearby Places
+      </button>
 
       {/* Job Summary - Cross-module overview */}
       <div className="mb-4 bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.3)] rounded-lg overflow-hidden">
@@ -3473,41 +3473,6 @@ export default function FldrDetailPage() {
       </div>
 
       <div className="space-y-3">
-        {/* Map Card */}
-        <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.3)] rounded-lg overflow-hidden">
-          <button
-            onClick={() => toggleCard('map')}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
-          >
-            <span className="font-semibold">Google Maps & Nearby Places</span>
-            <ChevronDownIcon
-              className={`w-5 h-5 transition-transform ${
-                expandedCards.map ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-          {expandedCards.map && (
-            <div className="px-4 pb-4">
-              <FldrMap 
-                locations={mapLocations} 
-                venueAddress={fldr.venue_info?.address ?? undefined}
-                hotelAddress={fldr.hotel_info?.address ?? undefined}
-                airportAddress={
-                  fldr.flight_info && fldr.flight_info.length > 0 
-                    ? ((fldr.flight_info[0].arrival_address || fldr.flight_info[0].departure_address) ?? undefined)
-                    : undefined
-                }
-                onNearbyTypeChange={handleNearbyTypeChange}
-                onSearchLocationChange={handleSearchLocationChange}
-                nearbyPlaces={nearbyPlaces}
-                nearbyLoading={nearbyLoading}
-                nearbyType={nearbyType}
-                searchFromAddress={searchFromAddress}
-              />
-            </div>
-          )}
-        </div>
-
         {/* Weather Card */}
         <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.3)] rounded-lg overflow-hidden">
           <button
@@ -3871,16 +3836,17 @@ export default function FldrDetailPage() {
                 )}
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -4165,16 +4131,17 @@ export default function FldrDetailPage() {
                 )}
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -4323,16 +4290,17 @@ export default function FldrDetailPage() {
                 )}
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -4434,16 +4402,17 @@ export default function FldrDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -4609,16 +4578,17 @@ export default function FldrDetailPage() {
                 )}
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -5002,16 +4972,17 @@ export default function FldrDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -5136,16 +5107,17 @@ export default function FldrDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -5268,16 +5240,17 @@ export default function FldrDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -5409,16 +5382,17 @@ export default function FldrDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={manualSave}
-                  disabled={!unsavedChanges || saving}
+                  disabled={saving || !fldr}
                   className={`p-1.5 rounded border transition-colors ${
                     unsavedChanges
                       ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
-                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
                   }`}
-                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                  title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
                   </svg>
                 </button>
                 <button
@@ -5892,6 +5866,46 @@ export default function FldrDetailPage() {
               <CopyButton 
                 text={generatedOverview} 
                 label="Copy Overview"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMapModal && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
+          onClick={() => setShowMapModal(false)}
+        >
+          <div 
+            className="w-full h-full relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowMapModal(false)}
+              className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] z-[20000] p-3 bg-black/80 hover:bg-black/90 rounded-lg transition-colors shadow-lg"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="w-full h-full">
+              <FldrMap 
+                locations={mapLocations} 
+                venueAddress={fldr.venue_info?.address ?? undefined}
+                hotelAddress={fldr.hotel_info?.address ?? undefined}
+                airportAddress={
+                  fldr.flight_info && fldr.flight_info.length > 0 
+                    ? ((fldr.flight_info[0].arrival_address || fldr.flight_info[0].departure_address) ?? undefined)
+                    : undefined
+                }
+                forceFullscreen={true}
+                onNearbyTypeChange={handleNearbyTypeChange}
+                onSearchLocationChange={handleSearchLocationChange}
+                nearbyPlaces={nearbyPlaces}
+                nearbyLoading={nearbyLoading}
+                nearbyType={nearbyType}
+                searchFromAddress={searchFromAddress}
               />
             </div>
           </div>

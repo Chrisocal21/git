@@ -25,6 +25,7 @@ interface FldrMapProps {
   venueAddress?: string
   hotelAddress?: string
   airportAddress?: string
+  forceFullscreen?: boolean
   onNearbyTypeChange?: (type: 'restaurant' | 'cafe' | 'gas_station' | 'bar') => void
   onSearchLocationChange?: (address: string) => void
   nearbyPlaces?: { places: NearbyPlace[] } | null
@@ -38,6 +39,7 @@ function FldrMap({
   venueAddress,
   hotelAddress,
   airportAddress,
+  forceFullscreen = false,
   onNearbyTypeChange,
   onSearchLocationChange,
   nearbyPlaces,
@@ -46,13 +48,14 @@ function FldrMap({
   searchFromAddress
 }: FldrMapProps) {
   const [geocodedLocations, setGeocodedLocations] = useState<Location[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(forceFullscreen)
   const [error, setError] = useState<string | null>(null)
   const [isRefReady, setIsRefReady] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [gettingCurrentLocation, setGettingCurrentLocation] = useState(false)
   const [sidebarVisible, setSidebarVisible] = useState(true)
+  const isFullscreenView = forceFullscreen || isFullscreen
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const fullscreenContainerRef = useRef<HTMLDivElement | null>(null)
   const googleMapRef = useRef<google.maps.Map | null>(null)
@@ -62,7 +65,7 @@ function FldrMap({
   useEffect(() => {
     async function initMap() {
       const element = mapContainerRef.current
-      if (!element || !locations || locations.length === 0) {
+      if (!element) {
         setLoading(false)
         return
       }
@@ -74,12 +77,16 @@ function FldrMap({
       try {
         await googleMapsLoader.load()
 
-        // Geocode addresses
+        // Geocode addresses (if any)
         const results = await Promise.all(
-          locations.map(async (loc) => {
+          (locations || []).map(async (loc) => {
             if (!loc.address.trim()) return null
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 10000)
             try {
-              const response = await fetch(`/api/timezone?address=${encodeURIComponent(loc.address)}`)
+              const response = await fetch(`/api/timezone?address=${encodeURIComponent(loc.address)}`, {
+                signal: controller.signal
+              })
               if (!response.ok) return null
               const data = await response.json()
               if (data.coordinates?.lat && data.coordinates?.lng) {
@@ -90,6 +97,8 @@ function FldrMap({
               }
             } catch (e) {
               console.error('[Map] Geocoding error:', e)
+            } finally {
+              clearTimeout(timeoutId)
             }
             return null
           })
@@ -98,26 +107,21 @@ function FldrMap({
         const validLocations = results.filter((loc): loc is Location & { coordinates: [number, number] } => loc !== null)
         setGeocodedLocations(validLocations)
 
-        if (validLocations.length === 0) {
-          setError('No valid addresses to display')
-          setLoading(false)
-          return
-        }
+        // Always render a map, even if no addresses geocode successfully.
+        // This prevents a blank fullscreen when job data has missing/incomplete addresses.
+        const fallbackCenter = { lat: 32.7157, lng: -117.1611 } // San Diego default
+        const initialCenter = validLocations.length > 0
+          ? { lat: validLocations[0].coordinates[0], lng: validLocations[0].coordinates[1] }
+          : fallbackCenter
 
         const bounds = new google.maps.LatLngBounds()
         validLocations.forEach(loc => bounds.extend(new google.maps.LatLng(loc.coordinates[0], loc.coordinates[1])))
 
         const map = new google.maps.Map(element, {
-          center: { lat: validLocations[0].coordinates[0], lng: validLocations[0].coordinates[1] },
-          zoom: 12,
+          center: initialCenter,
+          zoom: validLocations.length > 0 ? 12 : 10,
           fullscreenControl: false,
-          styles: [
-            { "elementType": "geometry", "stylers": [{ "color": "#212121" }] },
-            { "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
-            { "elementType": "labels.text.stroke", "stylers": [{ "color": "#212121" }] },
-            { "featureType": "road", "elementType": "geometry.fill", "stylers": [{ "color": "#2c2c2c" }] },
-            { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#000000" }] }
-          ]
+          mapTypeId: google.maps.MapTypeId.ROADMAP
         })
 
         googleMapRef.current = map
@@ -189,14 +193,32 @@ function FldrMap({
           map.fitBounds(bounds)
         }
 
+        // Maps in overlays can initialize before final layout settles.
+        // Trigger a resize and re-center after mount to avoid blank tiles.
+        window.setTimeout(() => {
+          if (!googleMapRef.current) return
+          google.maps.event.trigger(googleMapRef.current, 'resize')
+          if (validLocations.length > 1) {
+            googleMapRef.current.fitBounds(bounds)
+          } else if (validLocations.length === 1) {
+            googleMapRef.current.setCenter({
+              lat: validLocations[0].coordinates[0],
+              lng: validLocations[0].coordinates[1],
+            })
+          } else {
+            googleMapRef.current.setCenter(initialCenter)
+          }
+        }, 250)
+
         setLoading(false)
       } catch (error) {
         setError(`Failed to load map`)
+      } finally {
         setLoading(false)
       }
     }
 
-    if (isRefReady && locations.length > 0) {
+    if (isRefReady) {
       initMap()
     }
 
@@ -236,6 +258,13 @@ function FldrMap({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [selectedLocation, venueAddress, onSearchLocationChange])
 
+  useEffect(() => {
+    if (forceFullscreen) {
+      setIsFullscreen(true)
+      setSidebarVisible(window.innerWidth >= 768)
+    }
+  }, [forceFullscreen])
+
   const toggleFullscreen = async () => {
     if (!fullscreenContainerRef.current) return
     
@@ -252,6 +281,14 @@ function FldrMap({
 
   const handleLocationToggle = (address: string) => {
     setSelectedLocation(address)
+    const matchingLocation = geocodedLocations.find((loc) => loc.address === address)
+    if (matchingLocation?.coordinates && googleMapRef.current) {
+      googleMapRef.current.panTo({
+        lat: matchingLocation.coordinates[0],
+        lng: matchingLocation.coordinates[1],
+      })
+      googleMapRef.current.setZoom(14)
+    }
     if (onSearchLocationChange) {
       onSearchLocationChange(address)
     }
@@ -283,7 +320,12 @@ function FldrMap({
   }
 
   return (
-    <div ref={fullscreenContainerRef} className="relative h-64 md:h-96 lg:h-[500px] xl:h-[600px] rounded-lg overflow-hidden border border-white/10">
+    <div
+      ref={fullscreenContainerRef}
+      className={forceFullscreen
+        ? 'relative w-full h-full overflow-hidden'
+        : 'relative h-64 md:h-96 lg:h-[500px] xl:h-[600px] rounded-lg overflow-hidden border border-white/10'}
+    >
       {loading && (
         <div className="absolute inset-0 bg-[#0a0a0a] flex items-center justify-center z-10">
           <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
@@ -297,7 +339,7 @@ function FldrMap({
       )}
 
       {/* Custom Fullscreen Button (shown when NOT in fullscreen) */}
-      {!isFullscreen && (
+      {!isFullscreenView && (
         <button
           onClick={toggleFullscreen}
           className="absolute top-3 right-3 z-[1000] bg-white hover:bg-gray-100 rounded-sm shadow-md p-2 transition-colors"
@@ -310,8 +352,8 @@ function FldrMap({
       )}
 
       {/* Sidebar (visible only in fullscreen) */}
-      {isFullscreen && (
-        <div className={`absolute inset-y-0 left-0 z-[9999] w-full md:w-96 lg:w-[420px] bg-gradient-to-b from-[#2F5F7F] via-[#2a5570] to-[#1e3a4a] flex flex-col border-r border-white/10 shadow-2xl overflow-hidden transition-transform duration-300 ${
+      {isFullscreenView && (
+        <div className={`absolute inset-y-0 left-0 z-[9999] w-[82vw] max-w-[360px] md:w-96 lg:w-[420px] bg-gradient-to-b from-[#2F5F7F] via-[#2a5570] to-[#1e3a4a] flex flex-col border-r border-white/10 shadow-2xl overflow-hidden transition-transform duration-300 ${
           sidebarVisible ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}>
           {/* Header */}
@@ -514,10 +556,10 @@ function FldrMap({
       )}
 
       {/* Floating toggle button for mobile (when sidebar is hidden) */}
-      {isFullscreen && !sidebarVisible && (
+      {isFullscreenView && !sidebarVisible && (
         <button
           onClick={() => setSidebarVisible(true)}
-          className="md:hidden absolute top-4 left-4 z-[10000] bg-gradient-to-b from-[#2F5F7F] to-[#1e3a4a] text-white p-3 rounded-lg shadow-2xl hover:scale-110 transition-transform"
+          className="md:hidden absolute top-[max(4.5rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-[10000] bg-gradient-to-b from-[#2F5F7F] to-[#1e3a4a] text-white p-3 rounded-lg shadow-2xl hover:scale-110 transition-transform"
           title="Show sidebar"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -527,7 +569,7 @@ function FldrMap({
       )}
 
       {/* Mobile Exit Fullscreen Button (when sidebar is hidden) */}
-      {isFullscreen && !sidebarVisible && (
+      {!forceFullscreen && isFullscreenView && !sidebarVisible && (
         <button
           onClick={toggleFullscreen}
           className="md:hidden absolute top-4 right-4 z-[10000] bg-white text-gray-700 p-3 rounded-lg shadow-2xl hover:scale-110 transition-transform"

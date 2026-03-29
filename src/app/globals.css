@@ -65,6 +65,11 @@ body {
   }
 }
 
+/* Prevent global img styles from breaking Google Maps tiles/controls */
+.gm-style img {
+  max-width: none !important;
+}
+
 .animate-slide-in {
   animation: slideIn 0.3s ease-out;
 }
