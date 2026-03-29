@@ -43,6 +43,7 @@ export default function FldrDetailPage() {
   const [fldr, setFldr] = useState<Fldr | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [unsavedChanges, setUnsavedChanges] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
     summary: true, // New unified view - open by default
     flight: false,
@@ -918,6 +919,37 @@ export default function FldrDetailPage() {
     }
   }, [])
 
+  // Update local state only - does NOT save to server
+  const updateLocalState = useCallback((updates: Partial<Fldr>) => {
+    if (!fldr) return
+    const newFldr = { ...fldr, ...updates }
+    setFldr(newFldr)
+    cacheFldr(newFldr)
+    setUnsavedChanges(true)
+    
+    // Also update the list cache so changes appear on list page
+    try {
+      const listCache = localStorage.getItem('git-fldrs')
+      if (listCache) {
+        const allFldrs = JSON.parse(listCache)
+        const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+        if (index !== -1) {
+          allFldrs[index] = newFldr
+          localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update list cache:', e)
+    }
+  }, [fldr])
+
+  // Manual save to server
+  const manualSave = useCallback(async () => {
+    if (!fldr || !unsavedChanges) return
+    await saveFldr({})
+    setUnsavedChanges(false)
+  }, [fldr, unsavedChanges, saveFldr])
+
   // Debounced save - clear existing timeout and set new one
   const debouncedSave = useCallback((updates: Partial<Fldr>) => {
     if (saveTimeoutRef.current) {
@@ -942,6 +974,7 @@ export default function FldrDetailPage() {
   }, [fldr, saveFldr])
 
   // Save before navigating away or closing page
+  // Also has manual save buttons for double protection
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       // If there's a pending save, execute it immediately
@@ -955,7 +988,7 @@ export default function FldrDetailPage() {
         const fldrData = JSON.stringify(fldr)
         navigator.sendBeacon?.(`/api/fldrs/${fldr.id}`, fldrData) ||
           fetch(`/api/fldrs/${fldr.id}`, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: fldrData,
             keepalive: true
@@ -981,6 +1014,7 @@ export default function FldrDetailPage() {
   }, []) // Empty deps - only run on actual mount/unmount
 
   // Router cleanup - save on unmount (component navigation)
+  // Also has manual save buttons for double protection
   useEffect(() => {
     return () => {
       // On unmount (navigation away), flush any pending saves
@@ -1003,9 +1037,7 @@ export default function FldrDetailPage() {
     return () => clearInterval(interval)
   }, [lastSaved])
 
-  const toggleCard = async (cardName: string) => {
-    // Flush any pending saves before toggling cards
-    await flushAndSave()
+  const toggleCard = (cardName: string) => {
     setExpandedCards(prev => ({
       ...prev,
       [cardName]: !prev[cardName]
@@ -2125,11 +2157,11 @@ export default function FldrDetailPage() {
     debouncedSave({ products })
   }
 
-  const enableModule = (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'checklist' | 'people' | 'job_info' | 'photos' | 'products') => {
+  const enableModule = async (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'checklist' | 'people' | 'job_info' | 'photos' | 'products') => {
     if (!fldr) return
     if (module === 'flight_info') {
       setFldr({ ...fldr, flight_info: [] })
-      debouncedSave({ flight_info: [] })
+      await saveFldr({ flight_info: [] })
       setExpandedCards(prev => ({ ...prev, flight: true }))
     } else if (module === 'hotel_info') {
       const hotelInfo: HotelInfo = {
@@ -2142,7 +2174,7 @@ export default function FldrDetailPage() {
         notes: null,
       }
       setFldr({ ...fldr, hotel_info: hotelInfo })
-      debouncedSave({ hotel_info: hotelInfo })
+      await saveFldr({ hotel_info: hotelInfo })
       setExpandedCards(prev => ({ ...prev, hotel: true }))
     } else if (module === 'venue_info') {
       const venueInfo: VenueInfo = {
@@ -2153,7 +2185,7 @@ export default function FldrDetailPage() {
         notes: null,
       }
       setFldr({ ...fldr, venue_info: venueInfo })
-      debouncedSave({ venue_info: venueInfo })
+      await saveFldr({ venue_info: venueInfo })
       setExpandedCards(prev => ({ ...prev, venue: true }))
     } else if (module === 'rental_car_info') {
       const rentalCarInfo: RentalCarInfo = {
@@ -2169,23 +2201,23 @@ export default function FldrDetailPage() {
         notes: null,
       }
       setFldr({ ...fldr, rental_car_info: rentalCarInfo })
-      debouncedSave({ rental_car_info: rentalCarInfo })
+      await saveFldr({ rental_car_info: rentalCarInfo })
       setExpandedCards(prev => ({ ...prev, rentalCar: true }))
     } else if (module === 'checklist') {
       setFldr({ ...fldr, checklist: [] })
-      debouncedSave({ checklist: [] })
+      await saveFldr({ checklist: [] })
       setExpandedCards(prev => ({ ...prev, checklist: true }))
     } else if (module === 'people') {
       setFldr({ ...fldr, people: [] })
-      debouncedSave({ people: [] })
+      await saveFldr({ people: [] })
       setExpandedCards(prev => ({ ...prev, people: true }))
     } else if (module === 'photos') {
       setFldr({ ...fldr, photos: [] })
-      debouncedSave({ photos: [] })
+      await saveFldr({ photos: [] })
       setExpandedCards(prev => ({ ...prev, photos: true }))
     } else if (module === 'products') {
       setFldr({ ...fldr, products: [] })
-      debouncedSave({ products: [] })
+      await saveFldr({ products: [] })
       setExpandedCards(prev => ({ ...prev, products: true }))
     } else if (module === 'job_info') {
       const jobInfo: JobInfo = {
@@ -2213,7 +2245,7 @@ export default function FldrDetailPage() {
         daily_break_end: null,
       }
       setFldr({ ...fldr, job_info: jobInfo })
-      debouncedSave({ job_info: jobInfo })
+      await saveFldr({ job_info: jobInfo })
       setExpandedCards(prev => ({ ...prev, jobInfo: true, preTrip: true }))
     }
   }
@@ -2250,7 +2282,7 @@ export default function FldrDetailPage() {
     return false
   }
 
-  const disableModule = (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'job_info' | 'checklist' | 'people' | 'photos' | 'products') => {
+  const disableModule = async (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'job_info' | 'checklist' | 'people' | 'photos' | 'products') => {
     if (!fldr) return
     
     const hasData = hasModuleData(module)
@@ -2262,9 +2294,9 @@ export default function FldrDetailPage() {
       if (!confirmed) return
     }
     
-    // Remove the module
+    // Remove the module - save immediately (not debounced) to prevent it from coming back
     setFldr({ ...fldr, [module]: null })
-    debouncedSave({ [module]: null })
+    await saveFldr({ [module]: null })
     setExpandedCards(prev => ({ ...prev, [module.replace('_info', '')]: false }))
   }
 
@@ -2763,6 +2795,26 @@ export default function FldrDetailPage() {
               </svg>
             )}
           </div>
+
+          {/* Manual Save Button */}
+          <button
+            onClick={manualSave}
+            disabled={!unsavedChanges || saving}
+            className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+              unsavedChanges
+                ? 'bg-[#E8B44D] hover:bg-[#D4A03C] text-black shadow-lg'
+                : 'bg-white/5 text-gray-500 cursor-not-allowed'
+            }`}
+            title={unsavedChanges ? 'Save changes to server' : 'No unsaved changes'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            <span>{saving ? 'Saving...' : 'Save'}</span>
+            {unsavedChanges && !saving && (
+              <span className="w-2 h-2 bg-red-500 rounded-full" />
+            )}
+          </button>
 
           {!editMode && (
             <>
@@ -3818,10 +3870,27 @@ export default function FldrDetailPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => disableModule('flight_info')}
-                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
                 >
-                  Remove
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('flight_info')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -4095,10 +4164,27 @@ export default function FldrDetailPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => disableModule('hotel_info')}
-                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
                 >
-                  Remove
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('hotel_info')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -4236,10 +4322,27 @@ export default function FldrDetailPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => disableModule('venue_info')}
-                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
                 >
-                  Remove
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('venue_info')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -4328,12 +4431,31 @@ export default function FldrDetailPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => disableModule('rental_car_info')}
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('rental_car_info')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
             {expandedCards.rentalCar && (
               <div className="px-4 pb-4 space-y-3">
@@ -4486,10 +4608,27 @@ export default function FldrDetailPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => disableModule('job_info')}
-                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
                 >
-                  Remove
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('job_info')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -4860,12 +4999,31 @@ export default function FldrDetailPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => disableModule('checklist')}
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('checklist')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
             {expandedCards.checklist && (
               <div className="px-4 pb-4 space-y-2">
@@ -4975,12 +5133,31 @@ export default function FldrDetailPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => disableModule('people')}
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('people')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
             {expandedCards.people && (
               <div className="px-4 pb-4 space-y-3">
@@ -5088,12 +5265,31 @@ export default function FldrDetailPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => disableModule('photos')}
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('photos')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
             {expandedCards.photos && (
               <div className="px-4 pb-4 space-y-3">
@@ -5210,12 +5406,31 @@ export default function FldrDetailPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => disableModule('products')}
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={manualSave}
+                  disabled={!unsavedChanges || saving}
+                  className={`p-1.5 rounded border transition-colors ${
+                    unsavedChanges
+                      ? 'bg-[#E8B44D]/10 text-[#E8B44D] border-[#E8B44D]/30 hover:bg-[#E8B44D]/20'
+                      : 'bg-white/5 text-gray-500 border-white/10 cursor-not-allowed'
+                  }`}
+                  title={unsavedChanges ? 'Save changes' : 'No unsaved changes'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => disableModule('products')}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  title="Remove module"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
             {expandedCards.products && (
               <div className="px-4 pb-4 space-y-3">

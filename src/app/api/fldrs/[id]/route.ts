@@ -182,6 +182,55 @@ export async function PATCH(
   }
 }
 
+// POST handler for sendBeacon compatibility (sendBeacon only supports POST)
+// This is identical to PATCH but accepts POST method
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const updates = await request.json() as Partial<Fldr>
+    
+    console.log('[API] POST request for fldr:', params.id, 'updates:', Object.keys(updates))
+    if (updates.photos) {
+      console.log('[API] Photos in request:', updates.photos.length)
+      const totalSize = JSON.stringify(updates.photos).length
+      console.log('[D1] Photos data size:', (totalSize / 1024).toFixed(2), 'KB')
+    }
+    
+    if (D1_ENABLED && useD1) {
+      // Cloud-first: Update D1 and fail if it fails
+      try {
+        const fldr = await updateFldr(params.id, updates)
+        if (!fldr) {
+          return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
+        }
+        console.log('[D1] Fldr updated in D1:', params.id, 'photos:', fldr.photos?.length || 0)
+        return NextResponse.json(fldr)
+      } catch (d1Error) {
+        console.error('[D1] D1 update failed:', d1Error)
+        return NextResponse.json(
+          { error: 'Failed to update cloud storage' },
+          { status: 500 }
+        )
+      }
+    } else {
+      // Fallback to in-memory store
+      const fldr = fldrStore.update(params.id, updates)
+      if (!fldr) {
+        return NextResponse.json({ error: 'Fldr not found' }, { status: 404 })
+      }
+      return NextResponse.json(fldr)
+    }
+  } catch (error) {
+    console.error('Error updating fldr:', error)
+    return NextResponse.json(
+      { error: 'Failed to update fldr' },
+      { status: 400 }
+    )
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }

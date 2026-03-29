@@ -184,8 +184,23 @@ export async function updateFldr(id: string, updates: Partial<Fldr>): Promise<Fl
   const existing = await getFldrById(id);
   if (!existing) return null;
   
-  // Merge updates
+  // Deep merge nested objects to preserve existing fields
   const updated = { ...existing, ...updates };
+  
+  // For nested objects, merge them instead of replacing entirely
+  if (updates.job_info && existing.job_info) {
+    updated.job_info = { ...existing.job_info, ...updates.job_info };
+  }
+  if (updates.hotel_info && existing.hotel_info) {
+    updated.hotel_info = { ...existing.hotel_info, ...updates.hotel_info };
+  }
+  if (updates.venue_info && existing.venue_info) {
+    updated.venue_info = { ...existing.venue_info, ...updates.venue_info };
+  }
+  if (updates.rental_car_info && existing.rental_car_info) {
+    updated.rental_car_info = { ...existing.rental_car_info, ...updates.rental_car_info };
+  }
+  
   const data = JSON.stringify(updated);
   
   const sizeKB = (data.length / 1024).toFixed(2);
