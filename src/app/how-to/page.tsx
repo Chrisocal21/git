@@ -52,7 +52,7 @@ export default function HowToPage() {
             <div className="bg-gradient-to-br from-[#2F5F7F]/30 to-[#1a3a4d]/30 p-4 rounded-lg">
               <h3 className="text-[#E8B44D] font-semibold mb-2">Create a Job</h3>
               <p className="text-white/80 text-sm mb-2">Tap "New" button → Fill in details → Save</p>
-              <p className="text-white/60 text-xs">Choose job type (Caricatures or Names/Monograms), add date, location, client info.</p>
+              <p className="text-white/60 text-xs">Choose job type (Caricatures or Personalization), add date, location, client info.</p>
             </div>
 
             <div className="bg-gradient-to-br from-[#2F5F7F]/30 to-[#1a3a4d]/30 p-4 rounded-lg">

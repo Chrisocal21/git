@@ -638,9 +638,13 @@ export default function JobsPage() {
                         <span>
                           {fldr.people && fldr.people.length > 0 
                             ? fldr.people.map(p => p.name).join(', ')
-                            : fldr.job_info?.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info?.job_type === 'names_monograms' ? 'Names/Monograms' : ''
-                          }
+                            : ''}
                         </span>
+                        {fldr.job_info?.job_type && (
+                          <span className="text-white/40 text-xs">
+                            {fldr.people && fldr.people.length > 0 ? '·' : ''} {fldr.job_info.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info.job_type === 'personalization' ? 'Personalization' : fldr.job_info.job_type === 'names_monograms' ? 'Personalization' : ''}
+                          </span>
+                        )}
                         {/* Job Status Badge */}
                         {fldr.job_status && (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide ${

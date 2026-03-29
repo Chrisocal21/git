@@ -1,6 +1,6 @@
 export type FldrStatus = 'incomplete' | 'ready' | 'active' | 'complete'
 export type JobStatus = 'pending' | 'confirmed' | 'in_progress' | 'complete'
-export type JobType = 'caricatures' | 'names_monograms'
+export type JobType = 'caricatures' | 'personalization'
 
 export interface ReferenceLink {
   label: string
