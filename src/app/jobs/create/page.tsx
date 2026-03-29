@@ -53,7 +53,7 @@ export default function CreateFldrPage() {
         </button>
       </div>
 
-      <h2 className="text-xl font-semibold mb-6">Create Fldr</h2>
+      <h2 className="text-xl font-semibold mb-6">Create Job</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -114,9 +114,9 @@ export default function CreateFldrPage() {
 
         <button
           type="submit"
-          className="w-full py-3 bg-[#3b82f6] hover:bg-[#2563eb] rounded-lg font-medium transition-colors mt-8"
+          className="w-full py-3 bg-[#E8B44D] hover:bg-[#D4A03C] text-black rounded-lg font-medium transition-colors mt-8"
         >
-          Create Fldr
+          Create Job
         </button>
       </form>
     </div>

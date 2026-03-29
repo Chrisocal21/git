@@ -410,7 +410,11 @@ export default function JobsPage() {
       
       {/* Clean header - minimal single row */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-[#E8B44D]">Burrow</h1>
+        <h1 
+          className="text-3xl font-bold text-[#E8B44D] cursor-pointer select-none hover:opacity-80 transition-opacity"
+          onClick={() => window.location.reload()}
+          title="Refresh"
+        >Burrow</h1>
         
         {/* Right side: Minimal actions */}
         <div className="flex items-center gap-3">
