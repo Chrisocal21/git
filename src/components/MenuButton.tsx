@@ -24,6 +24,8 @@ export default function MenuButton() {
   const [newValue, setNewValue] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [confirmDeleteLabel, setConfirmDeleteLabel] = useState<string>('')
 
   useEffect(() => {
     try {
@@ -65,6 +67,13 @@ export default function MenuButton() {
   const deleteNote = (id: string) => {
     saveNotes(notes.filter(n => n.id !== id))
     setRevealed(prev => { const s = new Set(prev); s.delete(id); return s })
+    setConfirmDeleteId(null)
+    setConfirmDeleteLabel('')
+  }
+
+  const promptDelete = (note: QuickNote) => {
+    setConfirmDeleteId(note.id)
+    setConfirmDeleteLabel(note.label)
   }
 
   const toggleReveal = (id: string) => {
@@ -337,7 +346,7 @@ export default function MenuButton() {
                         </button>
                         {/* Delete */}
                         <button
-                          onClick={() => deleteNote(note.id)}
+                          onClick={() => promptDelete(note)}
                           className="text-white/30 hover:text-red-400 transition-colors p-0.5"
                           title="Delete"
                         >
@@ -419,6 +428,28 @@ export default function MenuButton() {
               Burrow · Companion for Swanky
             </div>
           </div>
+
+          {/* Delete confirm toast */}
+          {confirmDeleteId && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center px-6" onClick={() => { setConfirmDeleteId(null); setConfirmDeleteLabel('') }}>
+              <div className="w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="p-5 pb-3">
+                  <p className="text-white font-semibold text-center">Delete note?</p>
+                  <p className="text-white/50 text-sm text-center mt-1 truncate">{confirmDeleteLabel}</p>
+                </div>
+                <div className="flex border-t border-white/10">
+                  <button
+                    onClick={() => { setConfirmDeleteId(null); setConfirmDeleteLabel('') }}
+                    className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors"
+                  >Cancel</button>
+                  <button
+                    onClick={() => deleteNote(confirmDeleteId)}
+                    className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-white/10 transition-colors"
+                  >Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -416,11 +416,18 @@ export default function JobsPage() {
       
       {/* Clean header - minimal single row */}
       <div className="flex items-center justify-between mb-6">
-        <h1 
-          className="text-3xl font-bold text-[#E8B44D] cursor-pointer select-none hover:opacity-80 transition-opacity"
+        <div
+          className="flex items-center gap-2 cursor-pointer select-none hover:opacity-80 transition-opacity"
           onClick={() => window.location.reload()}
           title="Refresh"
-        >Burrow</h1>
+        >
+          {/* Favicon logo */}
+          <svg width="36" height="36" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="192" height="192" rx="42" fill="#2F5F7F"/>
+            <text x="96" y="140" fontFamily="Georgia, serif" fontSize="120" fontWeight="bold" fill="#E8B44D" textAnchor="middle">B</text>
+          </svg>
+          <h1 className="text-2xl font-bold text-[#E8B44D]">Burrow</h1>
+        </div>
         
         {/* Right side: Minimal actions */}
         <div className="flex items-center gap-3">

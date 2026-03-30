@@ -99,6 +99,10 @@ export default function FldrDetailPage() {
   const [generatingItinerary, setGeneratingItinerary] = useState(false)
   const [generatedItineraryItems, setGeneratedItineraryItems] = useState<any[]>([])
   const [generatedItineraryOverview, setGeneratedItineraryOverview] = useState<string>('')
+
+  // Toast confirm dialogs
+  type ConfirmDialog = { type: 'module'; module: Parameters<typeof disableModule>[0] } | { type: 'deleteJob' } | { type: 'hardRefresh' } | { type: 'duplicate' }
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const prevItineraryDataRef = useRef<string>('')
   const fldrRef = useRef<Fldr | null>(null)
@@ -2225,10 +2229,8 @@ export default function FldrDetailPage() {
     const hasData = hasModuleData(module)
     
     if (hasData) {
-      const confirmed = window.confirm(
-        `This module contains data. Are you sure you want to remove it? All data in this module will be permanently deleted.`
-      )
-      if (!confirmed) return
+      setConfirmDialog({ type: 'module', module })
+      return
     }
     
     // Remove the module - save immediately (not debounced) to prevent it from coming back
@@ -2261,12 +2263,7 @@ export default function FldrDetailPage() {
   }
 
   const handleHardRefresh = async () => {
-    if (confirm('Clear all offline data? This will remove all locally saved changes!')) {
-      clearAllCache()
-      setHasUnsynced(false)
-      // Redirect to list since we cleared everything
-      router.push('/jobs')
-    }
+    setConfirmDialog({ type: 'hardRefresh' })
   }
 
   const enableEditMode = () => {
@@ -2330,9 +2327,12 @@ export default function FldrDetailPage() {
 
   const duplicateJob = async () => {
     if (!fldr) return
-    
-    const confirmed = window.confirm('Duplicate this job? You can update dates and details after.')
-    if (!confirmed) return
+    setConfirmDialog({ type: 'duplicate' })
+  }
+
+  const doDuplicateJob = async () => {
+    if (!fldr) return
+    setConfirmDialog(null)
     
     setSaving(true)
     
@@ -2390,9 +2390,12 @@ export default function FldrDetailPage() {
 
   const deleteJob = async () => {
     if (!fldr) return
-    
-    const confirmed = window.confirm(`Delete "${fldr.title}"? This action cannot be undone.`)
-    if (!confirmed) return
+    setConfirmDialog({ type: 'deleteJob' })
+  }
+
+  const doDeleteJob = async () => {
+    if (!fldr) return
+    setConfirmDialog(null)
     
     setSaving(true)
     
@@ -5658,6 +5661,62 @@ export default function FldrDetailPage() {
                 searchFromAddress={searchFromAddress}
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast confirm dialogs */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-6" onClick={() => setConfirmDialog(null)}>
+          <div className="w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            {confirmDialog.type === 'module' && (
+              <>
+                <div className="p-5 pb-3">
+                  <p className="text-white font-semibold text-center">Remove module?</p>
+                  <p className="text-white/50 text-sm text-center mt-1">All data in this module will be permanently deleted.</p>
+                </div>
+                <div className="flex border-t border-white/10">
+                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
+                  <button onClick={async () => { setConfirmDialog(null); const m = confirmDialog.module; setFldr(prev => prev ? { ...prev, [m]: null } : prev); await saveFldr({ [m]: null }); setExpandedCards(prev => ({ ...prev, [m.replace('_info', '')]: false })) }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-white/10 transition-colors">Remove</button>
+                </div>
+              </>
+            )}
+            {confirmDialog.type === 'deleteJob' && (
+              <>
+                <div className="p-5 pb-3">
+                  <p className="text-white font-semibold text-center">Delete job?</p>
+                  <p className="text-white/50 text-sm text-center mt-1">&ldquo;{fldr?.title}&rdquo; will be permanently deleted. This cannot be undone.</p>
+                </div>
+                <div className="flex border-t border-white/10">
+                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
+                  <button onClick={doDeleteJob} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-white/10 transition-colors">Delete</button>
+                </div>
+              </>
+            )}
+            {confirmDialog.type === 'hardRefresh' && (
+              <>
+                <div className="p-5 pb-3">
+                  <p className="text-white font-semibold text-center">Clear offline data?</p>
+                  <p className="text-white/50 text-sm text-center mt-1">All locally saved changes will be removed.</p>
+                </div>
+                <div className="flex border-t border-white/10">
+                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
+                  <button onClick={() => { setConfirmDialog(null); clearAllCache(); setHasUnsynced(false); router.push('/jobs') }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-white/10 transition-colors">Clear</button>
+                </div>
+              </>
+            )}
+            {confirmDialog.type === 'duplicate' && (
+              <>
+                <div className="p-5 pb-3">
+                  <p className="text-white font-semibold text-center">Duplicate job?</p>
+                  <p className="text-white/50 text-sm text-center mt-1">A copy will be created. You can update dates and details after.</p>
+                </div>
+                <div className="flex border-t border-white/10">
+                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
+                  <button onClick={doDuplicateJob} className="flex-1 py-3.5 text-[#E8B44D] hover:bg-[#E8B44D]/10 text-sm font-semibold border-l border-white/10 transition-colors">Duplicate</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
