@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fldrStore } from '@/lib/store'
 import { Fldr, FlightSegment, AIItineraryItem } from '@/types/fldr'
-import { getFldrById, updateFldr, deleteFldr } from '@/lib/d1'
+import { getFldrById, updateFldr, deleteFldr, isD1Enabled } from '@/lib/d1'
 
-// Check if D1 is configured
-const useD1 = process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_DATABASE_ID && process.env.CLOUDFLARE_API_TOKEN
-const D1_ENABLED = process.env.D1_ENABLED === 'true'
+const D1_ACTIVE = isD1Enabled()
 
 // Normalize fldr data to ensure proper types and structures
-function normalizeFldr(fldr: any): Fldr {
+function normalizeFldr(fldr: Fldr): Fldr {
   // Normalize flight_info: convert old object format to array, ensure it's either null or array
   let flight_info = fldr.flight_info
   if (flight_info && !Array.isArray(flight_info)) {
@@ -72,7 +70,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (D1_ENABLED && useD1) {
+    if (D1_ACTIVE) {
       // Use D1 for persistent storage
       let fldr = await getFldrById(params.id)
       if (!fldr) {
@@ -149,7 +147,7 @@ export async function PATCH(
       console.log('[D1] Photos data size:', (totalSize / 1024).toFixed(2), 'KB')
     }
     
-    if (D1_ENABLED && useD1) {
+    if (D1_ACTIVE) {
       // Cloud-first: Update D1 and fail if it fails
       try {
         const fldr = await updateFldr(params.id, updates)
@@ -198,7 +196,7 @@ export async function POST(
       console.log('[D1] Photos data size:', (totalSize / 1024).toFixed(2), 'KB')
     }
     
-    if (D1_ENABLED && useD1) {
+    if (D1_ACTIVE) {
       // Cloud-first: Update D1 and fail if it fails
       try {
         const fldr = await updateFldr(params.id, updates)
@@ -236,7 +234,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (D1_ENABLED && useD1) {
+    if (D1_ACTIVE) {
       // Use D1 for persistent storage
       await deleteFldr(params.id)
       // Also delete from in-memory store

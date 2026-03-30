@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { Fldr, FlightSegment, Person } from '@/types/fldr'
 import { AirplaneIcon } from '@/components/Icons'
 import { filterJobsByUser, getCurrentUser } from '@/lib/auth'
@@ -59,6 +60,7 @@ export default function MapPage() {
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const [showAirportStats, setShowAirportStats] = useState(false)
+  const [showRoutesList, setShowRoutesList] = useState(false)
   const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = my trips based on people array
   const [people, setPeople] = useState<Person[]>([])
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null)
@@ -521,76 +523,7 @@ export default function MapPage() {
             </button>
           </div>
 
-          {/* Routes list */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {routes.length === 0 ? (
-              <div className="p-6 text-center">
-                <AirplaneIcon className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm mb-2">No flights found</p>
-                <p className="text-xs text-gray-500">
-                  Add flight info to your jobs to see them on the map
-                </p>
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={() => {
-                    setSelectedRoute(null)
-                    setShowSidebar(false)
-                  }}
-                  className={`w-full p-3 rounded-lg text-left transition-all border-2 ${
-                    selectedRoute === null
-                      ? 'bg-[#3b82f6] border-[#3b82f6] shadow-lg shadow-[#3b82f6]/20'
-                      : 'bg-[#1a1a1a] border-[#2a2a2a] hover:border-[#3a3a3a]'
-                  }`}
-                >
-                  <div className="text-sm font-semibold text-white">
-                    Show All Routes
-                  </div>
-                  <div className="text-xs text-white/70 mt-1">
-                    View your complete flight history
-                  </div>
-                </button>
-                
-                {routes.map(route => (
-                  <button
-                    key={route.fldrId}
-                    onClick={() => {
-                      setSelectedRoute(selectedRoute === route.fldrId ? null : route.fldrId)
-                      setShowSidebar(false)
-                    }}
-                    className={`w-full p-3 rounded-lg text-left transition-all border-2 ${
-                      selectedRoute === route.fldrId
-                        ? 'bg-[#1a1a1a] border-[#3b82f6] shadow-lg shadow-[#3b82f6]/20'
-                        : 'bg-[#1a1a1a] border-[#2a2a2a] hover:border-[#3a3a3a]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2 mb-2">
-                      <div 
-                        className="w-3 h-3 rounded-full mt-1 flex-shrink-0 shadow-lg"
-                        style={{ backgroundColor: route.color, boxShadow: `0 0 10px ${route.color}80` }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm truncate text-white">
-                          {route.fldrTitle}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {formatDate(route.dateStart)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-300 ml-5">
-                      <AirplaneIcon className="w-3 h-3" />
-                      <span>{getRouteDescription(route.segments)}</span>
-                    </div>
-                    <div className="text-xs text-gray-500 ml-5 mt-1">
-                      {route.segments.length} {route.segments.length === 1 ? 'segment' : 'segments'}
-                    </div>
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
+
 
           {/* Sidebar footer */}
           <div className="p-4 border-t border-[#2a2a2a] bg-[#0a0a0a]">
@@ -613,6 +546,55 @@ export default function MapPage() {
                 <div className="text-xs text-gray-400">Airports</div>
               </div>
             </div>
+
+            {/* Route list dropdown - only show if there are routes */}
+            {routes.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowRoutesList(!showRoutesList)}
+                  className="w-full mb-2 px-3 py-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] rounded-lg transition-colors flex items-center justify-between text-sm"
+                >
+                  <span className="text-white font-medium">Show All Routes</span>
+                  <svg
+                    className={`w-4 h-4 text-gray-400 transition-transform ${showRoutesList ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showRoutesList && (
+                  <div className="mb-2 max-h-64 overflow-y-auto space-y-1.5">
+                    {routes.map(route => (
+                      <button
+                        key={route.fldrId}
+                        onClick={() => {
+                          setSelectedRoute(selectedRoute === route.fldrId ? null : route.fldrId)
+                          setShowSidebar(false)
+                        }}
+                        className={`w-full p-2.5 rounded-lg text-left transition-all border ${
+                          selectedRoute === route.fldrId
+                            ? 'bg-[#1a1a1a] border-[#3b82f6]'
+                            : 'bg-[#1a1a1a] border-[#2a2a2a] hover:border-[#3a3a3a]'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div
+                            className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0"
+                            style={{ backgroundColor: route.color }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-xs truncate text-white">{route.fldrTitle}</div>
+                            <div className="text-xs text-gray-400">{formatDate(route.dateStart)}</div>
+                            <div className="text-xs text-gray-500">{getRouteDescription(route.segments)}</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Airport visit counts - only show if there are routes */}
             {routes.length > 0 && (
@@ -653,6 +635,15 @@ export default function MapPage() {
               </>
             )}
             
+            <Link
+              href="/leaderboard"
+              className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] rounded-lg transition-colors text-sm text-[#E8B44D] font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Leaderboard
+            </Link>
             <div className="text-xs text-gray-500 text-center mt-2">
               {viewMode === 'team' ? 'Showing all team travel' : `Showing ${user?.name}'s flights`}
             </div>

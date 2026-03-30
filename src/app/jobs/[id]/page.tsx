@@ -20,12 +20,7 @@ import {
   clearAllCache
 } from '@/lib/offlineStorage'
 import { logStorageInfo } from '@/lib/storageHealth'
-import { 
-  shareQuickOverviewPDF, 
-  shareFullTripBriefPDF,
-  generateQuickOverviewPDF,
-  generateFullTripBriefPDF
-} from '@/lib/pdfGenerator'
+
 
 // Dynamic import for map (client-side only)
 const FldrMap = dynamic(() => import('@/components/FldrMap'), { 
@@ -2538,6 +2533,7 @@ export default function FldrDetailPage() {
     if (!fldr) return
     setGeneratingPDF('quick')
     try {
+      const { shareQuickOverviewPDF } = await import('@/lib/pdfGenerator')
       await shareQuickOverviewPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF share failed:', error)
@@ -2551,6 +2547,7 @@ export default function FldrDetailPage() {
     if (!fldr) return
     setGeneratingPDF('quick')
     try {
+      const { generateQuickOverviewPDF } = await import('@/lib/pdfGenerator')
       await generateQuickOverviewPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF download failed:', error)
@@ -2564,6 +2561,7 @@ export default function FldrDetailPage() {
     if (!fldr) return
     setGeneratingPDF('full')
     try {
+      const { shareFullTripBriefPDF } = await import('@/lib/pdfGenerator')
       await shareFullTripBriefPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF share failed:', error)
@@ -2577,6 +2575,7 @@ export default function FldrDetailPage() {
     if (!fldr) return
     setGeneratingPDF('full')
     try {
+      const { generateFullTripBriefPDF } = await import('@/lib/pdfGenerator')
       await generateFullTripBriefPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF download failed:', error)

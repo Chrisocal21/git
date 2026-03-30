@@ -3,6 +3,18 @@
  * Connects to old TripFldr database for history migration
  */
 
+/** Returns true only when all D1 credentials and the D1_ENABLED flag are set */
+export function isD1Enabled(): boolean {
+  return (
+    process.env.D1_ENABLED === 'true' &&
+    !!(
+      process.env.CLOUDFLARE_ACCOUNT_ID &&
+      process.env.CLOUDFLARE_DATABASE_ID &&
+      process.env.CLOUDFLARE_API_TOKEN
+    )
+  )
+}
+
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
 const CLOUDFLARE_DATABASE_ID = process.env.CLOUDFLARE_DATABASE_ID;
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;

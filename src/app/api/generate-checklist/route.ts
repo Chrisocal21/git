@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import { openai } from '@/lib/openai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,16 +12,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.OPENAI_API_KEY
-
-    if (!apiKey) {
+    if (!openai) {
       return NextResponse.json(
         { error: 'OpenAI API key not configured' },
         { status: 500 }
       )
     }
-
-    const openai = new OpenAI({ apiKey })
 
     // Build context from job data
     const systemPrompt = `You are an experienced production manager for a promotional laser engraving company. Focus ONLY on production prep work done AT THE OFFICE before the trip.

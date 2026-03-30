@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { queryD1 } from '@/lib/d1'
+import { queryD1, isD1Enabled } from '@/lib/d1'
 
 const NOTES_KEY = '__quick_notes__'
 
-const useD1 = process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_DATABASE_ID && process.env.CLOUDFLARE_API_TOKEN
-const D1_ENABLED = process.env.D1_ENABLED === 'true'
+const D1_ACTIVE = isD1Enabled()
 
 export async function GET() {
-  if (!D1_ENABLED || !useD1) {
+  if (!D1_ACTIVE) {
     return NextResponse.json({ notes: [] })
   }
   try {
@@ -22,7 +21,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!D1_ENABLED || !useD1) {
+  if (!D1_ACTIVE) {
     return NextResponse.json({ ok: true, cloud: false })
   }
   try {

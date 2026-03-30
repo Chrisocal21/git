@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fldrStore } from '@/lib/store'
 import { NewFldr, Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, AIItineraryItem } from '@/types/fldr'
-import { getAllFldrs, createFldr, updateFldr } from '@/lib/d1'
+import { getAllFldrs, createFldr, updateFldr, isD1Enabled } from '@/lib/d1'
 
-// Check if D1 is configured
-const useD1 = process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_DATABASE_ID && process.env.CLOUDFLARE_API_TOKEN
-// Temporarily disable D1 until table is confirmed working
-const D1_ENABLED = process.env.D1_ENABLED === 'true'
-
-console.log('[D1] Configuration:', {
-  hasCredentials: !!useD1,
-  enabled: D1_ENABLED,
-  mode: D1_ENABLED && useD1 ? 'D1 + localStorage' : 'localStorage only'
-})
+const D1_ACTIVE = isD1Enabled()
 
 // Normalize fldr data to ensure proper types and structures
-function normalizeFldr(fldr: any): Fldr {
+function normalizeFldr(fldr: Fldr): Fldr {
   // Normalize flight_info: convert old object format to array, ensure it's either null or array
   let flight_info = fldr.flight_info
   if (flight_info && !Array.isArray(flight_info)) {
@@ -84,7 +75,7 @@ export async function GET() {
   console.log(`GET /api/fldrs - returning ${fldrs.length} fldrs from memory`)
   
   // If D1 is enabled, try to load from there instead
-  if (D1_ENABLED && useD1) {
+  if (D1_ACTIVE) {
     try {
       let d1Fldrs = await getAllFldrs()
       // Filter out internal system records (not real jobs)
@@ -132,7 +123,9 @@ export async function GET() {
     return normalized
   })
   
-  return NextResponse.json(normalizedFldrs)
+  return NextResponse.json(normalizedFldrs, {
+    headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -140,8 +133,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as NewFldr
     const fldr = fldrStore.create(body) // Generate ID and validate
     
-    if (D1_ENABLED && useD1) {
-      // Cloud-first: Save to D1 and fail if it fails
+    if (D1_ACTIVE) {
       try {
         await createFldr(fldr)
         console.log('[D1] Fldr saved to D1:', fldr.id)
