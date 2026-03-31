@@ -1618,6 +1618,8 @@ export default function FldrDetailPage() {
       daily_end_time: null,
       daily_break_start: null,
       daily_break_end: null,
+      prompt_1: null,
+      prompt_2: null,
     }
     const updated = { ...jobInfo, [field]: value }
     setFldr({ ...fldr, job_info: updated })
@@ -1650,6 +1652,8 @@ export default function FldrDetailPage() {
       daily_end_time: null,
       daily_break_start: null,
       daily_break_end: null,
+      prompt_1: null,
+      prompt_2: null,
     }
     const newLink: ReferenceLink = { label: '', url: '' }
     updateJobInfo('reference_links', [...jobInfo.reference_links, newLink])
@@ -1694,6 +1698,8 @@ export default function FldrDetailPage() {
       daily_end_time: null,
       daily_break_start: null,
       daily_break_end: null,
+      prompt_1: null,
+      prompt_2: null,
     }
     updateJobInfo('team_members', [...jobInfo.team_members, ''])
   }
@@ -2179,6 +2185,8 @@ export default function FldrDetailPage() {
         daily_end_time: null,
         daily_break_start: null,
         daily_break_end: null,
+        prompt_1: null,
+        prompt_2: null,
       }
       setFldr({ ...fldr, job_info: jobInfo })
       await saveFldr({ job_info: jobInfo })
@@ -3152,7 +3160,7 @@ export default function FldrDetailPage() {
         onClick={() => setShowMapModal(true)}
         className="w-full mb-4 px-4 py-3 bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] border border-[#4A7B96]/60 hover:from-[#4A7B96] hover:to-[#3F6F8F] hover:border-[#5A8BA6]/80 rounded-lg font-medium transition-all shadow-[0_2px_8px_rgba(58,107,134,0.25)] text-white"
       >
-        🗺️ Open Google Maps & Nearby Places
+        Open Google Maps & Nearby Places
       </button>
 
       {/* Job Summary - Cross-module overview */}
@@ -4448,28 +4456,6 @@ export default function FldrDetailPage() {
                     placeholder="Distributor name (if applicable)"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Item</label>
-                    <input
-                      type="text"
-                      value={fldr.job_info?.item || ''}
-                      onChange={(e) => updateJobInfo('item', e.target.value)}
-                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
-                      placeholder="Product"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Quantity</label>
-                    <input
-                      type="number"
-                      value={fldr.job_info?.quantity || ''}
-                      onChange={(e) => updateJobInfo('quantity', parseInt(e.target.value) || null)}
-                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Job Type</label>
                   <select
@@ -4700,6 +4686,57 @@ export default function FldrDetailPage() {
                   {(!fldr.job_info?.reference_links || fldr.job_info.reference_links.length === 0) && (
                     <p className="text-xs text-gray-500">No reference links yet</p>
                   )}
+                </div>
+
+                {/* Prompts */}
+                <div className="space-y-3 pt-1">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Prompts</div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-gray-400">Prompt 1</label>
+                      {fldr.job_info?.prompt_1 && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_1 || '')}
+                          className="text-xs text-gray-400 hover:text-[#E8B44D] px-2 py-0.5 rounded border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={fldr.job_info?.prompt_1 || ''}
+                      onChange={(e) => updateJobInfo('prompt_1', e.target.value || null)}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm resize-none"
+                      rows={4}
+                      placeholder="Paste prompt here..."
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-gray-400">Prompt 2</label>
+                      {fldr.job_info?.prompt_2 && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_2 || '')}
+                          className="text-xs text-gray-400 hover:text-[#E8B44D] px-2 py-0.5 rounded border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={fldr.job_info?.prompt_2 || ''}
+                      onChange={(e) => updateJobInfo('prompt_2', e.target.value || null)}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm resize-none"
+                      rows={4}
+                      placeholder="Paste prompt here..."
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -5357,6 +5394,19 @@ export default function FldrDetailPage() {
         {fldr.flight_info !== null && fldr.hotel_info !== null && fldr.venue_info !== null && fldr.rental_car_info !== null && fldr.job_info !== null && fldr.checklist !== null && fldr.people !== null && fldr.photos !== null && fldr.products !== null && (
           <p className="text-xs text-gray-500">All modules enabled</p>
         )}
+      </div>
+
+      {/* Delete Job */}
+      <div className="mt-4 mb-8">
+        <button
+          onClick={() => deleteJob()}
+          className="w-full py-3 rounded-lg border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/10 hover:border-red-500/60 transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Delete Job
+        </button>
       </div>
 
       {/* Photo Expansion Modal */}

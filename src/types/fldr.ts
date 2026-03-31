@@ -80,6 +80,9 @@ export interface JobInfo {
   daily_end_time: string | null    // Time only (HH:MM)
   daily_break_start: string | null // Time only (HH:MM)
   daily_break_end: string | null   // Time only (HH:MM)
+  // Prompts
+  prompt_1: string | null
+  prompt_2: string | null
 }
 
 export type ChecklistCategory = 'production' | 'packing' | 'travel' | 'onsite' | 'teardown' | 'general'
