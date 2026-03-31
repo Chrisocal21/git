@@ -19,12 +19,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const currentYear = new Date().getFullYear()
+
     let systemPrompt = ''
     let responseFormat: any = null
 
     // Configure prompt and response format based on type
     if (type === 'flight') {
       systemPrompt = `Extract ALL flight information from the provided confirmation email or text.
+The current year is ${currentYear}. If any date appears to be in the past (e.g. the year shown is older than the current year), replace the year with ${currentYear} — the document likely contains a stale or example year.
 Return ONLY valid JSON with these exact fields:
 {
   "flights": [
@@ -50,7 +53,7 @@ CRITICAL: Extract ALL flights found in the email:
 - Mark the first flight as "outbound", connecting flights as "connection", and return flights as "return"
 - Use the same confirmation number for all segments if they share one
 - For times, use ISO 8601 format with the flight's local timezone
-- If year is missing, assume current year
+- If year is missing or appears to be in the past, use ${currentYear}
 - Extract airport codes from the email (LAX, JFK, ORD, etc.)
 - Put passenger name, seat assignments, or other details in notes
 - If only one flight is found, return an array with one object`
@@ -60,6 +63,7 @@ CRITICAL: Extract ALL flights found in the email:
       }
     } else if (type === 'hotel') {
       systemPrompt = `Extract hotel information from the provided confirmation email or text.
+The current year is ${currentYear}. If any date appears to be in the past (e.g. the year shown is older than the current year), replace the year with ${currentYear}.
 Return ONLY valid JSON with these exact fields (use null for missing data):
 {
   "name": "hotel name",
@@ -74,7 +78,7 @@ Return ONLY valid JSON with these exact fields (use null for missing data):
 Important:
 - For check-in/out times, use ISO 8601 format
 - If specific times aren't provided, use 3:00 PM for check-in and 11:00 AM for check-out
-- If year is missing, assume current year
+- If year is missing or in the past, use ${currentYear}
 - Include full street address if available
 - Put room details, amenities, or special requests in notes`
 
@@ -83,6 +87,7 @@ Important:
       }
     } else if (type === 'rental_car') {
       systemPrompt = `Extract rental car information from the provided confirmation email or text.
+The current year is ${currentYear}. If any date appears to be in the past (e.g. the year shown is older than the current year), replace the year with ${currentYear}.
 Return ONLY valid JSON with these exact fields (use null for missing data):
 {
   "company": "rental car company name",
@@ -97,7 +102,7 @@ Return ONLY valid JSON with these exact fields (use null for missing data):
 
 Important:
 - For pickup/drop-off times, use ISO 8601 format
-- If year is missing, assume current year
+- If year is missing or in the past, use ${currentYear}
 - Extract full addresses for pickup and drop-off locations
 - Include vehicle class/type (economy, SUV, etc.)
 - Put insurance details, extras, or special instructions in notes`
