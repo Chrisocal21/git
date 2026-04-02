@@ -4564,7 +4564,7 @@ export default function FldrDetailPage() {
                     // Daily recurring times (time-only inputs)
                     <div className="space-y-2">
                       <p className="text-xs text-gray-500 mb-2">Set times that repeat each day between job start/end dates:</p>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
                         <div>
                           <label className="block text-xs text-gray-400 mb-1">Daily Start Time</label>
                           <input
@@ -4606,7 +4606,7 @@ export default function FldrDetailPage() {
                   ) : (
                     // Single event times (datetime-local inputs)
                     <div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
                         <div>
                           <label className="block text-xs text-gray-400 mb-1">Job Start Time</label>
                           <input
