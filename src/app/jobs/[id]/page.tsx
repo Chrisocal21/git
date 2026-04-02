@@ -4562,7 +4562,7 @@ export default function FldrDetailPage() {
                   {/* Conditional: Daily Schedule or Single Event Times */}
                   {fldr.job_info?.use_daily_schedule ? (
                     // Daily recurring times (time-only inputs)
-                    <div className="space-y-2 w-full overflow-hidden">
+                    <div className="space-y-2">
                       <p className="text-xs text-gray-500 mb-2">Set times that repeat each day between job start/end dates:</p>
                       <div className="space-y-2">
                         <div>
@@ -4605,7 +4605,7 @@ export default function FldrDetailPage() {
                     </div>
                   ) : (
                     // Single event times (datetime-local inputs)
-                    <div className="w-full overflow-hidden">
+                    <div>
                       <div className="space-y-2">
                         <div>
                           <label className="block text-xs text-gray-400 mb-1">Job Start Time</label>
