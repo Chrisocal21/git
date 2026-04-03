@@ -185,7 +185,7 @@ export default function CalendarPage() {
 
   // ── Compute "who's out" list for current month ─────────────────────────────
   const monthAbsences = useMemo(() => {
-    const byPerson = new Map<string, { name: string; days: string[]; isPast: boolean; dayTypes: Set<'travel' | 'work'> }>()
+    const byPerson = new Map<string, { name: string; days: string[]; isPast: boolean; dayTypes: Set<'travel' | 'work' | 'off'> }>()
 
     calendarDays.forEach(day => {
       if (!day) return
