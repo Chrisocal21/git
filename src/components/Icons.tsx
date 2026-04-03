@@ -144,6 +144,31 @@ export function MapIcon({ className }: { className?: string }) {
   )
 }
 
+export function BriefcaseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"
+      />
+    </svg>
+  )
+}
+
 export function CloudIcon({ className }: { className?: string }) {
   return (
     <svg

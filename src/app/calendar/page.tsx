@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
 import { TEAM_PROFILES } from '@/lib/auth'
+import { AirplaneIcon, BriefcaseIcon } from '@/components/Icons'
 
 // Per-profile color palette (index matches TEAM_PROFILES order)
 const DOT_COLORS   = ['bg-blue-500',    'bg-emerald-500', 'bg-purple-500',  'bg-orange-500']
@@ -19,6 +20,7 @@ interface Absence {
   jobTitle: string
   jobId: string
   isPast: boolean
+  dayType: 'travel' | 'work' | 'off'
 }
 
 function toDateKey(d: Date) {
@@ -63,6 +65,18 @@ function getJobDateRange(fldr: Fldr): { start: Date; end: Date } | null {
   return { start, end }
 }
 
+function getFlightDays(fldr: Fldr): Set<string> {
+  const days = new Set<string>()
+  if (!fldr.flight_info || !Array.isArray(fldr.flight_info)) return days
+  fldr.flight_info.forEach(seg => {
+    const dep = parseDate(seg.departure_time)
+    const arr = parseDate(seg.arrival_time)
+    if (dep) days.add(toDateKey(dep))
+    if (arr) days.add(toDateKey(arr))
+  })
+  return days
+}
+
 export default function CalendarPage() {
   const router = useRouter()
   const [fldrs, setFldrs] = useState<Fldr[]>([])
@@ -97,6 +111,8 @@ export default function CalendarPage() {
 
       const { start, end } = range
       const isPast = end < today
+      const flightDays = getFlightDays(fldr)
+      const isTimeOff = (fldr as any).fldr_type === 'time_off'
 
       // People on this job
       const people = (fldr.people || []).map(p => p.name).filter(Boolean)
@@ -106,6 +122,7 @@ export default function CalendarPage() {
       while (cur <= end) {
         const key = toDateKey(cur)
         if (!map.has(key)) map.set(key, [])
+        const dayType: 'travel' | 'work' | 'off' = isTimeOff ? 'off' : flightDays.has(key) ? 'travel' : 'work'
 
         people.forEach(personName => {
           const profile = TEAM_PROFILES.find(
@@ -116,7 +133,7 @@ export default function CalendarPage() {
           const list = map.get(key)!
           const dupe = list.some(a => a.profileId === profileId && a.jobId === fldr.id)
           if (!dupe) {
-            list.push({ personName, profileId, jobTitle: fldr.title, jobId: fldr.id, isPast })
+            list.push({ personName, profileId, jobTitle: fldr.title, jobId: fldr.id, isPast, dayType })
           }
         })
 
@@ -168,25 +185,27 @@ export default function CalendarPage() {
 
   // ── Compute "who's out" list for current month ─────────────────────────────
   const monthAbsences = useMemo(() => {
-    const { year, month } = currentMonth
-    const byPerson = new Map<string, { name: string; days: string[]; isPast: boolean }>()
+    const byPerson = new Map<string, { name: string; days: string[]; isPast: boolean; dayTypes: Set<'travel' | 'work'> }>()
 
     calendarDays.forEach(day => {
       if (!day) return
       const absences = absenceMap.get(day.dateKey) || []
       absences.forEach(a => {
         if (!byPerson.has(a.profileId)) {
-          byPerson.set(a.profileId, { name: a.personName, days: [], isPast: a.isPast })
+          byPerson.set(a.profileId, { name: a.personName, days: [], isPast: a.isPast, dayTypes: new Set() })
         }
-        byPerson.get(a.profileId)!.days.push(
-          day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        )
+        const entry = byPerson.get(a.profileId)!
+        entry.days.push(day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+        entry.dayTypes.add(a.dayType)
       })
     })
 
     return Array.from(byPerson.entries()).map(([profileId, info]) => ({
       profileId,
-      ...info,
+      name: info.name,
+      days: info.days,
+      isPast: info.isPast,
+      dayTypes: Array.from(info.dayTypes) as ('travel' | 'work' | 'off')[],
     }))
   }, [absenceMap, calendarDays, currentMonth])
 
@@ -300,26 +319,35 @@ export default function CalendarPage() {
 
                   {uniqueIds.length > 0 && (
                     <div className="flex-1 overflow-hidden">
-                      {/* ── Mobile: colored dots ── */}
+                      {/* ── Mobile: icons ── */}
                       <div className="flex flex-wrap gap-0.5 md:hidden">
                         {uniqueIds.map(pid => {
                           const absence = absences.find(a => a.profileId === pid)
                           const idx     = profileIndex(pid)
+                          if (absence?.dayType === 'off') {
+                            return (
+                              <svg key={pid} className={`w-3 h-3 flex-shrink-0 ${absence.isPast ? 'text-white/25' : CHIP_TEXT[idx % CHIP_TEXT.length]}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            )
+                          }
+                          const Icon = absence?.dayType === 'travel' ? AirplaneIcon : BriefcaseIcon
                           return (
-                            <div
+                            <Icon
                               key={pid}
-                              title={absence?.personName}
-                              className={`w-2 h-2 rounded-full flex-shrink-0 transition-opacity ${
+                              className={`w-3 h-3 flex-shrink-0 ${
                                 absence?.isPast
-                                  ? 'bg-white/25'
-                                  : DOT_COLORS[idx % DOT_COLORS.length]
+                                  ? 'text-white/25'
+                                  : absence?.dayType === 'travel'
+                                  ? 'text-sky-400'
+                                  : CHIP_TEXT[idx % CHIP_TEXT.length]
                               }`}
                             />
                           )
                         })}
                       </div>
 
-                      {/* ── Desktop: name chips ── */}
+                      {/* ── Desktop: name chips with icon ── */}
                       <div className="hidden md:flex flex-col gap-0.5">
                         {uniqueIds.map(pid => {
                           const profile = TEAM_PROFILES.find(p => p.id === pid)
@@ -327,17 +355,36 @@ export default function CalendarPage() {
                           const absence = absences.find(a => a.profileId === pid)
                           const idx     = profileIndex(pid)
 
+                          if (absence?.dayType === 'off') {
+                            return (
+                              <div
+                                key={pid}
+                                title="Time Off"
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight flex items-center gap-1 ${
+                                  absence.isPast ? 'bg-white/5 text-white/25' : `${CHIP_BG[idx % CHIP_BG.length]} ${CHIP_TEXT[idx % CHIP_TEXT.length]}`
+                                }`}
+                              >
+                                <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="truncate">{name}</span>
+                              </div>
+                            )
+                          }
+
+                          const Icon = absence?.dayType === 'travel' ? AirplaneIcon : BriefcaseIcon
                           return (
                             <div
                               key={pid}
                               title={absence?.jobTitle}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium truncate leading-tight ${
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight flex items-center gap-1 ${
                                 absence?.isPast
                                   ? 'bg-white/5 text-white/25'
                                   : `${CHIP_BG[idx % CHIP_BG.length]} ${CHIP_TEXT[idx % CHIP_TEXT.length]}`
                               }`}
                             >
-                              {name}
+                              <Icon className="w-2.5 h-2.5 flex-shrink-0" />
+                              <span className="truncate">{name}</span>
                             </div>
                           )
                         })}
@@ -357,7 +404,7 @@ export default function CalendarPage() {
               Out this month
             </h2>
             <div className="space-y-2">
-              {monthAbsences.map(({ profileId, name, days, isPast }) => {
+              {monthAbsences.map(({ profileId, name, days, isPast, dayTypes }) => {
                 const idx = profileIndex(profileId)
                 return (
                   <div
@@ -370,8 +417,21 @@ export default function CalendarPage() {
                       }`}
                     />
                     <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium ${isPast ? 'text-white/30' : LEGEND_TEXT[idx % LEGEND_TEXT.length]}`}>
+                      <div className={`text-sm font-medium flex items-center gap-1.5 ${isPast ? 'text-white/30' : LEGEND_TEXT[idx % LEGEND_TEXT.length]}`}>
                         {name}
+                        <span className="flex items-center gap-1">
+                          {dayTypes.includes('travel') && (
+                            <AirplaneIcon className={`w-3.5 h-3.5 ${isPast ? 'text-white/20' : 'text-sky-400'}`} />
+                          )}
+                          {dayTypes.includes('work') && (
+                            <BriefcaseIcon className={`w-3.5 h-3.5 ${isPast ? 'text-white/20' : 'opacity-70'}`} />
+                          )}
+                          {dayTypes.includes('off') && (
+                            <svg className={`w-3.5 h-3.5 ${isPast ? 'text-white/20' : LEGEND_TEXT[idx % LEGEND_TEXT.length]}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
+                        </span>
                       </div>
                       <div className="text-xs text-white/30 mt-0.5 leading-relaxed">
                         {days.slice(0, 6).join(' · ')}

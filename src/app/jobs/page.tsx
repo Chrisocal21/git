@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr, FldrStatus } from '@/types/fldr'
-import { PlusIcon, AirplaneIcon, HomeIcon } from '@/components/Icons'
+import { PlusIcon, AirplaneIcon, HomeIcon, BriefcaseIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
-import { getCurrentUser, canEditJob, filterJobsByUser } from '@/lib/auth'
+import { getCurrentUser, canEditJob, filterJobsByUser, TEAM_PROFILES } from '@/lib/auth'
 import MenuButton from '@/components/MenuButton'
 
 type FilterOption = 'all' | 'upcoming'
@@ -26,6 +26,15 @@ export default function JobsPage() {
   const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = assigned to me
   const [showArchived, setShowArchived] = useState(false) // Show/hide archived jobs
   
+  // New entry modal state
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [showTimeOffForm, setShowTimeOffForm] = useState(false)
+  const [timeOffPerson, setTimeOffPerson] = useState(TEAM_PROFILES[0]?.id ?? '')
+  const [timeOffStart, setTimeOffStart] = useState('')
+  const [timeOffEnd, setTimeOffEnd] = useState('')
+  const [timeOffNote, setTimeOffNote] = useState('')
+  const [timeOffSaving, setTimeOffSaving] = useState(false)
+
   // Get current user for permission checks
   const currentUser = getCurrentUser()
 
@@ -276,6 +285,9 @@ export default function JobsPage() {
 
   const filteredFldrs = fldrs
     .filter(fldr => {
+      // Never show time-off entries on the jobs list
+      if (fldr.fldr_type === 'time_off') return false
+
       // Filter out archived jobs unless showArchived is true
       if (!showArchived && fldr.archived) return false
       
@@ -362,6 +374,44 @@ export default function JobsPage() {
     }
   }
 
+  const handleCreateTimeOff = async () => {
+    if (!timeOffPerson || !timeOffStart) return
+    setTimeOffSaving(true)
+    const profile = TEAM_PROFILES.find(p => p.id === timeOffPerson)
+    const newEntry = {
+      title: `${profile?.name ?? timeOffPerson} – Time Off`,
+      fldr_type: 'time_off' as const,
+      date_start: timeOffStart,
+      date_end: timeOffEnd || null,
+      location: null,
+      people: [{ name: profile?.name ?? timeOffPerson, role: null, phone: null, email: null }],
+      notes: timeOffNote || '',
+    }
+    try {
+      const res = await fetch('/api/fldrs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEntry),
+      })
+      if (res.ok) {
+        const created = await res.json()
+        const updated = [...fldrs, created]
+        setFldrs(updated)
+        localStorage.setItem('git-fldrs', JSON.stringify(updated))
+        setShowNewModal(false)
+        setShowTimeOffForm(false)
+        setTimeOffStart('')
+        setTimeOffEnd('')
+        setTimeOffNote('')
+      } else {
+        alert('Failed to create time off entry')
+      }
+    } catch {
+      alert('Failed to create time off entry')
+    }
+    setTimeOffSaving(false)
+  }
+
   if (loading) {
     return (
       <div className="p-4 max-w-lg mx-auto pb-24">
@@ -384,12 +434,13 @@ export default function JobsPage() {
   }
 
   return (
-    <div 
-      className="p-4 max-w-lg mx-auto pb-24"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <>
+      <div
+        className="p-4 max-w-lg mx-auto pb-24"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
       {/* Pull-to-refresh indicator */}
       {(isPulling || isRefreshing) && (
         <div 
@@ -435,7 +486,7 @@ export default function JobsPage() {
           
           {/* Create button */}
           <button
-            onClick={() => router.push('/jobs/create')}
+            onClick={() => { setShowTimeOffForm(false); setShowNewModal(true) }}
             className="px-4 py-2 bg-[#E8B44D] hover:bg-[#D4A03C] rounded-xl transition-colors text-black font-semibold text-sm shadow-lg"
             aria-label="Create new Job"
           >
@@ -457,7 +508,7 @@ export default function JobsPage() {
           oneWeekFromNow.setDate(today.getDate() + 7)
           
           // Filter based on viewMode first, and exclude archived AND completed jobs
-          const visibleFldrs = filterJobsByUser(fldrs.filter(f => !f.archived && f.job_status !== 'complete'), viewMode)
+          const visibleFldrs = filterJobsByUser(fldrs.filter(f => !f.archived && f.job_status !== 'complete' && f.fldr_type !== 'time_off'), viewMode)
           
           // Calculate stats
           const totalJobs = visibleFldrs.length
@@ -696,6 +747,110 @@ export default function JobsPage() {
           })}
         </div>
       )}
-    </div>
+      </div>
+
+    {/* ── New Entry Modal ── */}
+    {showNewModal && (
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+        onClick={() => { setShowNewModal(false); setShowTimeOffForm(false) }}
+      >
+        <div
+          className="w-full max-w-lg bg-[#1f1f1f] border border-white/10 rounded-t-2xl p-5 pb-8 shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          {!showTimeOffForm ? (
+            <>
+              <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-5" />
+              <p className="text-xs text-white/40 text-center uppercase tracking-widest mb-4">What are you creating?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => router.push('/jobs/create')}
+                  className="flex flex-col items-center gap-3 p-5 bg-[#3A6B86]/40 border border-[#3A6B86]/60 rounded-xl hover:bg-[#3A6B86]/60 transition-colors"
+                >
+                  <BriefcaseIcon className="w-8 h-8 text-[#E8B44D]" />
+                  <span className="font-semibold text-white">New Job</span>
+                  <span className="text-xs text-white/40 text-center">Full job with flights, venues & details</span>
+                </button>
+                <button
+                  onClick={() => setShowTimeOffForm(true)}
+                  className="flex flex-col items-center gap-3 p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl hover:bg-emerald-500/20 transition-colors"
+                >
+                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="font-semibold text-white">Time Off</span>
+                  <span className="text-xs text-white/40 text-center">Calendar-only — won't appear in jobs list</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 mb-5">
+                <button onClick={() => setShowTimeOffForm(false)} className="text-white/40 hover:text-white/80">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <h2 className="font-semibold text-white">Time Off</h2>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Person</label>
+                  <select
+                    value={timeOffPerson}
+                    onChange={e => setTimeOffPerson(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                  >
+                    {TEAM_PROFILES.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Start Date <span className="text-red-400">*</span></label>
+                    <input
+                      type="date"
+                      value={timeOffStart}
+                      onChange={e => setTimeOffStart(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={timeOffEnd}
+                      onChange={e => setTimeOffEnd(e.target.value)}
+                      min={timeOffStart}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Note (optional)</label>
+                  <input
+                    type="text"
+                    value={timeOffNote}
+                    onChange={e => setTimeOffNote(e.target.value)}
+                    placeholder="Vacation, sick day..."
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                  />
+                </div>
+                <button
+                  onClick={handleCreateTimeOff}
+                  disabled={!timeOffStart || timeOffSaving}
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl font-semibold text-white transition-colors"
+                >
+                  {timeOffSaving ? 'Saving...' : 'Add to Calendar'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   )
 }

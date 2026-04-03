@@ -128,6 +128,7 @@ export interface Fldr {
   // Core (required)
   id: string
   title: string
+  fldr_type?: 'job' | 'time_off' // undefined = job (backward compat)
   date_start: string // ISO date string
   
   // Core (optional)
@@ -176,4 +177,7 @@ export interface Fldr {
 export type NewFldr = Pick<Fldr, 'title' | 'date_start'> & {
   date_end?: string | null
   location?: string | null
+  fldr_type?: 'job' | 'time_off'
+  people?: Fldr['people']
+  notes?: string
 }
