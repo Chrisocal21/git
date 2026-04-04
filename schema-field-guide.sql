@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS fg_machines (
 CREATE TABLE IF NOT EXISTS fg_materials (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL,
+  product_name TEXT,
+  product_sku TEXT,
   photo_url TEXT,
   sort_order INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),

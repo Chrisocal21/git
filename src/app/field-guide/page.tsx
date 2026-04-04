@@ -22,6 +22,8 @@ export default function FieldGuidePage() {
   // Material form state
   const [materialId, setMaterialId] = useState('')
   const [materialLabel, setMaterialLabel] = useState('')
+  const [productName, setProductName] = useState('')
+  const [productSku, setProductSku] = useState('')
 
   // Load data on mount
   useEffect(() => {
@@ -61,7 +63,9 @@ export default function FieldGuidePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: slug,
-          label: materialLabel.trim()
+          label: materialLabel.trim(),
+          product_name: productName.trim() || null,
+          product_sku: productSku.trim() || null
         })
       })
       
@@ -74,6 +78,8 @@ export default function FieldGuidePage() {
       router.refresh()
       setMaterialId('')
       setMaterialLabel('')
+      setProductName('')
+      setProductSku('')
       setShowMaterialForm(false)
       
       // Force hard refresh to bypass all caching
@@ -158,6 +164,12 @@ export default function FieldGuidePage() {
                 {/* Label */}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3">
                   <p className="text-sm font-medium text-white">{material.label}</p>
+                  {material.product_name && (
+                    <p className="text-xs text-gray-300 mt-0.5">{material.product_name}</p>
+                  )}
+                  {material.product_sku && (
+                    <p className="text-xs text-gray-400 mt-0.5">SKU: {material.product_sku}</p>
+                  )}
                 </div>
 
                 {/* "No settings" indicator */}
@@ -202,12 +214,36 @@ export default function FieldGuidePage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Product Name</label>
+                <input
+                  type="text"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-white focus:border-[#E8B44D] focus:outline-none"
+                  placeholder="e.g., Premium Cowhide Leather"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">SKU</label>
+                <input
+                  type="text"
+                  value={productSku}
+                  onChange={(e) => setProductSku(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-white focus:border-[#E8B44D] focus:outline-none"
+                  placeholder="e.g., LTH-001"
+                />
+              </div>
+
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => {
                     setShowMaterialForm(false)
                     setMaterialLabel('')
+                    setProductName('')
+                    setProductSku('')
                   }}
                   className="flex-1 border border-[#2a2a2a] px-6 py-3 rounded-lg font-medium hover:bg-[#1a1a1a] transition-colors"
                   disabled={saving}

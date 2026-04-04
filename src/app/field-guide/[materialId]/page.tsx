@@ -19,10 +19,16 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [showEditMaterial, setShowEditMaterial] = useState(false)
   const materialId = params.materialId
   const machineId = searchParams.get('machine') || 'f1'
 
-  // Form state
+  // Material edit form state
+  const [editMaterialLabel, setEditMaterialLabel] = useState('')
+  const [editProductName, setEditProductName] = useState('')
+  const [editProductSku, setEditProductSku] = useState('')
+
+  // Settings form state
   const [speed, setSpeed] = useState('')
   const [power, setPower] = useState('')
   const [frequency, setFrequency] = useState('')
@@ -45,7 +51,15 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
       const json = await response.json()
       setData(json)
       
-      // Pre-populate form if setting exists
+      // Pre-populate material edit form
+      const existingMaterial = json.materials.find((m: Material) => m.id === materialId)
+      if (existingMaterial) {
+        setEditMaterialLabel(existingMaterial.label || '')
+        setEditProductName(existingMaterial.product_name || '')
+        setEditProductSku(existingMaterial.product_sku || '')
+      }
+
+      // Pre-populate settings form if setting exists
       const existingSetting = json.settings.find(
         (s: Setting) => s.machine_id === machineId && s.material_id === materialId
       )
@@ -167,6 +181,38 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
     } catch (error) {
       console.error('Failed to delete photo:', error)
       alert('Failed to delete photo')
+    }
+  }
+
+  async function handleMaterialUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editMaterialLabel.trim()) return
+
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/field-guide/materials/${materialId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: editMaterialLabel.trim(),
+          product_name: editProductName.trim() || null,
+          product_sku: editProductSku.trim() || null
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update material')
+      }
+
+      setShowEditMaterial(false)
+      // Reload to show changes
+      setTimeout(() => window.location.reload(), 100)
+    } catch (error: any) {
+      console.error('Failed to update material:', error)
+      alert(error.message || 'Failed to update material')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -298,6 +344,105 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
             </label>
           )}
         </div>
+
+        {/* Material Info Section */}
+        {!showEditMaterial ? (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Material Info</h2>
+              <button
+                onClick={() => setShowEditMaterial(true)}
+                className="text-[#E8B44D] hover:underline text-sm"
+              >
+                Edit
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Name</div>
+                <div className="text-white">{material.label}</div>
+              </div>
+              {material.product_name && (
+                <div>
+                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Product Name</div>
+                  <div className="text-white">{material.product_name}</div>
+                </div>
+              )}
+              {material.product_sku && (
+                <div>
+                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">SKU</div>
+                  <div className="text-white">{material.product_sku}</div>
+                </div>
+              )}
+              {!material.product_name && !material.product_sku && (
+                <p className="text-sm text-gray-500">No product details set</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-4">Edit Material Info</h2>
+            <form onSubmit={handleMaterialUpdate} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Material Name *</label>
+                <input
+                  type="text"
+                  value={editMaterialLabel}
+                  onChange={(e) => setEditMaterialLabel(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-white focus:border-[#E8B44D] focus:outline-none"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Product Name</label>
+                <input
+                  type="text"
+                  value={editProductName}
+                  onChange={(e) => setEditProductName(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-white focus:border-[#E8B44D] focus:outline-none"
+                  placeholder="e.g., Premium Cowhide Leather"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">SKU</label>
+                <input
+                  type="text"
+                  value={editProductSku}
+                  onChange={(e) => setEditProductSku(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-white focus:border-[#E8B44D] focus:outline-none"
+                  placeholder="e.g., LTH-001"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditMaterial(false)
+                    // Reset to current values
+                    setEditMaterialLabel(material.label)
+                    setEditProductName(material.product_name || '')
+                    setEditProductSku(material.product_sku || '')
+                  }}
+                  className="flex-1 border border-[#2a2a2a] px-6 py-3 rounded-lg font-medium hover:bg-[#1a1a1a] transition-colors"
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#E8B44D] text-black px-6 py-3 rounded-lg font-medium hover:bg-[#d4a347] transition-colors disabled:opacity-50"
+                  disabled={saving}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Settings Display (when not editing) */}
         {!showForm && setting && (

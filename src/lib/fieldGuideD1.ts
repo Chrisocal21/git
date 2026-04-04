@@ -17,6 +17,8 @@ export interface Machine {
 export interface Material {
   id: string
   label: string
+  product_name: string | null
+  product_sku: string | null
   photo_url: string | null
   sort_order: number
   created_at: string
@@ -89,6 +91,8 @@ export async function getMaterialById(id: string): Promise<Material | null> {
 export async function createMaterial(data: {
   id: string
   label: string
+  product_name?: string | null
+  product_sku?: string | null
   photo_url?: string | null
   sort_order?: number
 }): Promise<Material> {
@@ -97,11 +101,13 @@ export async function createMaterial(data: {
   }
   
   await queryD1(
-    `INSERT INTO fg_materials (id, label, photo_url, sort_order)
-     VALUES (?, ?, ?, ?)`,
+    `INSERT INTO fg_materials (id, label, product_name, product_sku, photo_url, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?)`,
     [
       data.id,
       data.label,
+      data.product_name || null,
+      data.product_sku || null,
       data.photo_url || null,
       data.sort_order || 0
     ]
@@ -117,7 +123,7 @@ export async function createMaterial(data: {
 
 export async function updateMaterial(
   id: string,
-  data: Partial<Pick<Material, 'label' | 'photo_url' | 'sort_order'>>
+  data: Partial<Pick<Material, 'label' | 'product_name' | 'product_sku' | 'photo_url' | 'sort_order'>>
 ): Promise<Material> {
   if (!isD1Enabled()) {
     throw new Error('D1 not enabled')
@@ -129,6 +135,14 @@ export async function updateMaterial(
   if (data.label !== undefined) {
     updates.push('label = ?')
     params.push(data.label)
+  }
+  if (data.product_name !== undefined) {
+    updates.push('product_name = ?')
+    params.push(data.product_name)
+  }
+  if (data.product_sku !== undefined) {
+    updates.push('product_sku = ?')
+    params.push(data.product_sku)
   }
   if (data.photo_url !== undefined) {
     updates.push('photo_url = ?')

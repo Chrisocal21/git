@@ -24,10 +24,12 @@ export async function PUT(
 
   try {
     const body = await request.json()
-    const { label, photo_url, sort_order } = body
+    const { label, product_name, product_sku, photo_url, sort_order } = body
 
     const updates: any = {}
     if (label !== undefined) updates.label = label
+    if (product_name !== undefined) updates.product_name = product_name
+    if (product_sku !== undefined) updates.product_sku = product_sku
     if (photo_url !== undefined) updates.photo_url = photo_url
     if (sort_order !== undefined) updates.sort_order = sort_order
 

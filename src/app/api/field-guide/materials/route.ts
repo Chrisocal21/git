@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { label, photo_url, sort_order } = body
+    const { label, product_name, product_sku, photo_url, sort_order } = body
 
     if (!label) {
       return NextResponse.json(
@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
     const material = await createMaterial({
       id,
       label,
+      product_name: product_name || null,
+      product_sku: product_sku || null,
       photo_url: photo_url || null,
       sort_order: sort_order || 0
     })
