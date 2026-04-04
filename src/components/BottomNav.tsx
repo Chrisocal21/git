@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FolderIcon, MapIcon, CloudIcon } from './Icons'
+import { FolderIcon, CloudIcon, BookIcon } from './Icons'
 
 export default function BottomNav() {
   const pathname = usePathname()
@@ -27,18 +27,6 @@ export default function BottomNav() {
         </Link>
 
         <Link
-          href="/map"
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-            isActive('/map')
-              ? 'text-[#E8B44D]'
-              : 'text-gray-400 hover:text-gray-300'
-          }`}
-        >
-          <MapIcon className="w-6 h-6 mb-1" />
-          <span className="text-xs font-medium">Map</span>
-        </Link>
-
-        <Link
           href="/weather"
           className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
             isActive('/weather')
@@ -48,6 +36,18 @@ export default function BottomNav() {
         >
           <CloudIcon className="w-6 h-6 mb-1" />
           <span className="text-xs font-medium">Weather</span>
+        </Link>
+
+        <Link
+          href="/field-guide"
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            isActive('/field-guide')
+              ? 'text-[#E8B44D]'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          <BookIcon className="w-6 h-6 mb-1" />
+          <span className="text-xs font-medium">Guide</span>
         </Link>
       </div>
     </nav>

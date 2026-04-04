@@ -57,6 +57,7 @@ export async function queryD1(sql: string, params: any[] = []): Promise<any[]> {
         sql,
         params,
       }),
+      cache: 'no-store'
     });
 
     if (!response.ok) {
