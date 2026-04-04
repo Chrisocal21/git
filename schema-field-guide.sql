@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS fg_settings (
   passes INTEGER,
   mode TEXT,
   focus_notes TEXT,
+  dimensions TEXT,
   notes TEXT,
   updated_by TEXT,
   created_at TEXT DEFAULT (datetime('now')),

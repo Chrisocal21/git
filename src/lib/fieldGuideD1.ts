@@ -35,6 +35,7 @@ export interface Setting {
   passes: number | null
   mode: string | null
   focus_notes: string | null
+  dimensions: string | null
   notes: string | null
   updated_by: string | null
   updated_at: string
@@ -224,6 +225,7 @@ export async function createSetting(data: {
   passes?: number | null
   mode?: string | null
   focus_notes?: string | null
+  dimensions?: string | null
   notes?: string | null
   updated_by?: string | null
 }): Promise<Setting> {
@@ -234,8 +236,8 @@ export async function createSetting(data: {
   await queryD1(
     `INSERT INTO fg_settings (
       id, machine_id, material_id, speed, power, frequency, 
-      passes, mode, focus_notes, notes, updated_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      passes, mode, focus_notes, dimensions, notes, updated_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.id,
       data.machine_id,
@@ -246,6 +248,7 @@ export async function createSetting(data: {
       data.passes || null,
       data.mode || null,
       data.focus_notes || null,
+      data.dimensions || null,
       data.notes || null,
       data.updated_by || null
     ]
@@ -270,7 +273,7 @@ export async function updateSetting(
   const updates: string[] = []
   const params: any[] = []
   
-  const fields = ['speed', 'power', 'frequency', 'passes', 'mode', 'focus_notes', 'notes', 'updated_by']
+  const fields = ['speed', 'power', 'frequency', 'passes', 'mode', 'focus_notes', 'dimensions', 'notes', 'updated_by']
   
   for (const field of fields) {
     if (field in data) {

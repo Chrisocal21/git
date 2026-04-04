@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       passes,
       mode,
       focus_notes,
+      dimensions,
       notes,
       updated_by
     } = body
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
         passes,
         mode,
         focus_notes,
+        dimensions,
         notes,
         updated_by
       })
@@ -72,6 +74,7 @@ export async function POST(request: NextRequest) {
         passes,
         mode,
         focus_notes,
+        dimensions,
         notes,
         updated_by
       })

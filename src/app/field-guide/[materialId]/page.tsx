@@ -35,6 +35,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
   const [passes, setPasses] = useState('')
   const [mode, setMode] = useState('Fill')
   const [focusNotes, setFocusNotes] = useState('')
+  const [dimensions, setDimensions] = useState('')
   const [notes, setNotes] = useState('')
   const [updatedBy, setUpdatedBy] = useState('')
 
@@ -70,6 +71,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
         setPasses(existingSetting.passes?.toString() || '')
         setMode(existingSetting.mode || 'Fill')
         setFocusNotes(existingSetting.focus_notes || '')
+        setDimensions(existingSetting.dimensions || '')
         setNotes(existingSetting.notes || '')
         setUpdatedBy(existingSetting.updated_by || '')
       }
@@ -96,6 +98,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
           passes: passes ? parseInt(passes) : null,
           mode: mode.trim() || null,
           focus_notes: focusNotes.trim() || null,
+          dimensions: dimensions.trim() || null,
           notes: notes.trim() || null,
           updated_by: updatedBy.trim() || null
         })
@@ -495,6 +498,14 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
               </div>
             )}
 
+            {/* Dimensions */}
+            {setting.dimensions && (
+              <div className="pt-4 border-t border-[#2a2a2a]">
+                <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Dimensions (caracture size output)</div>
+                <div className="text-sm text-gray-300">{setting.dimensions}</div>
+              </div>
+            )}
+
             {/* Notes */}
             {setting.notes && (
               <div className="pt-4 border-t border-[#2a2a2a]">
@@ -598,6 +609,17 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
                   onChange={(e) => setFocusNotes(e.target.value)}
                   className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-white focus:border-[#E8B44D] focus:outline-none"
                   placeholder="e.g., Auto focus, Manual +2mm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Dimensions (caracture size output)</label>
+                <input
+                  type="text"
+                  value={dimensions}
+                  onChange={(e) => setDimensions(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-white focus:border-[#E8B44D] focus:outline-none"
+                  placeholder="e.g., 12x12x3mm or 12in x 12in"
                 />
               </div>
 
