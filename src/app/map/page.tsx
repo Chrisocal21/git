@@ -164,13 +164,13 @@ export default function MapPage() {
 
     // Process EVERY job and check if selected person is in it
     fldrsData.forEach((fldr, index) => {
-      // Check if this job has people assigned
-      if (!fldr.people || !Array.isArray(fldr.people) || fldr.people.length === 0) {
-        return
-      }
-      
-      // If filtering by a specific person (either selected from dropdown OR current user in 'my' mode)
+      // If filtering by a specific person, check if this job has that person
       if (filterByPerson) {
+        // Skip jobs without people when filtering
+        if (!fldr.people || !Array.isArray(fldr.people) || fldr.people.length === 0) {
+          return
+        }
+        
         const normalizedFilterPerson = filterByPerson.toLowerCase().trim()
         
         let matchFound = false
@@ -187,6 +187,7 @@ export default function MapPage() {
           return
         }
       }
+      // In team view (no filter), show ALL jobs regardless of people assignment
       
       // Handle migration: if flight_info is an object (old structure), convert to array
       if (fldr.flight_info && !Array.isArray(fldr.flight_info)) {
@@ -288,6 +289,14 @@ export default function MapPage() {
 
     const totalSegments = flightRoutes.reduce((sum, r) => sum + r.segments.length, 0)
     
+    console.log('[MapPage] processRoutes complete:', {
+      flightRoutes: flightRoutes.length,
+      totalSegments,
+      jobLocations: jobLocations.length,
+      filterByPerson: selectedPerson || (viewMode === 'my' ? user?.name : null),
+      viewMode
+    })
+    
     setRoutes(flightRoutes)
     setLocations(jobLocations)
   }
@@ -364,6 +373,13 @@ export default function MapPage() {
     <div className="fixed inset-0 bg-[#0a0a0a]">
       {/* Full-screen map */}
       <div className="absolute inset-0">
+        {/* Debug info */}
+        <div className="absolute top-20 left-4 bg-black/80 text-white p-2 text-xs z-[2000] rounded">
+          <div>Routes: {routes.length}</div>
+          <div>Segments: {routes.reduce((sum, r) => sum + r.segments.length, 0)}</div>
+          <div>Selected: {selectedRoute || 'none'}</div>
+        </div>
+        
         <FlightMap 
           routes={routes}
           locations={locations}

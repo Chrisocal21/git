@@ -84,10 +84,16 @@ export default function FlightGlobe({ routes, locations, selectedRouteId }: Flig
   const globeInstance = useRef<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [globeReady, setGlobeReady] = useState(false)
 
-  console.log('[FlightGlobe] Render - routes:', routes.length, 'selectedRouteId:', selectedRouteId)
+  // Force console log to appear
+  if (typeof window !== 'undefined') {
+    window.console.log('[FlightGlobe] Component called - routes:', routes?.length || 0, 'selectedRouteId:', selectedRouteId)
+  }
 
   useEffect(() => {
+    window.console.log('[FlightGlobe] Init useEffect triggered - globeRef:', !!globeRef.current)
+    
     if (!globeRef.current) return
 
     console.log('[FlightGlobe] Initializing globe...')
@@ -118,6 +124,7 @@ export default function FlightGlobe({ routes, locations, selectedRouteId }: Flig
 
         console.log('[FlightGlobe] Globe initialized successfully')
         setLoading(false)
+        setGlobeReady(true)
 
         // Handle window resize
         const handleResize = () => {
@@ -148,6 +155,8 @@ export default function FlightGlobe({ routes, locations, selectedRouteId }: Flig
   }, [])
 
   useEffect(() => {
+    window.console.log('[FlightGlobe] Routes useEffect triggered - routes:', routes?.length, 'globeInstance:', !!globeInstance.current)
+    
     if (!globeInstance.current) {
       console.log('[FlightGlobe] Cannot update routes - globe not initialized yet')
       return
@@ -249,7 +258,7 @@ export default function FlightGlobe({ routes, locations, selectedRouteId }: Flig
       console.error('[FlightGlobe] Error updating globe:', err)
     }
 
-  }, [routes, selectedRouteId])
+  }, [routes, selectedRouteId, globeReady])
 
   return (
     <div className="relative w-full h-full">
