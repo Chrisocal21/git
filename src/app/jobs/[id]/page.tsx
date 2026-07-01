@@ -20,6 +20,7 @@ import {
   clearAllCache
 } from '@/lib/offlineStorage'
 import { logStorageInfo } from '@/lib/storageHealth'
+import { addOrUpdateProfile } from '@/lib/auth'
 
 
 // Dynamic import for map (client-side only)
@@ -2026,6 +2027,17 @@ export default function FldrDetailPage() {
     people[index] = { ...people[index], [field]: value || null }
     setFldr({ ...fldr, people })
     debouncedSave({ people })
+  }
+
+  const handlePersonNameBlur = (name: string) => {
+    // Auto-create profile when name field loses focus (user done typing)
+    if (name && name.trim()) {
+      try {
+        addOrUpdateProfile(name.trim())
+      } catch (e) {
+        console.error('Failed to create profile:', e)
+      }
+    }
   }
 
   const removePerson = (index: number) => {
@@ -4948,6 +4960,7 @@ export default function FldrDetailPage() {
                         type="text"
                         value={person.name}
                         onChange={(e) => updatePerson(index, 'name', e.target.value)}
+                        onBlur={(e) => handlePersonNameBlur(e.target.value)}
                         className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm font-medium"
                         placeholder="Name"
                       />

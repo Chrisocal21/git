@@ -7,7 +7,7 @@ import { PlusIcon, AirplaneIcon, HomeIcon, BriefcaseIcon } from '@/components/Ic
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
-import { getCurrentUser, canEditJob, filterJobsByUser, TEAM_PROFILES } from '@/lib/auth'
+import { getCurrentUser, canEditJob, filterJobsByUser, getTeamProfiles, autoMarkInactiveProfiles } from '@/lib/auth'
 import MenuButton from '@/components/MenuButton'
 
 type FilterOption = 'all' | 'upcoming'
@@ -29,7 +29,8 @@ export default function JobsPage() {
   // New entry modal state
   const [showNewModal, setShowNewModal] = useState(false)
   const [showTimeOffForm, setShowTimeOffForm] = useState(false)
-  const [timeOffPerson, setTimeOffPerson] = useState(TEAM_PROFILES[0]?.id ?? '')
+  const teamProfiles = getTeamProfiles()
+  const [timeOffPerson, setTimeOffPerson] = useState(teamProfiles[0]?.id ?? '')
   const [timeOffStart, setTimeOffStart] = useState('')
   const [timeOffEnd, setTimeOffEnd] = useState('')
   const [timeOffNote, setTimeOffNote] = useState('')
@@ -37,6 +38,17 @@ export default function JobsPage() {
 
   // Get current user for permission checks
   const currentUser = getCurrentUser()
+
+  // Auto-switch to "My Jobs" view when a profile is selected
+  useEffect(() => {
+    if (currentUser) {
+      // User selected a profile - switch to "my" view to show only their jobs
+      setViewMode('my')
+    } else {
+      // No profile selected (All) - switch to "team" view to show all jobs
+      setViewMode('team')
+    }
+  }, [currentUser?.id]) // Re-run when profile changes
 
   // Check online status and auto-sync when coming back online
   useEffect(() => {
@@ -101,6 +113,9 @@ export default function JobsPage() {
         console.log(`[Cache] Loaded ${cachedData.length} fldrs from cache`)
         setFldrs(cachedData)
         setLoading(false)
+        
+        // Auto-mark profiles as inactive if they're not in any jobs
+        autoMarkInactiveProfiles()
       } catch (e) {
         console.error('[Cache] Failed to parse cached fldrs:', e)
       }
@@ -129,11 +144,17 @@ export default function JobsPage() {
           setFldrs(data)
           localStorage.setItem('git-fldrs', JSON.stringify(data))
           console.log(`[Cache] Saved ${data.length} fldrs to cache (server is source of truth)`)
+          
+          // Auto-mark profiles as inactive if they're not in any jobs
+          autoMarkInactiveProfiles()
         } else if (data.length > 0) {
           // No cache but server has data - use server data
           console.log('[Cache] No cache, using server data')
           setFldrs(data)
           localStorage.setItem('git-fldrs', JSON.stringify(data))
+          
+          // Auto-mark profiles as inactive if they're not in any jobs
+          autoMarkInactiveProfiles()
         } else {
           // Both empty - this is fine for first-time users
           console.log('🆕 No data from cache or server (new user)')
@@ -377,7 +398,7 @@ export default function JobsPage() {
   const handleCreateTimeOff = async () => {
     if (!timeOffPerson || !timeOffStart) return
     setTimeOffSaving(true)
-    const profile = TEAM_PROFILES.find(p => p.id === timeOffPerson)
+    const profile = teamProfiles.find(p => p.id === timeOffPerson)
     const newEntry = {
       title: `${profile?.name ?? timeOffPerson} – Time Off`,
       fldr_type: 'time_off' as const,
@@ -802,7 +823,7 @@ export default function JobsPage() {
                     onChange={e => setTimeOffPerson(e.target.value)}
                     className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
                   >
-                    {TEAM_PROFILES.map(p => (
+                    {teamProfiles.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
-import { TEAM_PROFILES } from '@/lib/auth'
+import { getTeamProfiles } from '@/lib/auth'
 import { AirplaneIcon, BriefcaseIcon } from '@/components/Icons'
 
 // Per-profile color palette (index matches TEAM_PROFILES order)
@@ -79,6 +79,7 @@ function getFlightDays(fldr: Fldr): Set<string> {
 
 export default function CalendarPage() {
   const router = useRouter()
+  const teamProfiles = getTeamProfiles()
   const [fldrs, setFldrs] = useState<Fldr[]>([])
   const [loading, setLoading] = useState(true)
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -125,7 +126,7 @@ export default function CalendarPage() {
         const dayType: 'travel' | 'work' | 'off' = isTimeOff ? 'off' : flightDays.has(key) ? 'travel' : 'work'
 
         people.forEach(personName => {
-          const profile = TEAM_PROFILES.find(
+          const profile = teamProfiles.find(
             p => p.name.toLowerCase() === personName.toLowerCase()
           )
           const profileId = profile?.id ?? personName.toLowerCase().replace(/\s+/g, '-')
@@ -179,7 +180,7 @@ export default function CalendarPage() {
     )
 
   const profileIndex = (profileId: string) => {
-    const i = TEAM_PROFILES.findIndex(p => p.id === profileId)
+    const i = teamProfiles.findIndex(p => p.id === profileId)
     return i >= 0 ? i : profileId.charCodeAt(0) % DOT_COLORS.length
   }
 
@@ -253,7 +254,7 @@ export default function CalendarPage() {
       <div className="max-w-4xl mx-auto px-3 pt-4">
         {/* ── Legend ── */}
         <div className="flex flex-wrap gap-3 mb-4 px-1">
-          {TEAM_PROFILES.map((profile, i) => (
+          {teamProfiles.map((profile, i) => (
             <div key={profile.id} className="flex items-center gap-1.5">
               <div className={`w-2.5 h-2.5 rounded-full ${DOT_COLORS[i % DOT_COLORS.length]}`} />
               <span className={`text-xs font-medium ${LEGEND_TEXT[i % LEGEND_TEXT.length]}`}>
@@ -350,7 +351,7 @@ export default function CalendarPage() {
                       {/* ── Desktop: name chips with icon ── */}
                       <div className="hidden md:flex flex-col gap-0.5">
                         {uniqueIds.map(pid => {
-                          const profile = TEAM_PROFILES.find(p => p.id === pid)
+                          const profile = teamProfiles.find(p => p.id === pid)
                           const name    = profile?.name ?? absences.find(a => a.profileId === pid)?.personName ?? pid
                           const absence = absences.find(a => a.profileId === pid)
                           const idx     = profileIndex(pid)

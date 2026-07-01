@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCurrentUser, TEAM_PROFILES, setCurrentProfile, clearProfile } from '@/lib/auth'
+import { getCurrentUser, getTeamProfiles, setCurrentProfile, clearProfile, autoMarkInactiveProfiles } from '@/lib/auth'
 
 type QuickNote = { id: string; label: string; value: string }
 const NOTES_KEY = 'burrow-quick-notes'
@@ -10,6 +10,7 @@ const NOTES_KEY = 'burrow-quick-notes'
 export default function MenuButton() {
   const router = useRouter()
   const user = getCurrentUser()
+  const [teamProfiles, setTeamProfiles] = useState(getTeamProfiles())
   const [isOpen, setIsOpen] = useState(false)
   const [time, setTime] = useState<string>('')
   const [homeWeather, setHomeWeather] = useState<{ temp: number; condition: string } | null>(null)
@@ -26,6 +27,7 @@ export default function MenuButton() {
   const [editValue, setEditValue] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [confirmDeleteLabel, setConfirmDeleteLabel] = useState<string>('')
+  const [showInactive, setShowInactive] = useState(false)
 
   useEffect(() => {
     try {
@@ -43,6 +45,14 @@ export default function MenuButton() {
       })
       .catch(() => {})
   }, [])
+
+  // Auto-mark inactive profiles when menu opens
+  useEffect(() => {
+    if (isOpen) {
+      autoMarkInactiveProfiles()
+      setTeamProfiles(getTeamProfiles())
+    }
+  }, [isOpen])
 
   const saveNotes = (updated: QuickNote[]) => {
     setNotes(updated)
@@ -208,8 +218,8 @@ export default function MenuButton() {
                 )}
               </button>
 
-              {/* Team profiles */}
-              {TEAM_PROFILES.map(profile => (
+              {/* Active Team profiles */}
+              {teamProfiles.filter(p => p.active !== false).map(profile => (
                 <button
                   key={profile.id}
                   onClick={() => {
@@ -245,6 +255,58 @@ export default function MenuButton() {
                   )}
                 </button>
               ))}
+              
+              {/* Inactive profiles toggle */}
+              {teamProfiles.filter(p => p.active === false).length > 0 && (
+                <>
+                  <button
+                    onClick={() => setShowInactive(!showInactive)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 mt-2 text-xs text-white/40 hover:text-white/60 transition-colors"
+                  >
+                    <svg className={`w-3 h-3 transition-transform ${showInactive ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>Inactive ({teamProfiles.filter(p => p.active === false).length})</span>
+                  </button>
+                  
+                  {showInactive && teamProfiles.filter(p => p.active === false).map(profile => (
+                    <button
+                      key={profile.id}
+                      onClick={() => {
+                        if (user?.id === profile.id) {
+                          clearProfile()
+                        } else {
+                          setCurrentProfile(profile.id)
+                        }
+                        setIsOpen(false)
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                        user?.id === profile.id
+                          ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
+                          : 'hover:bg-white/5'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        user?.id === profile.id ? 'bg-[#E8B44D] text-black' : 'bg-white/5 text-white/40'
+                      }`}>
+                        {profile.name.charAt(0)}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className={`text-xs ${
+                          user?.id === profile.id ? 'text-[#E8B44D]' : 'text-white/40'
+                        }`}>
+                          {profile.name}
+                        </div>
+                      </div>
+                      {user?.id === profile.id && (
+                        <svg className="w-3 h-3 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           </div>
           
