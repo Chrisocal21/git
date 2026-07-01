@@ -100,8 +100,9 @@ export default function FlightGlobe({ routes, locations, selectedRouteId }: Flig
 
       try {
         // Initialize globe
-        const globe = Globe()
-          (globeRef.current!)
+        const globe = (Globe as any)()(globeRef.current!)
+        
+        globe
           .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
           .backgroundColor('#000000')
           .showAtmosphere(true)
