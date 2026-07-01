@@ -28,12 +28,12 @@ interface JobLocation {
 
 // Dynamic import for map (client-side only)
 const FlightMap = dynamic<{ routes: FlightRoute[]; locations: JobLocation[]; selectedRouteId: string | null }>(
-  () => import('../../components/FlightMapGoogle').then(mod => mod.default), 
+  () => import('../../components/FlightGlobe').then(mod => mod.default), 
   { 
     ssr: false,
     loading: () => (
-      <div className="h-[calc(100vh-140px)] bg-white/5 rounded-lg flex items-center justify-center">
-        <div className="text-white/60">Loading map...</div>
+      <div className="h-[calc(100vh-140px)] bg-black flex items-center justify-center">
+        <div className="text-white/60">Loading globe...</div>
       </div>
     )
   }

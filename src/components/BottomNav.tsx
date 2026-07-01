@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FolderIcon, CloudIcon, BookIcon } from './Icons'
+import { FolderIcon, CloudIcon, MapIcon } from './Icons'
 
 export default function BottomNav() {
   const pathname = usePathname()
@@ -12,42 +12,39 @@ export default function BottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-[#2a2a2a]">
-      <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-4">
+    <nav className="fixed bottom-6 left-0 right-0 pointer-events-none">
+      <div className="flex justify-center items-center gap-6 max-w-lg mx-auto px-4">
         <Link
           href="/jobs"
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+          className={`pointer-events-auto flex items-center justify-center w-14 h-14 rounded-full transition-all shadow-lg backdrop-blur-sm ${
             isActive('/jobs')
-              ? 'text-[#E8B44D]'
-              : 'text-gray-400 hover:text-gray-300'
+              ? 'bg-[#E8B44D] text-black'
+              : 'bg-[#1a1a1a]/80 text-gray-400 hover:text-gray-300 hover:bg-[#2a2a2a]/80'
           }`}
         >
-          <FolderIcon className="w-6 h-6 mb-1" />
-          <span className="text-xs font-medium">Jobs</span>
+          <FolderIcon className="w-6 h-6" />
         </Link>
 
         <Link
           href="/weather"
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+          className={`pointer-events-auto flex items-center justify-center w-14 h-14 rounded-full transition-all shadow-lg backdrop-blur-sm ${
             isActive('/weather')
-              ? 'text-[#E8B44D]'
-              : 'text-gray-400 hover:text-gray-300'
+              ? 'bg-[#E8B44D] text-black'
+              : 'bg-[#1a1a1a]/80 text-gray-400 hover:text-gray-300 hover:bg-[#2a2a2a]/80'
           }`}
         >
-          <CloudIcon className="w-6 h-6 mb-1" />
-          <span className="text-xs font-medium">Weather</span>
+          <CloudIcon className="w-6 h-6" />
         </Link>
 
         <Link
-          href="/field-guide"
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-            isActive('/field-guide')
-              ? 'text-[#E8B44D]'
-              : 'text-gray-400 hover:text-gray-300'
+          href="/map"
+          className={`pointer-events-auto flex items-center justify-center w-14 h-14 rounded-full transition-all shadow-lg backdrop-blur-sm ${
+            isActive('/map')
+              ? 'bg-[#E8B44D] text-black'
+              : 'bg-[#1a1a1a]/80 text-gray-400 hover:text-gray-300 hover:bg-[#2a2a2a]/80'
           }`}
         >
-          <BookIcon className="w-6 h-6 mb-1" />
-          <span className="text-xs font-medium">Guide</span>
+          <MapIcon className="w-6 h-6" />
         </Link>
       </div>
     </nav>
