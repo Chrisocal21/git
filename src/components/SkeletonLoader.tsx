@@ -26,24 +26,26 @@ export function FldrListSkeleton() {
 
 export function FldrDetailSkeleton() {
   return (
-    <div className="p-4 max-w-lg mx-auto pb-24 animate-pulse">
+    <div className="animate-pulse bg-[#0f1419] min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 px-4 max-w-2xl mx-auto pt-4">
         <div className="h-6 bg-gray-800 rounded w-8"></div>
         <div className="h-6 bg-gray-800 rounded w-24"></div>
       </div>
 
       {/* Title */}
-      <div className="h-8 bg-gray-800 rounded w-48 mb-2"></div>
-      
-      {/* Status */}
-      <div className="h-6 bg-gray-800 rounded w-20 mb-4"></div>
+      <div className="px-4 max-w-2xl mx-auto mb-6">
+        <div className="h-8 bg-gray-800 rounded w-48 mb-2"></div>
+        
+        {/* Status */}
+        <div className="h-6 bg-gray-800 rounded w-20 mb-4"></div>
 
-      {/* Date */}
-      <div className="h-4 bg-gray-800 rounded w-32 mb-6"></div>
+        {/* Date */}
+        <div className="h-4 bg-gray-800 rounded w-32"></div>
+      </div>
 
       {/* Modules */}
-      <div className="space-y-4">
+      <div className="space-y-4 px-4 max-w-2xl mx-auto">
         {[1, 2, 3].map(i => (
           <div key={i} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
             <div className="h-5 bg-gray-800 rounded w-24 mb-3"></div>

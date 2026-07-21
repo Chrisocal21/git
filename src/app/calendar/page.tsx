@@ -86,6 +86,7 @@ export default function CalendarPage() {
     const n = new Date()
     return { year: n.getFullYear(), month: n.getMonth() }
   })
+  const [expandedPeople, setExpandedPeople] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/fldrs')
@@ -186,29 +187,52 @@ export default function CalendarPage() {
 
   // ── Compute "who's out" list for current month ─────────────────────────────
   const monthAbsences = useMemo(() => {
-    const byPerson = new Map<string, { name: string; days: string[]; isPast: boolean; dayTypes: Set<'travel' | 'work' | 'off'> }>()
+    const byPerson = new Map<string, { 
+      name: string; 
+      jobs: Map<string, { 
+        jobTitle: string; 
+        days: string[]; 
+        isPast: boolean; 
+        dayType: 'travel' | 'work' | 'off';
+        location: string | null;
+        jobId: string;
+      }>
+    }>()
 
     calendarDays.forEach(day => {
       if (!day) return
       const absences = absenceMap.get(day.dateKey) || []
       absences.forEach(a => {
         if (!byPerson.has(a.profileId)) {
-          byPerson.set(a.profileId, { name: a.personName, days: [], isPast: a.isPast, dayTypes: new Set() })
+          byPerson.set(a.profileId, { name: a.personName, jobs: new Map() })
         }
-        const entry = byPerson.get(a.profileId)!
-        entry.days.push(day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
-        entry.dayTypes.add(a.dayType)
+        const personEntry = byPerson.get(a.profileId)!
+        
+        if (!personEntry.jobs.has(a.jobId)) {
+          // Find the fldr to get location info
+          const fldr = fldrs.find(f => f.id === a.jobId)
+          const location = fldr?.location || fldr?.venue_info?.name || fldr?.venue_info?.address || null
+          
+          personEntry.jobs.set(a.jobId, {
+            jobTitle: a.jobTitle,
+            days: [],
+            isPast: a.isPast,
+            dayType: a.dayType,
+            location,
+            jobId: a.jobId,
+          })
+        }
+        const jobEntry = personEntry.jobs.get(a.jobId)!
+        jobEntry.days.push(day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
       })
     })
 
     return Array.from(byPerson.entries()).map(([profileId, info]) => ({
       profileId,
       name: info.name,
-      days: info.days,
-      isPast: info.isPast,
-      dayTypes: Array.from(info.dayTypes) as ('travel' | 'work' | 'off')[],
+      jobs: Array.from(info.jobs.values()),
     }))
-  }, [absenceMap, calendarDays, currentMonth])
+  }, [absenceMap, calendarDays, currentMonth, fldrs])
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white pb-24">
@@ -405,43 +429,117 @@ export default function CalendarPage() {
               Out this month
             </h2>
             <div className="space-y-2">
-              {monthAbsences.map(({ profileId, name, days, isPast, dayTypes }) => {
+              {monthAbsences.map(({ profileId, name, jobs }) => {
                 const idx = profileIndex(profileId)
+                const isExpanded = expandedPeople.has(profileId)
+                const totalDays = jobs.reduce((sum, job) => sum + job.days.length, 0)
+                const allPast = jobs.every(j => j.isPast)
+                
                 return (
                   <div
                     key={profileId}
-                    className="flex items-start gap-3 px-3 py-2.5 bg-[#1f1f1f] rounded-lg border border-[#2a2a2a]"
+                    className="bg-[#1f1f1f] rounded-lg border border-[#2a2a2a] overflow-hidden"
                   >
-                    <div
-                      className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${
-                        isPast ? 'bg-white/20' : DOT_COLORS[idx % DOT_COLORS.length]
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium flex items-center gap-1.5 ${isPast ? 'text-white/30' : LEGEND_TEXT[idx % LEGEND_TEXT.length]}`}>
-                        {name}
-                        <span className="flex items-center gap-1">
-                          {dayTypes.includes('travel') && (
-                            <AirplaneIcon className={`w-3.5 h-3.5 ${isPast ? 'text-white/20' : 'text-sky-400'}`} />
-                          )}
-                          {dayTypes.includes('work') && (
-                            <BriefcaseIcon className={`w-3.5 h-3.5 ${isPast ? 'text-white/20' : 'opacity-70'}`} />
-                          )}
-                          {dayTypes.includes('off') && (
-                            <svg className={`w-3.5 h-3.5 ${isPast ? 'text-white/20' : LEGEND_TEXT[idx % LEGEND_TEXT.length]}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          )}
+                    {/* Clickable header - minimal info */}
+                    <button
+                      onClick={() => {
+                        setExpandedPeople(prev => {
+                          const next = new Set(prev)
+                          if (next.has(profileId)) {
+                            next.delete(profileId)
+                          } else {
+                            next.add(profileId)
+                          }
+                          return next
+                        })
+                      }}
+                      className="w-full px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                            allPast ? 'bg-white/20' : DOT_COLORS[idx % DOT_COLORS.length]
+                          }`}
+                        />
+                        <span className={`text-sm font-semibold truncate ${
+                          allPast ? 'text-white/30' : LEGEND_TEXT[idx % LEGEND_TEXT.length]
+                        }`}>
+                          {name}
                         </span>
                       </div>
-                      <div className="text-xs text-white/30 mt-0.5 leading-relaxed">
-                        {days.slice(0, 6).join(' · ')}
-                        {days.length > 6 && ` · +${days.length - 6} more`}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`text-xs font-semibold ${
+                          allPast ? 'text-white/20' : 'text-white/40'
+                        }`}>
+                          {totalDays}d
+                        </span>
+                        {/* Chevron icon */}
+                        <svg
+                          className={`w-4 h-4 text-white/30 transition-transform ${
+                            isExpanded ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </div>
-                    </div>
-                    <div className={`text-xs font-semibold flex-shrink-0 ${isPast ? 'text-white/20' : 'text-white/50'}`}>
-                      {days.length}d
-                    </div>
+                    </button>
+
+                    {/* Expandable job details */}
+                    {isExpanded && (
+                      <div className="px-3 pb-3 pt-1 space-y-2 border-t border-[#2a2a2a]">
+                        {jobs.map((job, jobIdx) => {
+                          const Icon = job.dayType === 'off' 
+                            ? (props: any) => (
+                                <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )
+                            : job.dayType === 'travel' 
+                            ? AirplaneIcon 
+                            : BriefcaseIcon
+
+                          return (
+                            <div key={`${job.jobId}-${jobIdx}`} className="flex items-start gap-2 pl-4">
+                              <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${
+                                job.isPast 
+                                  ? 'text-white/20' 
+                                  : job.dayType === 'travel'
+                                  ? 'text-sky-400'
+                                  : job.dayType === 'off'
+                                  ? LEGEND_TEXT[idx % LEGEND_TEXT.length]
+                                  : 'text-white/50'
+                              }`} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2">
+                                  <span className={`text-sm font-medium ${
+                                    job.isPast ? 'text-white/25' : 'text-white/90'
+                                  }`}>
+                                    {job.dayType === 'off' ? 'Time Off' : job.jobTitle}
+                                  </span>
+                                  <span className={`text-xs font-semibold flex-shrink-0 ${
+                                    job.isPast ? 'text-white/20' : 'text-white/40'
+                                  }`}>
+                                    {job.days.length}d
+                                  </span>
+                                </div>
+                                {job.dayType !== 'off' && job.location && (
+                                  <div className={`text-xs ${job.isPast ? 'text-white/20' : 'text-white/40'} mt-0.5`}>
+                                    📍 {job.location}
+                                  </div>
+                                )}
+                                <div className={`text-xs ${job.isPast ? 'text-white/20' : 'text-white/30'} mt-1 leading-relaxed`}>
+                                  {job.days.slice(0, 6).join(' · ')}
+                                  {job.days.length > 6 && ` · +${job.days.length - 6} more`}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )
               })}

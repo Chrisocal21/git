@@ -435,9 +435,15 @@ export default function JobsPage() {
 
   if (loading) {
     return (
-      <div className="p-4 max-w-lg mx-auto pb-24">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-[#E8B44D]">Burrow</h1>
+      <div className="min-h-screen bg-[#0f1419]">
+        <div className="flex items-center justify-between mb-6 px-4 pt-4 max-w-2xl mx-auto">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#2F5F7F] flex items-center justify-center">
+              <span className="text-[#E8B44D] font-bold text-xl font-serif">B</span>
+            </div>
+            <h1 className="text-2xl font-semibold text-white">Burrow</h1>
+          </div>
           <button
             disabled
             className="px-4 py-2 bg-gray-700 rounded-xl opacity-50 cursor-not-allowed text-sm font-semibold"
@@ -449,7 +455,9 @@ export default function JobsPage() {
             </div>
           </button>
         </div>
-        <FldrListSkeleton />
+        <div className="px-4 max-w-2xl mx-auto">
+          <FldrListSkeleton />
+        </div>
       </div>
     )
   }
@@ -457,7 +465,7 @@ export default function JobsPage() {
   return (
     <>
       <div
-        className="p-4 max-w-lg mx-auto pb-24"
+        className="min-h-screen bg-[#0f1419]"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -487,18 +495,17 @@ export default function JobsPage() {
       )}
       
       {/* Clean header - minimal single row */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 px-4 pt-4 max-w-2xl mx-auto">
         <div
-          className="flex items-center gap-2 cursor-pointer select-none hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 cursor-pointer select-none hover:opacity-80 transition-opacity"
           onClick={() => window.location.reload()}
           title="Refresh"
         >
-          {/* Favicon logo */}
-          <svg width="36" height="36" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="192" height="192" rx="42" fill="#2F5F7F"/>
-            <text x="96" y="140" fontFamily="Georgia, serif" fontSize="120" fontWeight="bold" fill="#E8B44D" textAnchor="middle">B</text>
-          </svg>
-          <h1 className="text-2xl font-bold text-[#E8B44D]">Burrow</h1>
+          {/* Logo */}
+          <div className="w-10 h-10 rounded-lg bg-[#2F5F7F] flex items-center justify-center">
+            <span className="text-[#E8B44D] font-bold text-xl font-serif">B</span>
+          </div>
+          <h1 className="text-2xl font-semibold text-white">Burrow</h1>
         </div>
         
         {/* Right side: Minimal actions */}
@@ -508,7 +515,7 @@ export default function JobsPage() {
           {/* Create button */}
           <button
             onClick={() => { setShowTimeOffForm(false); setShowNewModal(true) }}
-            className="px-4 py-2 bg-[#E8B44D] hover:bg-[#D4A03C] rounded-xl transition-colors text-black font-semibold text-sm shadow-lg"
+            className="px-4 py-2 bg-[#E8B44D] hover:bg-[#D4A03C] rounded-lg transition-colors text-black font-semibold text-sm"
             aria-label="Create new Job"
           >
             <div className="flex items-center gap-1.5">
@@ -520,7 +527,7 @@ export default function JobsPage() {
       </div>
 
       {/* Unified Filter Section */}
-      <div className="space-y-1.5 mb-3">
+      <div className="space-y-1.5 mb-3 px-4 max-w-2xl mx-auto">
         {/* Job Stats Dashboard */}
         {fldrs.length > 0 && (() => {
           const today = new Date()
@@ -544,40 +551,42 @@ export default function JobsPage() {
           const inProgressCount = visibleFldrs.filter(f => f.job_status === 'in_progress').length
           
           return (
-            <div className="bg-gradient-to-br from-[#3A6B86]/40 to-[#2F5F7F]/40 backdrop-blur-xl rounded-xl p-2.5 border border-[#E8B44D]/20">
-              <div className="grid grid-cols-3 gap-2">
+            <div className="bg-[#1a2332] rounded-2xl p-4 border border-white/5">
+              <div className="grid grid-cols-3 gap-3">
                 {/* Upcoming This Week */}
                 <div className="text-center">
-                  <div className="text-xl font-bold text-[#E8B44D]">{upcomingThisWeek}</div>
-                  <div className="text-[10px] text-white/60 mt-0.5">This Week</div>
+                  <div className="text-2xl font-bold text-white">{upcomingThisWeek}</div>
+                  <div className="text-xs text-white/50 mt-1">This Week</div>
                 </div>
                 
                 {/* Total Active Jobs */}
                 <div className="text-center border-x border-white/10">
-                  <div className="text-xl font-bold text-white">{totalJobs}</div>
-                  <div className="text-[10px] text-white/60 mt-0.5">Total Jobs</div>
+                  <div className="text-2xl font-bold text-white">{totalJobs}</div>
+                  <div className="text-xs text-white/50 mt-1">Total Jobs</div>
                 </div>
                 
                 {/* Pending Confirmation */}
                 <div className="text-center">
-                  <div className="text-xl font-bold text-white/90">{pendingCount}</div>
-                  <div className="text-[10px] text-white/60 mt-0.5">Pending</div>
+                  <div className="text-2xl font-bold text-white">{pendingCount}</div>
+                  <div className="text-xs text-white/50 mt-1">Pending</div>
                 </div>
               </div>
               
               {/* Secondary row for other statuses */}
               {(confirmedCount > 0 || inProgressCount > 0) && (
-                <div className="flex gap-3 justify-center mt-2 pt-2 border-t border-white/10">
+                <div className="flex gap-4 justify-center mt-3 pt-3 border-t border-white/10">
                   {confirmedCount > 0 && (
-                    <div className="text-center">
-                      <span className="text-xs font-semibold text-emerald-400">{confirmedCount}</span>
-                      <span className="text-[10px] text-white/50 ml-1">Confirmed</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span className="text-sm font-medium text-white">{confirmedCount}</span>
+                      <span className="text-xs text-white/50">Confirmed</span>
                     </div>
                   )}
                   {inProgressCount > 0 && (
-                    <div className="text-center">
-                      <span className="text-xs font-semibold text-blue-400">{inProgressCount}</span>
-                      <span className="text-[10px] text-white/50 ml-1">In Progress</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-sm font-medium text-white">{inProgressCount}</span>
+                      <span className="text-xs text-white/50">In Progress</span>
                     </div>
                   )}
                 </div>
@@ -587,24 +596,24 @@ export default function JobsPage() {
         })()}
         
         {/* Combined filters */}
-        <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.3)] rounded-xl p-2 space-y-1.5">
-          <div className="flex gap-1">
+        <div className="bg-[#1a2332] rounded-2xl p-2 border border-white/5 space-y-2">
+          <div className="flex gap-2">
             <button
               onClick={() => setViewMode('team')}
-              className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 viewMode === 'team'
-                  ? 'bg-[#3A6B86] text-[#E8B44D]'
-                  : 'text-white/50'
+                  ? 'bg-[#2a7b9b] text-white'
+                  : 'text-white/50 hover:text-white/70'
               }`}
             >
               All ({fldrs.filter(f => !f.archived && f.job_status !== 'complete').length})
             </button>
             <button
               onClick={() => setViewMode('my')}
-              className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 viewMode === 'my'
-                  ? 'bg-[#3A6B86] text-[#E8B44D]'
-                  : 'text-white/50'
+                  ? 'bg-[#2a7b9b] text-white'
+                  : 'text-white/50 hover:text-white/70'
               }`}
             >
               My Jobs
@@ -614,9 +623,9 @@ export default function JobsPage() {
           {/* Archived toggle - compact */}
           <button
             onClick={() => setShowArchived(!showArchived)}
-            className="w-full px-2.5 py-1 rounded-lg text-[10px] text-white/50 hover:text-white/70 transition-all flex items-center justify-center gap-1.5 border border-white/10 hover:border-white/20"
+            className="w-full px-3 py-1.5 rounded-lg text-xs text-white/50 hover:text-white/70 transition-all flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
             Completed Archive ({fldrs.filter(f => f.archived || f.job_status === 'complete').length})
@@ -625,47 +634,47 @@ export default function JobsPage() {
       </div>
 
       {userFilteredFldrs.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-400 mb-4">
+        <div className="text-center py-16 px-4 max-w-2xl mx-auto">
+          <p className="text-white/40 mb-6 text-lg">
             {filter === 'all' ? 'No jobs yet' : 'No current jobs'}
           </p>
           {filter === 'all' && viewMode === 'team' && (
             <button
               onClick={() => router.push('/jobs/create')}
-              className="px-6 py-2 bg-[#E8B44D] hover:bg-[#D4A03C] text-black rounded-lg transition-colors font-semibold"
+              className="px-6 py-3 bg-[#2a7b9b] hover:bg-[#3a8bab] text-white rounded-lg transition-colors font-medium"
             >
               Create Your First Job
             </button>
           )}
           {viewMode === 'my' && (
-            <p className="text-gray-500 text-sm mt-2">
-              No jobs assigned to you yet. Switch to Team view to see all jobs.
+            <p className="text-white/30 text-sm mt-2">
+              No jobs assigned to you yet. Switch to All view to see team jobs.
             </p>
           )}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 px-4 max-w-2xl mx-auto">
           {userFilteredFldrs.map((fldr) => {
             const isCurrent = isCurrentEvent(fldr)
             return (
               <div key={fldr.id} className="relative">
                 <button
                   onClick={() => router.push(`/jobs/${fldr.id}`)}
-                  className={`w-full rounded-2xl text-left transition-all bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] backdrop-blur-xl ${
+                  className={`w-full rounded-2xl text-left transition-all bg-[#1a2332] border ${
                     isCurrent 
-                      ? 'shadow-[0_8px_30px_rgba(232,180,77,0.3)] ring-2 ring-[#E8B44D]/30' 
-                      : 'shadow-[0_2px_10px_rgba(0,0,0,0.3)] hover:shadow-[0_4px_20px_rgba(232,180,77,0.2)]'
+                      ? 'border-[#2a7b9b] shadow-lg shadow-[#2a7b9b]/20' 
+                      : 'border-white/5 hover:border-white/10 hover:bg-[#1e2938]'
                   }`}
                 >
-                  <div className="p-4">
+                  <div className="p-5">
                     {/* Top Row: Location & Days Until */}
-                    <div className="flex items-start justify-between mb-1">
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="font-bold text-[22px] text-[#E8B44D] tracking-tight leading-tight">{fldr.location || fldr.title}</h3>
-                        <div className="text-[15px] text-white/90 font-medium mt-0.5">
+                        <h3 className="font-semibold text-xl text-white leading-tight">{fldr.location || fldr.title}</h3>
+                        <div className="text-sm text-white/60 font-normal mt-1">
                           {fldr.title}
                           {fldr.job_info?.distributor_name && (
-                            <span className="text-white/50 ml-1.5">· {fldr.job_info.distributor_name}</span>
+                            <span className="text-white/40 ml-1.5">· {fldr.job_info.distributor_name}</span>
                           )}
                         </div>
                       </div>
@@ -676,11 +685,11 @@ export default function JobsPage() {
                         const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
                         
                         if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob >= 0)) {
-                          const borderColor = soonest <= 2 ? 'ring-2 ring-red-400' : soonest <= 7 ? 'ring-2 ring-[#E8B44D]' : 'ring-2 ring-emerald-400'
+                          const badgeColor = soonest <= 2 ? 'bg-red-500/20 text-red-400 border-red-500/30' : soonest <= 7 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                           return (
-                            <div className={`px-3 py-1.5 rounded-xl bg-black/30 ${borderColor} flex items-baseline gap-1`}>
-                              <div className="text-[16px] font-light text-[#E8B44D] tracking-tighter leading-none">{soonest}</div>
-                              <div className="text-[8px] text-white/70 uppercase tracking-wide">{soonest === 1 ? 'day' : 'days'}</div>
+                            <div className={`px-3 py-2 rounded-lg border ${badgeColor} flex items-baseline gap-1`}>
+                              <div className="text-lg font-bold leading-none">{soonest}</div>
+                              <div className="text-xs uppercase tracking-wide opacity-80">{soonest === 1 ? 'day' : 'days'}</div>
                             </div>
                           )
                         }
@@ -689,8 +698,8 @@ export default function JobsPage() {
                     </div>
 
                     {/* Middle Row: Dates & Weather */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-[15px] text-white/70 leading-snug flex-1">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-sm text-white/50 leading-snug flex-1">
                         {(() => {
                           const flights = fldr.flight_info || []
                           
@@ -722,43 +731,36 @@ export default function JobsPage() {
                     </div>
 
                     {/* Bottom Row: Team/Type & Status/Attending */}
-                    <div className="flex items-center justify-between text-[15px] text-white/70">
-                      <div className="flex items-center gap-2">
-                        <span>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-white/70 truncate">
                           {fldr.people && fldr.people.length > 0 
                             ? fldr.people.map(p => p.name).join(', ')
                             : ''}
                         </span>
                         {fldr.job_info?.job_type && (
-                          <span className="text-white/40 text-xs">
+                          <span className="text-white/40 text-xs flex-shrink-0">
                             {fldr.people && fldr.people.length > 0 ? '·' : ''} {fldr.job_info.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info.job_type === 'personalization' ? 'Personalization' : fldr.job_info.job_type === 'names_monograms' ? 'Personalization' : ''}
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {/* Job Status Badge */}
                         {fldr.job_status && (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide ${
-                            fldr.job_status === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                            fldr.job_status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                            fldr.job_status === 'in_progress' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                            fldr.job_status === 'complete' ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30' :
-                            'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium uppercase tracking-wide ${
+                            fldr.job_status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                            fldr.job_status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-300' :
+                            fldr.job_status === 'in_progress' ? 'bg-blue-500/20 text-blue-300' :
+                            fldr.job_status === 'complete' ? 'bg-gray-500/20 text-gray-300' :
+                            'bg-gray-500/20 text-gray-300'
                           }`}>
                             {fldr.job_status.replace('_', ' ')}
                           </span>
                         )}
-                        <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-medium uppercase tracking-wide">
-                            {fldr.status}
-                          </span>
-                          {/* Show airplane if current user is on this job, home if not */}
-                          {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) ? (
-                            <AirplaneIcon className="w-5 h-5 text-[#E8B44D]" />
-                          ) : (
-                            <HomeIcon className="w-5 h-5 text-gray-500" />
-                          )}
-                        </div>
+                        {/* Show airplane if current user is on this job */}
+                        {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) && (
+                          <AirplaneIcon className="w-4 h-4 text-[#2a7b9b]" />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -773,55 +775,55 @@ export default function JobsPage() {
     {/* ── New Entry Modal ── */}
     {showNewModal && (
       <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
         onClick={() => { setShowNewModal(false); setShowTimeOffForm(false) }}
       >
         <div
-          className="w-full max-w-lg bg-[#1f1f1f] border border-white/10 rounded-t-2xl p-5 pb-8 shadow-2xl"
+          className="w-full max-w-lg bg-[#1a2332] border border-white/10 rounded-t-3xl p-6 pb-8 shadow-2xl"
           onClick={e => e.stopPropagation()}
         >
           {!showTimeOffForm ? (
             <>
-              <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-5" />
-              <p className="text-xs text-white/40 text-center uppercase tracking-widest mb-4">What are you creating?</p>
+              <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6" />
+              <p className="text-xs text-white/40 text-center uppercase tracking-widest mb-5">What are you creating?</p>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => router.push('/jobs/create')}
-                  className="flex flex-col items-center gap-3 p-5 bg-[#3A6B86]/40 border border-[#3A6B86]/60 rounded-xl hover:bg-[#3A6B86]/60 transition-colors"
+                  className="flex flex-col items-center gap-3 p-6 bg-[#0f1419] border border-white/10 rounded-2xl hover:bg-[#1e2938] hover:border-[#2a7b9b]/50 transition-all"
                 >
-                  <BriefcaseIcon className="w-8 h-8 text-[#E8B44D]" />
+                  <BriefcaseIcon className="w-8 h-8 text-[#2a7b9b]" />
                   <span className="font-semibold text-white">New Job</span>
-                  <span className="text-xs text-white/40 text-center">Full job with flights, venues & details</span>
+                  <span className="text-xs text-white/40 text-center leading-relaxed">Full job with flights, venues & details</span>
                 </button>
                 <button
                   onClick={() => setShowTimeOffForm(true)}
-                  className="flex flex-col items-center gap-3 p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl hover:bg-emerald-500/20 transition-colors"
+                  className="flex flex-col items-center gap-3 p-6 bg-[#0f1419] border border-white/10 rounded-2xl hover:bg-[#1e2938] hover:border-emerald-500/50 transition-all"
                 >
                   <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <span className="font-semibold text-white">Time Off</span>
-                  <span className="text-xs text-white/40 text-center">Calendar-only — won't appear in jobs list</span>
+                  <span className="text-xs text-white/40 text-center leading-relaxed">Calendar-only — won't appear in jobs list</span>
                 </button>
               </div>
             </>
           ) : (
             <>
-              <div className="flex items-center gap-3 mb-5">
-                <button onClick={() => setShowTimeOffForm(false)} className="text-white/40 hover:text-white/80">
+              <div className="flex items-center gap-3 mb-6">
+                <button onClick={() => setShowTimeOffForm(false)} className="text-white/40 hover:text-white/80 transition-colors">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
-                <h2 className="font-semibold text-white">Time Off</h2>
+                <h2 className="font-semibold text-white text-lg">Time Off</h2>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Person</label>
+                  <label className="block text-xs text-white/50 mb-2 font-medium">Person</label>
                   <select
                     value={timeOffPerson}
                     onChange={e => setTimeOffPerson(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                    className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
                   >
                     {teamProfiles.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
@@ -830,39 +832,39 @@ export default function JobsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Start Date <span className="text-red-400">*</span></label>
+                    <label className="block text-xs text-white/50 mb-2 font-medium">Start Date <span className="text-red-400">*</span></label>
                     <input
                       type="date"
                       value={timeOffStart}
                       onChange={e => setTimeOffStart(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                      className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">End Date</label>
+                    <label className="block text-xs text-white/50 mb-2 font-medium">End Date</label>
                     <input
                       type="date"
                       value={timeOffEnd}
                       onChange={e => setTimeOffEnd(e.target.value)}
                       min={timeOffStart}
-                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                      className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Note (optional)</label>
+                  <label className="block text-xs text-white/50 mb-2 font-medium">Note (optional)</label>
                   <input
                     type="text"
                     value={timeOffNote}
                     onChange={e => setTimeOffNote(e.target.value)}
                     placeholder="Vacation, sick day..."
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8B44D] text-sm"
+                    className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white placeholder:text-white/30"
                   />
                 </div>
                 <button
                   onClick={handleCreateTimeOff}
                   disabled={!timeOffStart || timeOffSaving}
-                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl font-semibold text-white transition-colors"
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-colors"
                 >
                   {timeOffSaving ? 'Saving...' : 'Add to Calendar'}
                 </button>
