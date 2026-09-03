@@ -108,6 +108,63 @@ const AIRPORTS: Airport[] = [
   { code: 'OGG', name: 'Kahului Airport', city: 'Maui', address: '1 Kahului Airport Rd, Kahului, HI 96732' },
   { code: 'KOA', name: 'Ellison Onizuka Kona International', city: 'Kona', address: '73-200 Kupipi St, Kailua-Kona, HI 96740' },
   { code: 'LIH', name: 'Lihue Airport', city: 'Kauai', address: '3901 Mokulele Loop, Lihue, HI 96766' },
+
+  // Jamaica
+  { code: 'MBJ', name: 'Sangster International', city: 'Montego Bay', address: 'Sunset Dr, Montego Bay, Jamaica' },
+  { code: 'KIN', name: 'Norman Manley International', city: 'Kingston', address: 'Palisadoes Park, Kingston, Jamaica' },
+  { code: 'OCJ', name: 'Ian Fleming International', city: 'Ocho Rios', address: 'Boscobel, Jamaica' },
+
+  // Caribbean
+  { code: 'NAS', name: 'Lynden Pindling International', city: 'Nassau', address: 'Nassau, Bahamas' },
+  { code: 'PUJ', name: 'Punta Cana International', city: 'Punta Cana', address: 'Punta Cana, Dominican Republic' },
+  { code: 'SDQ', name: 'Las Americas International', city: 'Santo Domingo', address: 'Santo Domingo, Dominican Republic' },
+  { code: 'SJU', name: 'Luis Muñoz Marín International', city: 'San Juan', address: 'San Juan, Puerto Rico' },
+  { code: 'AUA', name: 'Queen Beatrix International', city: 'Oranjestad', address: 'Oranjestad, Aruba' },
+  { code: 'BGI', name: 'Grantley Adams International', city: 'Bridgetown', address: 'Bridgetown, Barbados' },
+  { code: 'GCM', name: 'Owen Roberts International', city: 'George Town', address: 'George Town, Cayman Islands' },
+  { code: 'STT', name: 'Cyril E. King Airport', city: 'St. Thomas', address: 'St. Thomas, US Virgin Islands' },
+
+  // Canada
+  { code: 'YYZ', name: 'Toronto Pearson International', city: 'Toronto', address: 'Toronto, ON, Canada' },
+  { code: 'YVR', name: 'Vancouver International', city: 'Vancouver', address: 'Vancouver, BC, Canada' },
+  { code: 'YUL', name: 'Montréal-Trudeau International', city: 'Montreal', address: 'Montreal, QC, Canada' },
+  { code: 'YYC', name: 'Calgary International', city: 'Calgary', address: 'Calgary, AB, Canada' },
+
+  // Mexico
+  { code: 'MEX', name: 'Mexico City International', city: 'Mexico City', address: 'Mexico City, Mexico' },
+  { code: 'CUN', name: 'Cancún International', city: 'Cancun', address: 'Cancun, Mexico' },
+  { code: 'GDL', name: 'Guadalajara International', city: 'Guadalajara', address: 'Guadalajara, Mexico' },
+  { code: 'PVR', name: 'Puerto Vallarta International', city: 'Puerto Vallarta', address: 'Puerto Vallarta, Mexico' },
+  { code: 'SJD', name: 'Los Cabos International', city: 'Los Cabos', address: 'Los Cabos, Mexico' },
+
+  // United Kingdom
+  { code: 'LHR', name: 'London Heathrow', city: 'London', address: 'Longford, Hounslow, UK' },
+  { code: 'LGW', name: 'London Gatwick', city: 'London', address: 'Horley, Gatwick, UK' },
+  { code: 'STN', name: 'London Stansted', city: 'London', address: 'Stansted Mountfitchet, UK' },
+  { code: 'MAN', name: 'Manchester Airport', city: 'Manchester', address: 'Manchester, UK' },
+
+  // Germany
+  { code: 'FRA', name: 'Frankfurt Airport', city: 'Frankfurt', address: 'Frankfurt am Main, Germany' },
+  { code: 'MUC', name: 'Munich Airport', city: 'Munich', address: 'Munich, Germany' },
+  { code: 'BER', name: 'Berlin Brandenburg', city: 'Berlin', address: 'Berlin, Germany' },
+
+  // Europe
+  { code: 'CDG', name: 'Charles de Gaulle', city: 'Paris', address: 'Paris, France' },
+  { code: 'AMS', name: 'Amsterdam Schiphol', city: 'Amsterdam', address: 'Amsterdam, Netherlands' },
+  { code: 'MAD', name: 'Adolfo Suárez Madrid-Barajas', city: 'Madrid', address: 'Madrid, Spain' },
+  { code: 'FCO', name: 'Leonardo da Vinci-Fiumicino', city: 'Rome', address: 'Rome, Italy' },
+  { code: 'ZRH', name: 'Zurich Airport', city: 'Zurich', address: 'Zurich, Switzerland' },
+  { code: 'DUB', name: 'Dublin Airport', city: 'Dublin', address: 'Dublin, Ireland' },
+
+  // Asia, Middle East, Australia
+  { code: 'NRT', name: 'Narita International', city: 'Tokyo', address: 'Tokyo, Japan' },
+  { code: 'HND', name: 'Haneda Airport', city: 'Tokyo', address: 'Tokyo, Japan' },
+  { code: 'ICN', name: 'Incheon International', city: 'Seoul', address: 'Incheon, South Korea' },
+  { code: 'HKG', name: 'Hong Kong International', city: 'Hong Kong', address: 'Hong Kong' },
+  { code: 'SIN', name: 'Singapore Changi', city: 'Singapore', address: 'Singapore' },
+  { code: 'DXB', name: 'Dubai International', city: 'Dubai', address: 'Dubai, UAE' },
+  { code: 'DOH', name: 'Hamad International', city: 'Doha', address: 'Doha, Qatar' },
+  { code: 'SYD', name: 'Sydney Kingsford Smith', city: 'Sydney', address: 'Sydney, Australia' },
 ]
 
 interface AirportAutocompleteProps {
