@@ -72,6 +72,7 @@ export default function FldrDetailPage() {
   const [touchStartY, setTouchStartY] = useState(0)
   const [useRichEditor, setUseRichEditor] = useState(false)
   const [isRoundTrip, setIsRoundTrip] = useState(false)
+  const [travelerDrafts, setTravelerDrafts] = useState<Record<string, string>>({})
   const [expandedPhotoIndex, setExpandedPhotoIndex] = useState<number | null>(null)
   const [locationTime, setLocationTime] = useState<string | null>(null)
   const [distances, setDistances] = useState<any>(null)
@@ -451,6 +452,7 @@ export default function FldrDetailPage() {
             confirmation: oldFlightInfo.confirmation || null,
             notes: oldFlightInfo.notes || null,
             segment_type: 'outbound',
+            travelers: null,
           }]
           // Save the migrated structure
           cacheFldr(cached)
@@ -1000,6 +1002,28 @@ export default function FldrDetailPage() {
     debouncedSave(updates)
   }
 
+  const addSegmentTraveler = (segmentIndex: number, name: string) => {
+    if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const segments = [...fldr.flight_info]
+    const existing = segments[segmentIndex].travelers || []
+    if (existing.some(t => t.toLowerCase() === trimmed.toLowerCase())) return
+    segments[segmentIndex] = { ...segments[segmentIndex], travelers: [...existing, trimmed] }
+    setFldr({ ...fldr, flight_info: segments })
+    debouncedSave({ flight_info: segments })
+  }
+
+  const removeSegmentTraveler = (segmentIndex: number, travelerIndex: number) => {
+    if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
+    const segments = [...fldr.flight_info]
+    const existing = segments[segmentIndex].travelers || []
+    const travelers = existing.filter((_, i) => i !== travelerIndex)
+    segments[segmentIndex] = { ...segments[segmentIndex], travelers: travelers.length > 0 ? travelers : null }
+    setFldr({ ...fldr, flight_info: segments })
+    debouncedSave({ flight_info: segments })
+  }
+
   const updateSegmentDepartureAirport = (segmentIndex: number, airport: { name: string; code: string; address: string }) => {
     if (!fldr || !fldr.flight_info || !Array.isArray(fldr.flight_info)) return
     const segments = [...fldr.flight_info]
@@ -1055,6 +1079,7 @@ export default function FldrDetailPage() {
       confirmation: null,
       notes: null,
       segment_type: currentSegments.length === 0 ? 'outbound' : 'connection',
+      travelers: null,
     }
     const segments = [...currentSegments, newSegment]
     setFldr({ ...fldr, flight_info: segments })
@@ -1091,6 +1116,7 @@ export default function FldrDetailPage() {
           confirmation: null, // User fills in return confirmation
           notes: null,
           segment_type: 'return',
+          travelers: outboundSegment.travelers,
         }
         
         const segments = [...fldr.flight_info, returnSegment]
@@ -1252,6 +1278,9 @@ export default function FldrDetailPage() {
             confirmation: flight.confirmation || null,
             notes: flight.notes || null,
             segment_type: segmentType,
+            travelers: Array.isArray(flight.passenger_names) && flight.passenger_names.length > 0
+              ? flight.passenger_names
+              : null,
           }
         })
         
@@ -1766,6 +1795,7 @@ export default function FldrDetailPage() {
               segment.departure_airport ? `From: ${segment.departure_airport}` : '',
               segment.arrival_airport ? `To: ${segment.arrival_airport}` : '',
               segment.confirmation ? `Confirmation: ${segment.confirmation}` : '',
+              segment.travelers && segment.travelers.length > 0 ? `Travelers: ${segment.travelers.join(', ')}` : '',
             ].filter(d => d)
           })
         }
@@ -1776,6 +1806,7 @@ export default function FldrDetailPage() {
             title: `Flight Arrival${segment.segment_type === 'return' ? ' (Return)' : ''}`,
             details: [
               segment.arrival_airport || '',
+              segment.travelers && segment.travelers.length > 0 ? `Travelers: ${segment.travelers.join(', ')}` : '',
             ].filter(d => d)
           })
         }
@@ -3295,6 +3326,11 @@ export default function FldrDetailPage() {
                           </span>
                         )}
                       </div>
+                      {segment.travelers && segment.travelers.length > 0 && (
+                        <div className="text-xs text-[#2a7b9b] ml-7">
+                          {segment.travelers.join(', ')}
+                        </div>
+                      )}
                       {(segment.departure_time || segment.arrival_time) && (
                         <div className="text-xs text-gray-400 ml-7 flex gap-3">
                           {segment.departure_time && (
@@ -3711,6 +3747,56 @@ export default function FldrDetailPage() {
                         >
                           Remove
                         </button>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Travelers</label>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(segment.travelers || []).map((traveler, tIdx) => (
+                          <span
+                            key={tIdx}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-[#2a7b9b]/15 text-[#2a7b9b] border border-[#2a7b9b]/30 rounded-full"
+                          >
+                            {traveler}
+                            <button
+                              type="button"
+                              onClick={() => removeSegmentTraveler(index, tIdx)}
+                              className="hover:text-red-400"
+                              title="Remove traveler"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          list="team-member-names"
+                          value={travelerDrafts[segment.id] || ''}
+                          onChange={(e) => setTravelerDrafts(prev => ({ ...prev, [segment.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault()
+                              addSegmentTraveler(index, travelerDrafts[segment.id] || '')
+                              setTravelerDrafts(prev => ({ ...prev, [segment.id]: '' }))
+                            }
+                          }}
+                          onBlur={() => {
+                            if (travelerDrafts[segment.id]?.trim()) {
+                              addSegmentTraveler(index, travelerDrafts[segment.id])
+                              setTravelerDrafts(prev => ({ ...prev, [segment.id]: '' }))
+                            }
+                          }}
+                          placeholder="Add name, press Enter"
+                          className="min-w-[140px] flex-1 px-2 py-1 bg-[#0f1419] border border-white/10 rounded-full focus:outline-none focus:ring-1 focus:ring-[#2a7b9b] text-xs"
+                        />
+                      </div>
+                      {fldr.job_info?.team_members && fldr.job_info.team_members.filter(Boolean).length > 0 && (
+                        <datalist id="team-member-names">
+                          {fldr.job_info.team_members.filter(Boolean).map((name, i) => (
+                            <option key={i} value={name} />
+                          ))}
+                        </datalist>
                       )}
                     </div>
 

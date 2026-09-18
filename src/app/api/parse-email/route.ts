@@ -42,7 +42,8 @@ Return ONLY valid JSON with these exact fields:
       "arrival_code": "3-letter IATA code",
       "arrival_time": "ISO 8601 datetime",
       "notes": "any additional relevant information",
-      "segment_type": "outbound, connection, or return"
+      "segment_type": "outbound, connection, or return",
+      "passenger_names": ["array of passenger full names traveling on this flight, if listed"]
     }
   ]
 }
@@ -55,7 +56,8 @@ CRITICAL: Extract ALL flights found in the email:
 - For times, use ISO 8601 format with the flight's local timezone
 - If year is missing or appears to be in the past, use ${currentYear}
 - Extract airport codes from the email (LAX, JFK, ORD, etc.)
-- Put passenger name, seat assignments, or other details in notes
+- If the confirmation lists one or more passenger/traveler names for a flight, extract each full name into "passenger_names" for that flight segment. If no names are listed or it's unclear who they belong to, leave "passenger_names" as an empty array — do not guess.
+- Put seat assignments or other extra details in notes
 - If only one flight is found, return an array with one object`
 
       responseFormat = {

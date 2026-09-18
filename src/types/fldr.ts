@@ -22,6 +22,7 @@ export interface FlightSegment {
   confirmation: string | null
   notes: string | null
   segment_type: 'outbound' | 'return' | 'connection' | 'other' | null
+  travelers: string[] | null
 }
 
 export interface HotelInfo {

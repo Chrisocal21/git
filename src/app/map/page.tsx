@@ -208,6 +208,7 @@ export default function MapPage() {
           confirmation: oldFlightInfo.confirmation || null,
           notes: oldFlightInfo.notes || null,
           segment_type: 'outbound',
+          travelers: null,
         }]
         fldrsData[index].flight_info = migratedSegments
         needsUpdate = true
@@ -231,6 +232,7 @@ export default function MapPage() {
           confirmation: oldFlightInfo.confirmation || null,
           notes: oldFlightInfo.notes || null,
           segment_type: 'outbound',
+          travelers: null,
         }]
         fldrsData[index].flight_info = migratedSegments
         needsUpdate = true

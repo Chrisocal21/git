@@ -27,6 +27,7 @@ function normalizeFldr(fldr: Fldr): Fldr {
       confirmation: oldFlightInfo.confirmation || null,
       notes: oldFlightInfo.notes || null,
       segment_type: 'outbound',
+      travelers: null,
     }]
   } else if (flight_info === undefined) {
     flight_info = null
