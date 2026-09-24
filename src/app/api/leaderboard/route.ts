@@ -19,7 +19,10 @@ export async function GET() {
     // We track all spelling variants seen and pick the most common one as the display name.
     const counts = new Map<string, LeaderboardEntry & { variants: Map<string, number> }>()
 
-    for (const fldr of fldrs) {
+    // Only count actual jobs — time off entries aren't work and shouldn't appear on the leaderboard
+    const jobFldrs = fldrs.filter(fldr => fldr.fldr_type !== 'time_off')
+
+    for (const fldr of jobFldrs) {
       // Collect names from both sources and deduplicate within this job
       const seenInThisJob = new Set<string>()
 
@@ -57,7 +60,7 @@ export async function GET() {
       return a.name.localeCompare(b.name)
     })
 
-    return NextResponse.json({ leaderboard, total_jobs: fldrs.length })
+    return NextResponse.json({ leaderboard, total_jobs: jobFldrs.length })
   } catch (error) {
     console.error('[leaderboard] Error:', error)
     return NextResponse.json({ error: 'Failed to load leaderboard' }, { status: 500 })

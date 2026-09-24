@@ -165,6 +165,28 @@ const AIRPORTS: Airport[] = [
   { code: 'DXB', name: 'Dubai International', city: 'Dubai', address: 'Dubai, UAE' },
   { code: 'DOH', name: 'Hamad International', city: 'Doha', address: 'Doha, Qatar' },
   { code: 'SYD', name: 'Sydney Kingsford Smith', city: 'Sydney', address: 'Sydney, Australia' },
+
+  // Smaller / Regional Airports
+  { code: 'OAJ', name: 'Albert J. Ellis Airport', city: 'Jacksonville, NC', address: '264 Jetport Rd, Richlands, NC 28574' },
+  { code: 'CRQ', name: 'McClellan-Palomar Airport', city: 'Carlsbad', address: '2198 Palomar Airport Rd, Carlsbad, CA 92011' },
+  { code: 'MYF', name: 'Montgomery-Gibbs Executive Airport', city: 'San Diego', address: '3750 John J Montgomery Dr, San Diego, CA 92123' },
+  { code: 'SDM', name: 'Brown Field Municipal Airport', city: 'San Diego', address: '1424 Continental St, San Diego, CA 92154' },
+  { code: 'SEE', name: 'Gillespie Field', city: 'El Cajon', address: '1670 Joe Crosson Dr, El Cajon, CA 92020' },
+  { code: 'PSP', name: 'Palm Springs International', city: 'Palm Springs', address: '3400 E Tahquitz Canyon Way, Palm Springs, CA 92262' },
+  { code: 'SBA', name: 'Santa Barbara Airport', city: 'Santa Barbara', address: '500 James Fowler Rd, Santa Barbara, CA 93117' },
+  { code: 'LGB', name: 'Long Beach Airport', city: 'Long Beach', address: '4100 Donald Douglas Dr, Long Beach, CA 90808' },
+  { code: 'VNY', name: 'Van Nuys Airport', city: 'Van Nuys', address: '16461 Sherman Way, Van Nuys, CA 91406' },
+  { code: 'SMO', name: 'Santa Monica Airport', city: 'Santa Monica', address: '3223 Donald Douglas Loop S, Santa Monica, CA 90405' },
+  { code: 'FUL', name: 'Fullerton Municipal Airport', city: 'Fullerton', address: '4011 W Commonwealth Ave, Fullerton, CA 92833' },
+  { code: 'CMA', name: 'Camarillo Airport', city: 'Camarillo', address: '555 Airport Way, Camarillo, CA 93010' },
+  { code: 'IYK', name: 'Inyokern Airport', city: 'Inyokern', address: '1669 Airport Rd, Inyokern, CA 93527' },
+  { code: 'EWN', name: 'Coastal Carolina Regional', city: 'New Bern', address: '200 Terminal Dr, New Bern, NC 28562' },
+  { code: 'ILM', name: 'Wilmington International', city: 'Wilmington, NC', address: '1740 Airport Blvd, Wilmington, NC 28405' },
+  { code: 'MYR', name: 'Myrtle Beach International', city: 'Myrtle Beach', address: '1100 Jetport Rd, Myrtle Beach, SC 29577' },
+  { code: 'FAY', name: 'Fayetteville Regional', city: 'Fayetteville, NC', address: '400 Airport Rd, Fayetteville, NC 28306' },
+  { code: 'AVL', name: 'Asheville Regional', city: 'Asheville', address: '61 Terminal Dr, Fletcher, NC 28732' },
+  { code: 'GSP', name: 'Greenville-Spartanburg International', city: 'Greer', address: '2000 GSP Dr, Greer, SC 29651' },
+  { code: 'CAE', name: 'Columbia Metropolitan', city: 'Columbia, SC', address: '3250 Airport Blvd, West Columbia, SC 29170' },
 ]
 
 interface AirportAutocompleteProps {
