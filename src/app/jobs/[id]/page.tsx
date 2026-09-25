@@ -8,6 +8,7 @@ import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
 import AirportAutocomplete from '@/components/AirportAutocomplete'
+import FlightConnections from '@/components/FlightConnections'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import RichTextEditor from '@/components/RichTextEditor'
 import { 
@@ -3690,6 +3691,10 @@ export default function FldrDetailPage() {
                     </button>
                   </div>
                 </div>
+
+                {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
+                  <FlightConnections segments={fldr.flight_info} />
+                )}
 
                 {/* Round Trip Toggle */}
                 {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
