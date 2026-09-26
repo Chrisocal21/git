@@ -38,9 +38,11 @@ function fmtTime(t: string | null) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-function analyze(segments: FlightSegment[]) {
-  // Sort by departure time; segments with no time keep their original order at the end
-  const sorted = segments
+// Order segments by following the route (each flight departs where the last one
+// landed), using time only as a tiebreaker. Sorting by time alone breaks when a
+// date is wrong (e.g. a return in January stamped with the current year).
+function orderSegments(segments: FlightSegment[]): FlightSegment[] {
+  const byTime = segments
     .map((s, i) => ({ s, i }))
     .sort((a, b) => {
       const ta = ms(a.s.departure_time)
@@ -51,6 +53,34 @@ function analyze(segments: FlightSegment[]) {
       return ta - tb
     })
     .map(x => x.s)
+
+  const remaining = [...byTime]
+  const result: FlightSegment[] = []
+
+  while (remaining.length > 0) {
+    // Start of a chain: prefer a segment whose origin nothing else lands at.
+    // In a closed round trip every origin is also a destination, so fall back
+    // to an "outbound" segment, then the earliest one.
+    const landsAt = (c: string) => remaining.some(r => code(r.arrival_code) === c)
+    const starts = remaining.filter(s => !code(s.departure_code) || !landsAt(code(s.departure_code)))
+    const start =
+      starts[0] ||
+      remaining.find(s => s.segment_type === 'outbound') ||
+      remaining[0]
+
+    let cur: FlightSegment | undefined = start
+    while (cur) {
+      remaining.splice(remaining.indexOf(cur), 1)
+      result.push(cur)
+      const at = code(cur.arrival_code)
+      cur = at ? remaining.find(s => code(s.departure_code) === at) : undefined
+    }
+  }
+  return result
+}
+
+function analyze(segments: FlightSegment[]) {
+  const sorted = orderSegments(segments)
 
   const links: Link[] = []
   for (let i = 0; i < sorted.length - 1; i++) {
