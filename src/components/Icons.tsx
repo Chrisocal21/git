@@ -17,6 +17,38 @@ export function FolderIcon({ className }: { className?: string }) {
   )
 }
 
+export function CalendarIcon({ className, day }: { className?: string; day?: number | string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M8 7V3m8 4V3M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+      />
+      {day !== undefined && (
+        <text
+          x="12"
+          y="18"
+          textAnchor="middle"
+          fontSize="8"
+          fontWeight="700"
+          stroke="none"
+          fill="currentColor"
+        >
+          {day}
+        </text>
+      )}
+    </svg>
+  )
+}
+
 export function PencilIcon({ className }: { className?: string }) {
   return (
     <svg

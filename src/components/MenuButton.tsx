@@ -340,6 +340,32 @@ export default function MenuButton() {
 
             <button
               onClick={() => {
+                router.push('/weather')
+                setIsOpen(false)
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 001-9.9V9a5 5 0 00-9.9-1A4.002 4.002 0 003 12a4 4 0 000 3z" />
+              </svg>
+              Weather
+            </button>
+
+            <button
+              onClick={() => {
+                router.push('/prompt-creator')
+                setIsOpen(false)
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              Prompt Creator
+            </button>
+
+            <button
+              onClick={() => {
                 router.push('/map')
                 setIsOpen(false)
               }}

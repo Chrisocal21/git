@@ -7,10 +7,26 @@ import { getTeamProfiles } from '@/lib/auth'
 import { AirplaneIcon, BriefcaseIcon } from '@/components/Icons'
 
 // Per-profile color palette (index matches TEAM_PROFILES order)
-const DOT_COLORS   = ['bg-blue-500',    'bg-emerald-500', 'bg-purple-500',  'bg-orange-500']
-const CHIP_BG      = ['bg-blue-500/20', 'bg-emerald-500/20', 'bg-purple-500/20', 'bg-orange-500/20']
-const CHIP_TEXT    = ['text-blue-300',  'text-emerald-300',  'text-purple-300',  'text-orange-300']
-const LEGEND_TEXT  = ['text-blue-400',  'text-emerald-400',  'text-purple-400',  'text-orange-400']
+const DOT_COLORS = [
+  'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-orange-500',
+  'bg-pink-500', 'bg-yellow-500', 'bg-cyan-500', 'bg-red-500',
+  'bg-lime-500', 'bg-indigo-500', 'bg-teal-500', 'bg-fuchsia-500',
+]
+const CHIP_BG = [
+  'bg-blue-500/20', 'bg-emerald-500/20', 'bg-purple-500/20', 'bg-orange-500/20',
+  'bg-pink-500/20', 'bg-yellow-500/20', 'bg-cyan-500/20', 'bg-red-500/20',
+  'bg-lime-500/20', 'bg-indigo-500/20', 'bg-teal-500/20', 'bg-fuchsia-500/20',
+]
+const CHIP_TEXT = [
+  'text-blue-300', 'text-emerald-300', 'text-purple-300', 'text-orange-300',
+  'text-pink-300', 'text-yellow-300', 'text-cyan-300', 'text-red-300',
+  'text-lime-300', 'text-indigo-300', 'text-teal-300', 'text-fuchsia-300',
+]
+const LEGEND_TEXT = [
+  'text-blue-400', 'text-emerald-400', 'text-purple-400', 'text-orange-400',
+  'text-pink-400', 'text-yellow-400', 'text-cyan-400', 'text-red-400',
+  'text-lime-400', 'text-indigo-400', 'text-teal-400', 'text-fuchsia-400',
+]
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -87,6 +103,7 @@ export default function CalendarPage() {
     return { year: n.getFullYear(), month: n.getMonth() }
   })
   const [expandedPeople, setExpandedPeople] = useState<Set<string>>(new Set())
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/fldrs')
@@ -276,20 +293,25 @@ export default function CalendarPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-3 pt-4">
-        {/* ── Legend ── */}
+        {/* ── Legend — only people with something on the calendar this month ── */}
         <div className="flex flex-wrap gap-3 mb-4 px-1">
-          {teamProfiles.map((profile, i) => (
-            <div key={profile.id} className="flex items-center gap-1.5">
-              <div className={`w-2.5 h-2.5 rounded-full ${DOT_COLORS[i % DOT_COLORS.length]}`} />
-              <span className={`text-xs font-medium ${LEGEND_TEXT[i % LEGEND_TEXT.length]}`}>
-                {profile.name}
-              </span>
+          {monthAbsences.map(({ profileId, name }) => {
+            const idx = profileIndex(profileId)
+            return (
+              <div key={profileId} className="flex items-center gap-1.5">
+                <div className={`w-2.5 h-2.5 rounded-full ${DOT_COLORS[idx % DOT_COLORS.length]}`} />
+                <span className={`text-xs font-medium ${LEGEND_TEXT[idx % LEGEND_TEXT.length]}`}>
+                  {name}
+                </span>
+              </div>
+            )
+          })}
+          {monthAbsences.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-white/15" />
+              <span className="text-xs text-white/30">Past</span>
             </div>
-          ))}
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-white/15" />
-            <span className="text-xs text-white/30">Past</span>
-          </div>
+          )}
         </div>
 
         {/* ── DOW headers ── */}
@@ -323,9 +345,11 @@ export default function CalendarPage() {
               const uniqueIds   = Array.from(new Set(absences.map(a => a.profileId)))
 
               return (
-                <div
+                <button
                   key={day.dateKey}
-                  className={`bg-[#1f1f1f] p-1 md:p-1.5 min-h-[72px] md:min-h-[96px] flex flex-col ${
+                  type="button"
+                  onClick={() => setSelectedDateKey(day.dateKey)}
+                  className={`text-left bg-[#1f1f1f] hover:bg-[#262626] transition-colors p-1 md:p-1.5 min-h-[72px] md:min-h-[96px] flex flex-col ${
                     isToday ? 'ring-1 ring-inset ring-[#E8B44D]/60' : ''
                   }`}
                 >
@@ -416,7 +440,7 @@ export default function CalendarPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </button>
               )
             })}
           </div>
@@ -457,8 +481,8 @@ export default function CalendarPage() {
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div
-                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                            allPast ? 'bg-white/20' : DOT_COLORS[idx % DOT_COLORS.length]
+                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${DOT_COLORS[idx % DOT_COLORS.length]} ${
+                            allPast ? 'opacity-40' : ''
                           }`}
                         />
                         <span className={`text-sm font-semibold truncate ${
@@ -553,6 +577,113 @@ export default function CalendarPage() {
           </p>
         )}
       </div>
+
+      {/* ── Day detail modal ── */}
+      {selectedDateKey && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-0 md:p-4"
+          onClick={() => setSelectedDateKey(null)}
+        >
+          <div
+            className="bg-[#1f1f1f] border border-[#2a2a2a] rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-[#1f1f1f] border-b border-[#2a2a2a] px-4 py-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">
+                {parseDate(selectedDateKey)?.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </h3>
+              <button
+                onClick={() => setSelectedDateKey(null)}
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/50 hover:text-white"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-3 space-y-2">
+              {(() => {
+                const absences = absenceMap.get(selectedDateKey) || []
+                if (absences.length === 0) {
+                  return (
+                    <p className="text-center text-white/20 text-sm py-6">
+                      Nothing scheduled
+                    </p>
+                  )
+                }
+
+                // Group by job so each job/time-off shows once with all its people
+                const byJob = new Map<string, { jobId: string; jobTitle: string; dayType: Absence['dayType']; isPast: boolean; people: string[] }>()
+                absences.forEach(a => {
+                  const key = `${a.jobId}-${a.dayType}`
+                  if (!byJob.has(key)) {
+                    byJob.set(key, { jobId: a.jobId, jobTitle: a.jobTitle, dayType: a.dayType, isPast: a.isPast, people: [] })
+                  }
+                  byJob.get(key)!.people.push(a.personName)
+                })
+
+                return Array.from(byJob.values()).map((job, idx) => {
+                  const Icon = job.dayType === 'off'
+                    ? (props: any) => (
+                        <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )
+                    : job.dayType === 'travel'
+                    ? AirplaneIcon
+                    : BriefcaseIcon
+
+                  const fldr = fldrs.find(f => f.id === job.jobId)
+                  const location = fldr?.location || fldr?.venue_info?.name || fldr?.venue_info?.address || null
+                  const isClickable = job.dayType !== 'off'
+
+                  return (
+                    <button
+                      key={`${job.jobId}-${job.dayType}-${idx}`}
+                      type="button"
+                      disabled={!isClickable}
+                      onClick={() => {
+                        if (!isClickable) return
+                        setSelectedDateKey(null)
+                        router.push(`/jobs/${job.jobId}`)
+                      }}
+                      className={`w-full text-left flex items-start gap-3 p-3 rounded-lg border border-[#2a2a2a] transition-colors ${
+                        isClickable ? 'hover:bg-white/5 active:bg-white/10 cursor-pointer' : 'cursor-default'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                        job.dayType === 'travel' ? 'text-sky-400' : job.dayType === 'off' ? 'text-purple-300' : 'text-white/60'
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white/90">
+                          {job.dayType === 'off' ? 'Time Off' : job.jobTitle}
+                        </div>
+                        {location && job.dayType !== 'off' && (
+                          <div className="text-xs text-white/40 mt-0.5">📍 {location}</div>
+                        )}
+                        <div className="text-xs text-white/40 mt-1">
+                          {job.people.join(', ')}
+                        </div>
+                      </div>
+                      {isClickable && (
+                        <svg className="w-4 h-4 text-white/20 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      )}
+                    </button>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

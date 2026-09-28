@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, ReferenceLink, Person, Photo, Product, ChecklistItem, JobStatus } from '@/types/fldr'
 import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
+import { WeatherSVG } from '@/components/WeatherIcon'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
 import AirportAutocomplete from '@/components/AirportAutocomplete'
@@ -48,6 +49,7 @@ export default function FldrDetailPage() {
     venue: false,
     rentalCar: false,
     map: false, // Closed by default
+    weather: false,
     preTrip: false,
     itinerary: false,
     jobInfo: false,
@@ -76,6 +78,13 @@ export default function FldrDetailPage() {
   const [travelerDrafts, setTravelerDrafts] = useState<Record<string, string>>({})
   const [expandedPhotoIndex, setExpandedPhotoIndex] = useState<number | null>(null)
   const [locationTime, setLocationTime] = useState<string | null>(null)
+  const [jobWeather, setJobWeather] = useState<{
+    cityLabel: string | null
+    current: { temp: number; feels_like: number; description: string; main: string; humidity: number; wind_speed: number } | null
+    daily: Array<{ date: string; high: number; low: number; main: string; description: string; pop: number }>
+    loading: boolean
+    error: boolean
+  }>({ cityLabel: null, current: null, daily: [], loading: false, error: false })
   const [distances, setDistances] = useState<any>(null)
   const [distancesLoading, setDistancesLoading] = useState(false)
   const [nearbyPlaces, setNearbyPlaces] = useState<any>(null)
@@ -607,6 +616,44 @@ export default function FldrDetailPage() {
 
     fetchDistances()
   }, [fldr?.hotel_info?.address, fldr?.venue_info?.address, fldr?.flight_info])
+
+  // Fetch weather for the job's destination.
+  // City-level names (e.g. "Palm Beach Gardens, FL") geocode far more reliably
+  // than full street addresses, so try `location` first and fall back to the
+  // venue's street address only if that lookup fails.
+  useEffect(() => {
+    const candidates = [fldr?.location, fldr?.venue_info?.address].filter(Boolean) as string[]
+    if (candidates.length === 0) {
+      setJobWeather({ cityLabel: null, current: null, daily: [], loading: false, error: false })
+      return
+    }
+
+    let cancelled = false
+    setJobWeather(prev => ({ ...prev, loading: true, error: false }))
+
+    const tryFetch = async () => {
+      for (const location of candidates) {
+        try {
+          const res = await fetch(`/api/weather?location=${encodeURIComponent(location)}`)
+          const d = res.ok ? await res.json() : null
+          if (d?.current) {
+            if (cancelled) return
+            const cityLabel = d.location?.name
+              ? `${d.location.name}${d.location.state ? ', ' + d.location.state : d.location.country ? ', ' + d.location.country : ''}`
+              : null
+            setJobWeather({ cityLabel, current: d.current, daily: d.daily ?? [], loading: false, error: false })
+            return
+          }
+        } catch {}
+      }
+      if (!cancelled) {
+        setJobWeather({ cityLabel: null, current: null, daily: [], loading: false, error: true })
+      }
+    }
+
+    tryFetch()
+    return () => { cancelled = true }
+  }, [fldr?.location, fldr?.venue_info?.address])
 
   // Fetch nearby places for selected location
   useEffect(() => {
@@ -3457,6 +3504,90 @@ export default function FldrDetailPage() {
       </div>
 
       <div className="space-y-3 px-4 max-w-2xl mx-auto">
+        {/* Weather Card - Only show if the job has a location */}
+        {(fldr.location || fldr.venue_info?.address) && (
+          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
+            <button
+              onClick={() => toggleCard('weather')}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+            >
+              <div className="text-left">
+                <span className="font-semibold block">Weather</span>
+                {jobWeather.cityLabel && (
+                  <span className="text-xs text-gray-400">{jobWeather.cityLabel}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {!jobWeather.loading && jobWeather.current && (
+                  <div className="flex items-center gap-1.5">
+                    <WeatherSVG condition={jobWeather.current.main} size="xs" />
+                    <span className="text-sm text-white/70">{Math.round(jobWeather.current.temp)}°</span>
+                  </div>
+                )}
+                <ChevronDownIcon
+                  className={`w-5 h-5 transition-transform ${
+                    expandedCards.weather ? 'rotate-180' : ''
+                  }`}
+                />
+              </div>
+            </button>
+            {expandedCards.weather && (
+              <div className="px-4 pb-4">
+                {jobWeather.loading && (
+                  <div className="py-6 text-center text-sm text-gray-400">Loading weather…</div>
+                )}
+
+                {!jobWeather.loading && jobWeather.error && (
+                  <div className="py-6 text-center text-sm text-gray-500">Weather unavailable</div>
+                )}
+
+                {!jobWeather.loading && !jobWeather.error && jobWeather.current && (
+                  <>
+                    {jobWeather.cityLabel && (
+                      <div className="text-xs text-[#2a7b9b] font-semibold uppercase tracking-wide mb-2">
+                        {jobWeather.cityLabel}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                      <div className="flex items-center gap-3">
+                        <WeatherSVG condition={jobWeather.current.main} size="lg" />
+                        <div>
+                          <div className="text-2xl font-thin text-white leading-none">
+                            {Math.round(jobWeather.current.temp)}°
+                          </div>
+                          <div className="text-xs text-gray-400 capitalize mt-1">
+                            {jobWeather.current.description}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-gray-400 space-y-0.5">
+                        <div>Feels {Math.round(jobWeather.current.feels_like)}°</div>
+                        <div>{jobWeather.current.humidity}% humidity</div>
+                        <div>{jobWeather.current.wind_speed} mph wind</div>
+                      </div>
+                    </div>
+
+                    {jobWeather.daily.length > 0 && (
+                      <div className="grid grid-cols-5 gap-1 pt-3">
+                        {jobWeather.daily.map(day => (
+                          <div key={day.date} className="flex flex-col items-center gap-1">
+                            <div className="text-[10px] text-gray-500">
+                              {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
+                            </div>
+                            <WeatherSVG condition={day.main} size="xs" />
+                            <div className="text-xs font-semibold text-white">{day.high}°</div>
+                            <div className="text-[10px] text-gray-500">{day.low}°</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Pre-trip Info Card - Only show if job_info enabled */}
         {fldr.job_info !== null && (
           <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
