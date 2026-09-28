@@ -15,7 +15,10 @@ export default function MenuButton() {
   const [time, setTime] = useState<string>('')
   const [homeWeather, setHomeWeather] = useState<{ temp: number; condition: string } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  
+  const [profilePickerOpen, setProfilePickerOpen] = useState(false)
+  const [showInactive, setShowInactive] = useState(false)
+  const profilePickerRef = useRef<HTMLDivElement>(null)
+
   // Quick Notes state
   const [notesOpen, setNotesOpen] = useState(false)
   const [notes, setNotes] = useState<QuickNote[]>([])
@@ -27,7 +30,6 @@ export default function MenuButton() {
   const [editValue, setEditValue] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [confirmDeleteLabel, setConfirmDeleteLabel] = useState<string>('')
-  const [showInactive, setShowInactive] = useState(false)
 
   useEffect(() => {
     try {
@@ -146,8 +148,24 @@ export default function MenuButton() {
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
+    } else {
+      setProfilePickerOpen(false)
     }
   }, [isOpen])
+
+  // Close profile picker when clicking outside it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profilePickerRef.current && !profilePickerRef.current.contains(event.target as Node)) {
+        setProfilePickerOpen(false)
+      }
+    }
+
+    if (profilePickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [profilePickerOpen])
   
   const isDevelopment = process.env.NODE_ENV === 'development'
   
@@ -188,124 +206,108 @@ export default function MenuButton() {
             </div>
           </div>
           
-          {/* Profile selector — always visible */}
+          {/* Profile selector — custom dropdown */}
           <div className="p-3 border-b border-white/10">
             <div className="text-xs text-white/50 mb-2">Profile</div>
-            <div className="space-y-1">
-              {/* All / Guest option */}
+            <div className="relative" ref={profilePickerRef}>
               <button
-                onClick={() => { clearProfile(); setIsOpen(false) }}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                  !user
-                    ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
-                    : 'hover:bg-white/5'
-                }`}
+                onClick={() => setProfilePickerOpen(o => !o)}
+                className="w-full flex items-center gap-2.5 pl-2.5 pr-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  !user ? 'bg-[#E8B44D] text-black' : 'bg-white/10 text-white/70'
-                }`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1 text-left">
-                  <div className={`text-sm font-medium ${!user ? 'text-[#E8B44D]' : 'text-white'}`}>All</div>
-                </div>
-                {!user && (
-                  <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-
-              {/* Active Team profiles */}
-              {teamProfiles.filter(p => p.active !== false).map(profile => (
-                <button
-                  key={profile.id}
-                  onClick={() => {
-                    if (user?.id === profile.id) {
-                      clearProfile()
-                    } else {
-                      setCurrentProfile(profile.id)
-                    }
-                    setIsOpen(false)
-                  }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                    user?.id === profile.id
-                      ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
-                      : 'hover:bg-white/5'
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                    user?.id === profile.id ? 'bg-[#E8B44D] text-black' : 'bg-white/10 text-white/70'
-                  }`}>
-                    {profile.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 text-left">
-                    <div className={`text-sm font-medium ${
-                      user?.id === profile.id ? 'text-[#E8B44D]' : 'text-white'
-                    }`}>
-                      {profile.name}
-                    </div>
-                  </div>
-                  {user?.id === profile.id && (
-                    <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-[#E8B44D] text-black flex-shrink-0">
+                  {user ? user.name.charAt(0) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   )}
-                </button>
-              ))}
-              
-              {/* Inactive profiles toggle */}
-              {teamProfiles.filter(p => p.active === false).length > 0 && (
-                <>
+                </div>
+                <span className="flex-1 text-left text-sm font-medium text-white">
+                  {user ? user.name : 'All'}
+                </span>
+                <svg className={`w-4 h-4 text-white/40 flex-shrink-0 transition-transform ${profilePickerOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {profilePickerOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#16303e] border border-white/10 rounded-xl shadow-2xl z-10 py-1.5 max-h-72 overflow-y-auto">
                   <button
-                    onClick={() => setShowInactive(!showInactive)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 mt-2 text-xs text-white/40 hover:text-white/60 transition-colors"
+                    onClick={() => { clearProfile(); setProfilePickerOpen(false) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 transition-colors"
                   >
-                    <svg className={`w-3 h-3 transition-transform ${showInactive ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    <span>Inactive ({teamProfiles.filter(p => p.active === false).length})</span>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                      !user ? 'bg-[#E8B44D] text-black' : 'bg-white/10 text-white/60'
+                    }`}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <span className={`flex-1 text-left text-sm ${!user ? 'text-[#E8B44D] font-semibold' : 'text-white'}`}>All</span>
+                    {!user && (
+                      <svg className="w-3.5 h-3.5 text-[#E8B44D] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
                   </button>
-                  
-                  {showInactive && teamProfiles.filter(p => p.active === false).map(profile => (
+
+                  {teamProfiles.filter(p => p.active !== false).map(profile => (
                     <button
                       key={profile.id}
-                      onClick={() => {
-                        if (user?.id === profile.id) {
-                          clearProfile()
-                        } else {
-                          setCurrentProfile(profile.id)
-                        }
-                        setIsOpen(false)
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
-                        user?.id === profile.id
-                          ? 'bg-[#E8B44D]/20 border border-[#E8B44D]/30'
-                          : 'hover:bg-white/5'
-                      }`}
+                      onClick={() => { setCurrentProfile(profile.id); setProfilePickerOpen(false) }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 transition-colors"
                     >
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        user?.id === profile.id ? 'bg-[#E8B44D] text-black' : 'bg-white/5 text-white/40'
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        user?.id === profile.id ? 'bg-[#E8B44D] text-black' : 'bg-white/10 text-white/60'
                       }`}>
                         {profile.name.charAt(0)}
                       </div>
-                      <div className="flex-1 text-left">
-                        <div className={`text-xs ${
-                          user?.id === profile.id ? 'text-[#E8B44D]' : 'text-white/40'
-                        }`}>
-                          {profile.name}
-                        </div>
-                      </div>
+                      <span className={`flex-1 text-left text-sm ${user?.id === profile.id ? 'text-[#E8B44D] font-semibold' : 'text-white'}`}>
+                        {profile.name}
+                      </span>
                       {user?.id === profile.id && (
-                        <svg className="w-3 h-3 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 text-[#E8B44D] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       )}
                     </button>
                   ))}
-                </>
+
+                  {teamProfiles.filter(p => p.active === false).length > 0 && (
+                    <>
+                      <button
+                        onClick={() => setShowInactive(o => !o)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 mt-1 border-t border-white/10 text-xs text-white/40 hover:text-white/60 transition-colors"
+                      >
+                        <svg className={`w-3 h-3 transition-transform ${showInactive ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span>Inactive ({teamProfiles.filter(p => p.active === false).length})</span>
+                      </button>
+
+                      {showInactive && teamProfiles.filter(p => p.active === false).map(profile => (
+                        <button
+                          key={profile.id}
+                          onClick={() => { setCurrentProfile(profile.id); setProfilePickerOpen(false) }}
+                          className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-white/5 transition-colors"
+                        >
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                            user?.id === profile.id ? 'bg-[#E8B44D] text-black' : 'bg-white/5 text-white/40'
+                          }`}>
+                            {profile.name.charAt(0)}
+                          </div>
+                          <span className={`flex-1 text-left text-xs ${user?.id === profile.id ? 'text-[#E8B44D] font-semibold' : 'text-white/50'}`}>
+                            {profile.name}
+                          </span>
+                          {user?.id === profile.id && (
+                            <svg className="w-3 h-3 text-[#E8B44D] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -366,6 +368,20 @@ export default function MenuButton() {
 
             <button
               onClick={() => {
+                router.push('/tools')
+                setIsOpen(false)
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Tools
+            </button>
+
+            <button
+              onClick={() => {
                 router.push('/map')
                 setIsOpen(false)
               }}
@@ -379,19 +395,6 @@ export default function MenuButton() {
             
             <button
               onClick={() => {
-                router.push('/about')
-                setIsOpen(false)
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              About
-            </button>
-            
-            <button
-              onClick={() => {
                 router.push('/how-to')
                 setIsOpen(false)
               }}
@@ -400,7 +403,7 @@ export default function MenuButton() {
               <svg className="w-4 h-4 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              How to Use
+              About & How to Use
             </button>
           </div>
           

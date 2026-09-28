@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { BurrowLogo } from '@/components/BurrowLogo'
 
 export default function HowToPage() {
   const router = useRouter()
@@ -19,14 +20,38 @@ export default function HowToPage() {
             </svg>
             Back
           </button>
-          <h1 className="text-4xl font-bold text-[#E8B44D] mb-2">How to Use Burrow</h1>
-          <p className="text-white/80">Quick guide to get you started</p>
+          <div className="flex items-center gap-4 mb-2">
+            <BurrowLogo className="w-12 h-12 flex-shrink-0" />
+            <div>
+              <h1 className="text-3xl font-bold text-[#E8B44D]">About & How to Use</h1>
+              <p className="text-white/80 text-sm">Burrow · Version 1.0.0</p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="p-6 max-w-3xl mx-auto pb-24 space-y-6">
-        
+
+        {/* Why Burrow? */}
+        <section>
+          <h2 className="text-2xl font-bold text-[#E8B44D] mb-4">Why Burrow?</h2>
+          <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-6 rounded-xl border border-[#E8B44D]/10 space-y-4">
+            <p className="text-white/90 text-lg leading-relaxed">
+              Because a badger needs its burrow to collect its stuff.
+            </p>
+            <p className="text-white/90 leading-relaxed">
+              When you're traveling for work, you've got flights, hotels, venues, client info, addresses, checklists—everything scattered everywhere. Emails. Texts. Calendar. Notes app. Screenshots.
+            </p>
+            <p className="text-white/90 leading-relaxed">
+              Burrow is one place to keep it all. Everything for a job, organized and ready when you need it. Works offline. Syncs when you're back online.
+            </p>
+            <p className="text-white/80 leading-relaxed">
+              Simple. Organized. Like a badger's burrow.
+            </p>
+          </div>
+        </section>
+
         {/* Getting Started */}
         <section>
           <h2 className="text-2xl font-bold text-[#E8B44D] mb-4">Getting Started</h2>
@@ -156,10 +181,10 @@ export default function HowToPage() {
         <section>
           <div className="bg-gradient-to-r from-[#2F5F7F] to-[#3A6B86] p-6 rounded-xl text-center">
             <p className="text-xl text-white font-semibold mb-2">
-              That's it. Simple and quick.
+              Built for a badger.
             </p>
             <p className="text-white/70 text-sm">
-              If you get lost, come back here. Everything you need to know.
+              Everything organized. Everything ready. If you get lost, come back here.
             </p>
           </div>
         </section>

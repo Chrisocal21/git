@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr, FldrStatus } from '@/types/fldr'
-import { PlusIcon, AirplaneIcon, HomeIcon, BriefcaseIcon } from '@/components/Icons'
+import { PlusIcon, AirplaneIcon, HomeIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
-import { getCurrentUser, canEditJob, filterJobsByUser, getTeamProfiles, autoMarkInactiveProfiles } from '@/lib/auth'
+import { getCurrentUser, canEditJob, filterJobsByUser, autoMarkInactiveProfiles } from '@/lib/auth'
 import MenuButton from '@/components/MenuButton'
+import { BurrowLogo } from '@/components/BurrowLogo'
 
 type FilterOption = 'all' | 'upcoming'
 
@@ -25,16 +26,6 @@ export default function JobsPage() {
   const [online, setOnline] = useState(true)
   const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = assigned to me
   const [showArchived, setShowArchived] = useState(false) // Show/hide archived jobs
-  
-  // New entry modal state
-  const [showNewModal, setShowNewModal] = useState(false)
-  const [showTimeOffForm, setShowTimeOffForm] = useState(false)
-  const teamProfiles = getTeamProfiles()
-  const [timeOffPerson, setTimeOffPerson] = useState(teamProfiles[0]?.id ?? '')
-  const [timeOffStart, setTimeOffStart] = useState('')
-  const [timeOffEnd, setTimeOffEnd] = useState('')
-  const [timeOffNote, setTimeOffNote] = useState('')
-  const [timeOffSaving, setTimeOffSaving] = useState(false)
 
   // Get current user for permission checks
   const currentUser = getCurrentUser()
@@ -395,53 +386,13 @@ export default function JobsPage() {
     }
   }
 
-  const handleCreateTimeOff = async () => {
-    if (!timeOffPerson || !timeOffStart) return
-    setTimeOffSaving(true)
-    const profile = teamProfiles.find(p => p.id === timeOffPerson)
-    const newEntry = {
-      title: `${profile?.name ?? timeOffPerson} – Time Off`,
-      fldr_type: 'time_off' as const,
-      date_start: timeOffStart,
-      date_end: timeOffEnd || null,
-      location: null,
-      people: [{ name: profile?.name ?? timeOffPerson, role: null, phone: null, email: null }],
-      notes: timeOffNote || '',
-    }
-    try {
-      const res = await fetch('/api/fldrs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newEntry),
-      })
-      if (res.ok) {
-        const created = await res.json()
-        const updated = [...fldrs, created]
-        setFldrs(updated)
-        localStorage.setItem('git-fldrs', JSON.stringify(updated))
-        setShowNewModal(false)
-        setShowTimeOffForm(false)
-        setTimeOffStart('')
-        setTimeOffEnd('')
-        setTimeOffNote('')
-      } else {
-        alert('Failed to create time off entry')
-      }
-    } catch {
-      alert('Failed to create time off entry')
-    }
-    setTimeOffSaving(false)
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0f1419]">
         <div className="flex items-center justify-between mb-6 px-4 pt-4 max-w-2xl mx-auto">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#2F5F7F] flex items-center justify-center">
-              <span className="text-[#E8B44D] font-bold text-xl font-serif">B</span>
-            </div>
+            <BurrowLogo className="w-10 h-10" />
             <h1 className="text-2xl font-semibold text-white">Burrow</h1>
           </div>
           <button
@@ -502,27 +453,13 @@ export default function JobsPage() {
           title="Refresh"
         >
           {/* Logo */}
-          <div className="w-10 h-10 rounded-lg bg-[#2F5F7F] flex items-center justify-center">
-            <span className="text-[#E8B44D] font-bold text-xl font-serif">B</span>
-          </div>
+          <BurrowLogo className="w-10 h-10" />
           <h1 className="text-2xl font-semibold text-white">Burrow</h1>
         </div>
         
         {/* Right side: Minimal actions */}
         <div className="flex items-center gap-3">
           <MenuButton />
-          
-          {/* Create button */}
-          <button
-            onClick={() => { setShowTimeOffForm(false); setShowNewModal(true) }}
-            className="px-4 py-2 bg-[#E8B44D] hover:bg-[#D4A03C] rounded-lg transition-colors text-black font-semibold text-sm"
-            aria-label="Create new Job"
-          >
-            <div className="flex items-center gap-1.5">
-              <PlusIcon className="w-4 h-4" />
-              <span>New</span>
-            </div>
-          </button>
         </div>
       </div>
 
@@ -671,9 +608,9 @@ export default function JobsPage() {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <h3 className="font-semibold text-xl text-white leading-tight">{fldr.location || fldr.title}</h3>
-                        <div className="text-sm text-white/60 font-normal mt-1">
+                        <div className="text-sm text-white/60 font-normal mt-1 truncate">
                           {fldr.title}
-                          {fldr.job_info?.distributor_name && (
+                          {fldr.job_info?.distributor_name && fldr.job_info.distributor_name !== fldr.title && (
                             <span className="text-white/40 ml-1.5">· {fldr.job_info.distributor_name}</span>
                           )}
                         </div>
@@ -730,21 +667,23 @@ export default function JobsPage() {
                       </div>
                     </div>
 
-                    {/* Bottom Row: Team/Type & Status/Attending */}
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-white/70 truncate">
-                          {fldr.people && fldr.people.length > 0 
-                            ? fldr.people.map(p => p.name).join(', ')
-                            : ''}
-                        </span>
-                        {fldr.job_info?.job_type && (
-                          <span className="text-white/40 text-xs flex-shrink-0">
-                            {fldr.people && fldr.people.length > 0 ? '·' : ''} {fldr.job_info.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info.job_type === 'personalization' ? 'Personalization' : fldr.job_info.job_type === 'names_monograms' ? 'Personalization' : ''}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Bottom: Team/Type on their own line, Status/Attending on a separate row */}
+                    <div className="space-y-2">
+                      {(fldr.people && fldr.people.length > 0) || fldr.job_info?.job_type ? (
+                        <div className="text-sm text-white/70 leading-snug">
+                          {fldr.people && fldr.people.length > 0 && (
+                            <span>{fldr.people.map(p => p.name).join(', ')}</span>
+                          )}
+                          {fldr.job_info?.job_type && (
+                            <span className="text-white/40 text-xs">
+                              {fldr.people && fldr.people.length > 0 ? ' · ' : ''}
+                              {fldr.job_info.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info.job_type === 'personalization' ? 'Personalization' : fldr.job_info.job_type === 'names_monograms' ? 'Personalization' : ''}
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
+
+                      <div className="flex items-center gap-2 flex-wrap">
                         {/* Job Status Badge */}
                         {fldr.job_status && (
                           <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium uppercase tracking-wide ${
@@ -759,7 +698,7 @@ export default function JobsPage() {
                         )}
                         {/* Show airplane if current user is on this job */}
                         {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) && (
-                          <AirplaneIcon className="w-4 h-4 text-[#2a7b9b]" />
+                          <AirplaneIcon className="w-4 h-4 text-[#2a7b9b] flex-shrink-0" />
                         )}
                       </div>
                     </div>
@@ -771,109 +710,6 @@ export default function JobsPage() {
         </div>
       )}
       </div>
-
-    {/* ── New Entry Modal ── */}
-    {showNewModal && (
-      <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
-        onClick={() => { setShowNewModal(false); setShowTimeOffForm(false) }}
-      >
-        <div
-          className="w-full max-w-lg bg-[#1a2332] border border-white/10 rounded-t-3xl p-6 pb-8 shadow-2xl"
-          onClick={e => e.stopPropagation()}
-        >
-          {!showTimeOffForm ? (
-            <>
-              <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6" />
-              <p className="text-xs text-white/40 text-center uppercase tracking-widest mb-5">What are you creating?</p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => router.push('/jobs/create')}
-                  className="flex flex-col items-center gap-3 p-6 bg-[#0f1419] border border-white/10 rounded-2xl hover:bg-[#1e2938] hover:border-[#2a7b9b]/50 transition-all"
-                >
-                  <BriefcaseIcon className="w-8 h-8 text-[#2a7b9b]" />
-                  <span className="font-semibold text-white">New Job</span>
-                  <span className="text-xs text-white/40 text-center leading-relaxed">Full job with flights, venues & details</span>
-                </button>
-                <button
-                  onClick={() => setShowTimeOffForm(true)}
-                  className="flex flex-col items-center gap-3 p-6 bg-[#0f1419] border border-white/10 rounded-2xl hover:bg-[#1e2938] hover:border-emerald-500/50 transition-all"
-                >
-                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className="font-semibold text-white">Time Off</span>
-                  <span className="text-xs text-white/40 text-center leading-relaxed">Calendar-only — won't appear in jobs list</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setShowTimeOffForm(false)} className="text-white/40 hover:text-white/80 transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <h2 className="font-semibold text-white text-lg">Time Off</h2>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-white/50 mb-2 font-medium">Person</label>
-                  <select
-                    value={timeOffPerson}
-                    onChange={e => setTimeOffPerson(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
-                  >
-                    {teamProfiles.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-white/50 mb-2 font-medium">Start Date <span className="text-red-400">*</span></label>
-                    <input
-                      type="date"
-                      value={timeOffStart}
-                      onChange={e => setTimeOffStart(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-white/50 mb-2 font-medium">End Date</label>
-                    <input
-                      type="date"
-                      value={timeOffEnd}
-                      onChange={e => setTimeOffEnd(e.target.value)}
-                      min={timeOffStart}
-                      className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-white/50 mb-2 font-medium">Note (optional)</label>
-                  <input
-                    type="text"
-                    value={timeOffNote}
-                    onChange={e => setTimeOffNote(e.target.value)}
-                    placeholder="Vacation, sick day..."
-                    className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white placeholder:text-white/30"
-                  />
-                </div>
-                <button
-                  onClick={handleCreateTimeOff}
-                  disabled={!timeOffStart || timeOffSaving}
-                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-colors"
-                >
-                  {timeOffSaving ? 'Saving...' : 'Add to Calendar'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    )}
     </>
   )
 }

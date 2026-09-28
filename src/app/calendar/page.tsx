@@ -103,6 +103,7 @@ export default function CalendarPage() {
     return { year: n.getFullYear(), month: n.getMonth() }
   })
   const [expandedPeople, setExpandedPeople] = useState<Set<string>>(new Set())
+  const [jobsThisMonthOpen, setJobsThisMonthOpen] = useState(false)
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
 
   useEffect(() => {
@@ -250,6 +251,54 @@ export default function CalendarPage() {
       jobs: Array.from(info.jobs.values()),
     }))
   }, [absenceMap, calendarDays, currentMonth, fldrs])
+
+  // ── Compute "jobs this month" list, grouped by job instead of person ───────
+  const monthJobs = useMemo(() => {
+    const byJob = new Map<string, {
+      jobId: string
+      jobTitle: string
+      dayType: 'travel' | 'work'
+      isPast: boolean
+      location: string | null
+      people: Set<string>
+      days: string[]
+      firstDate: Date
+    }>()
+
+    calendarDays.forEach(day => {
+      if (!day) return
+      const absences = absenceMap.get(day.dateKey) || []
+      absences.forEach(a => {
+        if (a.dayType === 'off') return // exclude time off — jobs only
+        if (!byJob.has(a.jobId)) {
+          const fldr = fldrs.find(f => f.id === a.jobId)
+          const location = fldr?.location || fldr?.venue_info?.name || fldr?.venue_info?.address || null
+          byJob.set(a.jobId, {
+            jobId: a.jobId,
+            jobTitle: a.jobTitle,
+            dayType: a.dayType,
+            isPast: a.isPast,
+            location,
+            people: new Set(),
+            days: [],
+            firstDate: day.date,
+          })
+        }
+        const entry = byJob.get(a.jobId)!
+        entry.people.add(a.personName)
+        const dayLabel = day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        if (!entry.days.includes(dayLabel)) entry.days.push(dayLabel)
+        if (day.date < entry.firstDate) entry.firstDate = day.date
+        // Prefer the least-stale isPast so a job spanning past+future shows as current
+        if (!a.isPast) entry.isPast = false
+        entry.dayType = a.dayType
+      })
+    })
+
+    return Array.from(byJob.values())
+      .map(j => ({ ...j, people: Array.from(j.people) }))
+      .sort((a, b) => a.firstDate.getTime() - b.firstDate.getTime())
+  }, [absenceMap, calendarDays, fldrs])
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white pb-24">
@@ -443,6 +492,69 @@ export default function CalendarPage() {
                 </button>
               )
             })}
+          </div>
+        )}
+
+        {/* ── Jobs this month ── */}
+        {!loading && monthJobs.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setJobsThisMonthOpen(o => !o)}
+              className="w-full flex items-center justify-between mb-3 px-1"
+            >
+              <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider">
+                Jobs this month ({monthJobs.length})
+              </h2>
+              <svg
+                className={`w-4 h-4 text-white/30 transition-transform ${jobsThisMonthOpen ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {jobsThisMonthOpen && (
+              <div className="space-y-2">
+                {monthJobs.map(job => {
+                  const Icon = job.dayType === 'travel' ? AirplaneIcon : BriefcaseIcon
+
+                  return (
+                    <button
+                      key={job.jobId}
+                      onClick={() => router.push(`/jobs/${job.jobId}`)}
+                      className={`w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                        job.isPast
+                          ? 'bg-[#1f1f1f]/60 border-[#2a2a2a]'
+                          : 'bg-[#1f1f1f] border-[#2a2a2a] hover:bg-white/5'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                        job.isPast
+                          ? 'text-white/20'
+                          : job.dayType === 'travel'
+                          ? 'text-sky-400'
+                          : 'text-white/60'
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium truncate ${job.isPast ? 'text-white/30' : 'text-white/90'}`}>
+                          {job.jobTitle}
+                        </div>
+                        {job.location && (
+                          <div className={`text-xs mt-0.5 ${job.isPast ? 'text-white/15' : 'text-white/40'}`}>
+                            📍 {job.location}
+                          </div>
+                        )}
+                        <div className={`text-xs mt-0.5 ${job.isPast ? 'text-white/15' : 'text-white/40'}`}>
+                          {job.people.join(', ')} · {job.days.length}d
+                        </div>
+                      </div>
+                      <svg className="w-4 h-4 text-white/20 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 

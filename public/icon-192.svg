@@ -1,4 +1,6 @@
 <svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect width="192" height="192" rx="42" fill="#2F5F7F"/>
-  <text x="96" y="140" font-family="Georgia, serif" font-size="120" font-weight="bold" fill="#E8B44D" text-anchor="middle">B</text>
+  <circle cx="96" cy="96" r="75" stroke="#E8B44D" stroke-width="6"/>
+  <circle cx="96" cy="96" r="61" stroke="#E8B44D" stroke-width="3"/>
+  <text x="96" y="128" font-family="'Brush Script MT', 'Segoe Script', cursive" font-size="96" fill="#E8B44D" text-anchor="middle">B</text>
 </svg>

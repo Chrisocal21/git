@@ -43,7 +43,7 @@ export default function FldrDetailPage() {
   const [saving, setSaving] = useState(false)
   const [unsavedChanges, setUnsavedChanges] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
-    summary: true, // New unified view - open by default
+    summary: false,
     flight: false,
     hotel: false,
     venue: false,
