@@ -10,6 +10,7 @@ import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineSt
 import { getCurrentUser, canEditJob, filterJobsByUser, autoMarkInactiveProfiles } from '@/lib/auth'
 import MenuButton from '@/components/MenuButton'
 import { BurrowLogo } from '@/components/BurrowLogo'
+import { WeatherSVG } from '@/components/WeatherIcon'
 
 type FilterOption = 'all' | 'upcoming'
 
@@ -26,6 +27,7 @@ export default function JobsPage() {
   const [online, setOnline] = useState(true)
   const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = assigned to me
   const [showArchived, setShowArchived] = useState(false) // Show/hide archived jobs
+  const [jobTemps, setJobTemps] = useState<Record<string, { temp: number; main: string }>>({})
 
   // Get current user for permission checks
   const currentUser = getCurrentUser()
@@ -160,6 +162,28 @@ export default function JobsPage() {
         setLoading(false)
       })
   }, [])
+
+  // Fetch current temp for each job's location (once, when the list first has data)
+  useEffect(() => {
+    if (fldrs.length === 0) return
+
+    const jobs = fldrs.filter(f => !f.archived && f.fldr_type !== 'time_off' && (f.location || f.venue_info?.address))
+    const toFetch = jobs.filter(f => !(f.id in jobTemps))
+    if (toFetch.length === 0) return
+
+    toFetch.forEach(f => {
+      const location = f.location || f.venue_info?.address
+      if (!location) return
+      fetch(`/api/weather?location=${encodeURIComponent(location)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.current && typeof d.current.temp === 'number') {
+            setJobTemps(prev => ({ ...prev, [f.id]: { temp: d.current.temp, main: d.current.main } }))
+          }
+        })
+        .catch(() => {})
+    })
+  }, [fldrs])
 
   // Pull-to-refresh handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -620,11 +644,11 @@ export default function JobsPage() {
                         const daysUntilFlight = getDaysUntilFlight(fldr)
                         const daysUntilJob = getDaysUntilJob(fldr.date_start)
                         const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
-                        
+
                         if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob >= 0)) {
                           const badgeColor = soonest <= 2 ? 'bg-red-500/20 text-red-400 border-red-500/30' : soonest <= 7 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                           return (
-                            <div className={`px-3 py-2 rounded-lg border ${badgeColor} flex items-baseline gap-1`}>
+                            <div className={`px-3 py-2 rounded-lg border ${badgeColor} flex items-baseline gap-1 flex-shrink-0`}>
                               <div className="text-lg font-bold leading-none">{soonest}</div>
                               <div className="text-xs uppercase tracking-wide opacity-80">{soonest === 1 ? 'day' : 'days'}</div>
                             </div>
@@ -665,6 +689,12 @@ export default function JobsPage() {
                           return `${formatDate(fldr.date_start)}${fldr.date_end && formatDate(fldr.date_end) !== formatDate(fldr.date_start) ? ` - ${formatDate(fldr.date_end)}` : ''}`
                         })()}
                       </div>
+                      {jobTemps[fldr.id] && (
+                        <div className="flex items-center gap-1.5 text-white/50 flex-shrink-0">
+                          <WeatherSVG condition={jobTemps[fldr.id].main} size="xs" />
+                          <span className="text-sm font-medium">{Math.round(jobTemps[fldr.id].temp)}°</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Bottom: Team/Type on their own line, Status/Attending on a separate row */}

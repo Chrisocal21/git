@@ -18,6 +18,10 @@ interface BaseSource {
   prompt2: string
 }
 
+function stripQuotes(s: string) {
+  return s.trim().replace(/^"""\s*/, '').replace(/\s*"""$/, '').trim()
+}
+
 export default function PromptCreatorPage() {
   const router = useRouter()
 
@@ -41,6 +45,7 @@ export default function PromptCreatorPage() {
   // Generator form
   const [theme, setTheme] = useState('')
   const [character, setCharacter] = useState('')
+  const [vision, setVision] = useState('')
   const [generating, setGenerating] = useState(false)
   const [generated, setGenerated] = useState<{ prompt1: string; prompt2: string } | null>(null)
   const [genError, setGenError] = useState('')
@@ -53,6 +58,11 @@ export default function PromptCreatorPage() {
   const [saveTargetJobId, setSaveTargetJobId] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
+
+  // Refine after testing
+  const [guidance, setGuidance] = useState('')
+  const [refining, setRefining] = useState(false)
+  const [refineError, setRefineError] = useState('')
 
   useEffect(() => {
     fetch('/api/prompts')
@@ -144,8 +154,8 @@ export default function PromptCreatorPage() {
       setGenError('Select a base prompt set or a past job first')
       return
     }
-    if (!theme.trim() && !character.trim()) {
-      setGenError('Enter a new theme and/or character idea')
+    if (!theme.trim() && !character.trim() && !vision.trim()) {
+      setGenError('Enter a new theme, character idea, and/or vision')
       return
     }
 
@@ -163,18 +173,55 @@ export default function PromptCreatorPage() {
           basePrompt2: baseSource.prompt2,
           theme,
           character,
+          vision,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to generate prompt')
-      const strip = (s: string) => s.trim().replace(/^"""\s*/, '').replace(/\s*"""$/, '').trim()
-      setGenerated({ prompt1: strip(data.prompt1 || ''), prompt2: strip(data.prompt2 || '') })
+      setGenerated({ prompt1: stripQuotes(data.prompt1 || ''), prompt2: stripQuotes(data.prompt2 || '') })
       setExpanded1(false)
       setExpanded2(false)
+      setGuidance('')
+      setRefineError('')
     } catch (e) {
       setGenError(e instanceof Error ? e.message : 'Failed to generate prompt')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const refine = async () => {
+    if (!generated) return
+    if (!guidance.trim()) {
+      setRefineError('Describe what to adjust based on your test')
+      return
+    }
+
+    setRefining(true)
+    setRefineError('')
+    setSaveMessage('')
+
+    try {
+      const res = await fetch('/api/prompt-creator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'refine',
+          currentPrompt1: generated.prompt1,
+          currentPrompt2: generated.prompt2,
+          guidance,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to refine prompt')
+      setGenerated({ prompt1: stripQuotes(data.prompt1 || ''), prompt2: stripQuotes(data.prompt2 || '') })
+      setExpanded1(false)
+      setExpanded2(false)
+      setGuidance('')
+    } catch (e) {
+      setRefineError(e instanceof Error ? e.message : 'Failed to refine prompt')
+    } finally {
+      setRefining(false)
     }
   }
 
@@ -413,6 +460,16 @@ export default function PromptCreatorPage() {
                 className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
               />
             </div>
+            <div>
+              <label className="block text-xs text-white/50 mb-1">Vision</label>
+              <textarea
+                value={vision}
+                onChange={e => setVision(e.target.value)}
+                placeholder="Just explain what you're going for in your own words — the more detail, the better the rewrite."
+                rows={4}
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+              />
+            </div>
 
             {genError && (
               <div className="text-xs text-red-400 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -494,6 +551,33 @@ export default function PromptCreatorPage() {
                 </div>
               </div>
             )}
+
+            {/* Refine after testing */}
+            <div className="bg-[#1a2332] border border-white/5 rounded-xl p-4 space-y-3">
+              <div className="text-sm font-semibold text-white">Ran a test? Refine it</div>
+              <p className="text-xs text-gray-400">
+                Tell it what to adjust based on what you saw — it'll tweak these same two prompts instead of starting over.
+              </p>
+              <textarea
+                value={guidance}
+                onChange={e => setGuidance(e.target.value)}
+                placeholder="e.g. The background is too busy, tone it down. Make the character bigger in frame."
+                rows={3}
+                className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+              />
+              {refineError && (
+                <div className="text-xs text-red-400 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  {refineError}
+                </div>
+              )}
+              <button
+                onClick={refine}
+                disabled={refining || !guidance.trim()}
+                className="w-full py-2 bg-[#E8B44D] hover:bg-[#D4A03C] disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors text-sm"
+              >
+                {refining ? 'Refining...' : 'Refine with Guidance'}
+              </button>
+            </div>
 
             {/* Save to job */}
             <div className="bg-[#1a2332] border border-white/5 rounded-xl p-4 space-y-3">
