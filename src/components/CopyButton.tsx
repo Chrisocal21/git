@@ -25,11 +25,12 @@ export default function CopyButton({ text, label = 'Copy' }: CopyButtonProps) {
   return (
     <button
       onClick={handleCopy}
-      className="p-2 text-gray-400 hover:text-white transition-colors"
+      className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-colors"
       title={copied ? 'Copied!' : label}
+      aria-label={copied ? 'Copied!' : label}
     >
       {copied ? (
-        <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
       ) : (

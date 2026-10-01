@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Fldr } from '@/types/fldr';
+import PageHeader from '@/components/PageHeader';
 
 interface OldTrip {
   id: string;
@@ -224,10 +225,10 @@ export default function ImportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Import History</h1>
-          <div className="text-gray-400">Loading trips from old database...</div>
+      <div className="min-h-page text-white">
+        <PageHeader title="Import History" width="max-w-4xl" />
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="text-sm text-white/50">Loading trips from old database...</div>
         </div>
       </div>
     );
@@ -235,19 +236,19 @@ export default function ImportPage() {
 
   if (error && trips.length === 0) {
     return (
-      <div className="min-h-screen bg-black text-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Import History</h1>
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-4 mb-4">
-            <div className="font-semibold mb-2">Connection Error</div>
-            <div className="text-sm text-gray-300 mb-4">{error}</div>
-            <div className="text-xs text-gray-400">
+      <div className="min-h-page text-white">
+        <PageHeader title="Import History" width="max-w-4xl" />
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-4">
+            <div className="font-semibold text-red-300 mb-2">Connection Error</div>
+            <div className="text-sm text-white/75 mb-4 break-words">{error}</div>
+            <div className="text-xs text-white/50">
               Make sure you have added your CLOUDFLARE_API_TOKEN to the .env file.
             </div>
           </div>
           <button
             onClick={fetchTrips}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="btn-brand"
           >
             Retry
           </button>
@@ -258,21 +259,21 @@ export default function ImportPage() {
 
   if (migrationComplete) {
     return (
-      <div className="min-h-screen bg-black text-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Import Complete</h1>
-          <div className="bg-green-900/20 border border-green-500 rounded-lg p-6 mb-6">
-            <div className="text-lg font-semibold mb-2">
+      <div className="min-h-page text-white">
+        <PageHeader title="Import Complete" width="max-w-4xl" />
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 mb-6">
+            <div className="font-display text-lg font-semibold mb-2">
               Successfully imported {migratedCount} {migratedCount === 1 ? 'job' : 'jobs'}
             </div>
-            <div className="text-sm text-gray-300">
+            <div className="text-sm text-white/70">
               Your old trips have been converted to Fldrs and are now available in the app.
             </div>
           </div>
           <div className="flex gap-3">
             <a
               href="/"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              className="btn-primary"
             >
               View Fldrs
             </a>
@@ -283,7 +284,7 @@ export default function ImportPage() {
                 setSelectedTrips(new Set());
                 fetchTrips();
               }}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+              className="btn-secondary"
             >
               Import More
             </button>
@@ -295,7 +296,7 @@ export default function ImportPage() {
 
   return (
     <div 
-      className="min-h-screen bg-black text-white p-6 pb-24"
+      className="min-h-page text-white"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -303,14 +304,14 @@ export default function ImportPage() {
       {/* Pull-to-refresh indicator */}
       {(isPulling || isRefreshing) && (
         <div 
-          className="fixed top-0 left-0 right-0 flex justify-center items-center bg-[#0a0a0a] z-50 transition-all"
+          className="fixed top-0 left-0 right-0 flex justify-center items-center bg-canvas z-50 transition-all"
           style={{
             height: isRefreshing ? '60px' : `${Math.min(pullDistance, 80)}px`,
             opacity: isRefreshing ? 1 : Math.min(pullDistance / 80, 1)
           }}
         >
           {isRefreshing ? (
-            <div className="flex items-center gap-2 text-[#3b82f6]">
+            <div className="flex items-center gap-2 text-brand-light">
               <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -318,44 +319,44 @@ export default function ImportPage() {
               <span className="text-sm font-medium">Refreshing...</span>
             </div>
           ) : (
-            <div className="text-[#3b82f6] text-sm font-medium">
+            <div className="text-brand-light text-sm font-medium">
               {pullDistance > 80 ? 'Release to refresh' : 'Pull to refresh'}
             </div>
           )}
         </div>
       )}
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Import History</h1>
-        <p className="text-gray-400 mb-6">
+      <PageHeader title="Import History" width="max-w-4xl" />
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <p className="text-sm text-white/55 mb-5">
           Select trips from your old TripFldr database to import as Fldrs
         </p>
 
         {error && (
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-4 mb-4">
-            <div className="text-sm">{error}</div>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
+            <div className="text-sm text-red-200">{error}</div>
           </div>
         )}
 
         {trips.length === 0 ? (
-          <div className="text-gray-400">No trips found in database</div>
+          <div className="text-sm text-white/50">No trips found in database</div>
         ) : (
           <>
             <div className="flex items-center justify-between mb-4">
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-white/55 tabular">
                 {trips.length} {trips.length === 1 ? 'trip' : 'trips'} found
                 {selectedTrips.size > 0 && ` · ${selectedTrips.size} selected`}
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={selectAll}
-                  className="text-sm text-blue-400 hover:text-blue-300"
+                  className="text-sm text-brand-light hover:text-white transition-colors"
                 >
                   Select All
                 </button>
-                <span className="text-gray-600">·</span>
+                <span className="text-white/25">·</span>
                 <button
                   onClick={deselectAll}
-                  className="text-sm text-blue-400 hover:text-blue-300"
+                  className="text-sm text-brand-light hover:text-white transition-colors"
                 >
                   Deselect All
                 </button>
@@ -367,31 +368,32 @@ export default function ImportPage() {
                 <button
                   key={trip.id}
                   onClick={() => toggleTrip(trip.id)}
-                  className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                  aria-pressed={selectedTrips.has(trip.id)}
+                  className={`w-full text-left p-4 rounded-xl border transition-colors ${
                     selectedTrips.has(trip.id)
-                      ? 'bg-blue-900/20 border-blue-500'
-                      : 'bg-gray-900 border-gray-700 hover:border-gray-600'
+                      ? 'bg-brand/15 border-brand'
+                      : 'bg-surface border-line hover:border-line-strong'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="font-semibold mb-1">{trip.name}</div>
-                      <div className="text-sm text-gray-400 mb-1">
+                      <div className="text-sm text-white/60 mb-1">
                         {trip.destination}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-white/45 tabular">
                         {new Date(trip.startDate).toLocaleDateString()} -{' '}
                         {new Date(trip.endDate).toLocaleDateString()}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span
-                        className={`text-xs px-2 py-1 rounded ${
+                        className={`badge ${
                           trip.status === 'past'
-                            ? 'bg-gray-700 text-gray-300'
+                            ? 'bg-white/10 text-white/60'
                             : trip.status === 'upcoming'
-                            ? 'bg-blue-900/30 text-blue-400'
-                            : 'bg-green-900/30 text-green-400'
+                            ? 'bg-blue-500/15 text-blue-300'
+                            : 'bg-emerald-500/15 text-emerald-300'
                         }`}
                       >
                         {trip.status}
@@ -399,8 +401,8 @@ export default function ImportPage() {
                       <div
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                           selectedTrips.has(trip.id)
-                            ? 'bg-blue-500 border-blue-500'
-                            : 'border-gray-600'
+                            ? 'bg-brand border-brand'
+                            : 'border-white/25'
                         }`}
                       >
                         {selectedTrips.has(trip.id) && (
@@ -429,11 +431,7 @@ export default function ImportPage() {
               <button
                 onClick={handleMigrate}
                 disabled={selectedTrips.size === 0 || migrating}
-                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                  selectedTrips.size === 0 || migrating
-                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
+                className="btn-primary flex-1 px-6 py-3"
               >
                 {migrating
                   ? 'Importing...'

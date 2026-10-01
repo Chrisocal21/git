@@ -292,20 +292,20 @@ export default function AirportAutocomplete({
         className={className}
       />
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-[#1a1a1a] border border-[#3b82f6] rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1.5 bg-surface-raised border border-line-strong rounded-xl shadow-pop max-h-60 overflow-y-auto">
           {suggestions.map((airport) => (
             <button
               key={airport.code}
               type="button"
               onClick={() => selectAirport(airport)}
-              className="w-full px-3 py-2 text-left hover:bg-[#2a2a2a] transition-colors border-b border-[#2a2a2a] last:border-0"
+              className="w-full px-3 py-2.5 text-left hover:bg-white/5 transition-colors border-b border-line last:border-0"
             >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-sm">{airport.name}</div>
                   <div className="text-xs text-gray-400">{airport.city}</div>
                 </div>
-                <div className="text-[#3b82f6] font-mono font-bold">{airport.code}</div>
+                <div className="text-brand-light font-mono font-bold">{airport.code}</div>
               </div>
             </button>
           ))}

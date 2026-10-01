@@ -174,13 +174,13 @@ export default function AddressAutocomplete({
       )}
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-white/20 bg-[#101820] shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+        <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-line-strong bg-surface-raised shadow-pop">
           {suggestions.map((suggestion) => (
             <button
               key={suggestion.id}
               type="button"
               onClick={() => void handleSuggestionSelect(suggestion)}
-              className="block w-full border-b border-white/10 px-3 py-2 text-left last:border-b-0 hover:bg-white/5"
+              className="block w-full border-b border-line px-3 py-2.5 text-left last:border-b-0 hover:bg-white/5 transition-colors"
             >
               <div className="text-sm text-white">{suggestion.primaryText}</div>
               {suggestion.secondaryText && (

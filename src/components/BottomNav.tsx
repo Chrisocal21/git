@@ -96,63 +96,70 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-6 left-0 right-0 pointer-events-none z-40">
+      <nav aria-label="Main" className="fixed bottom-6 left-0 right-0 pointer-events-none z-40">
         <div ref={navRef} className="flex justify-center items-center max-w-lg mx-auto px-4">
           <div
-            className={`pointer-events-auto flex items-center gap-3 bg-[#1a1a1a]/90 backdrop-blur-sm rounded-full shadow-xl px-2 py-2 transition-all duration-200 ${
-              expanded ? 'pr-2' : ''
-            }`}
+            className="pointer-events-auto flex items-center gap-2 bg-surface-raised/90 backdrop-blur-md border border-line-strong rounded-full shadow-pop p-2 transition-all duration-200"
           >
             {expanded && (
               <>
                 <button
                   onClick={() => go('/jobs')}
-                  className={`flex items-center justify-center w-12 h-12 rounded-full transition-all ${
-                    isActive('/jobs') ? 'bg-[#E8B44D] text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  className={`flex items-center justify-center w-12 h-12 rounded-full transition-colors ${
+                    isActive('/jobs') ? 'bg-gold text-black' : 'text-white/55 hover:text-white hover:bg-white/10'
                   }`}
                   title="Jobs"
+                  aria-label="Jobs"
+                  aria-current={isActive('/jobs') ? 'page' : undefined}
                 >
                   <FolderIcon className="w-5 h-5" />
                 </button>
 
                 <button
                   onClick={() => go('/calendar')}
-                  className={`flex items-center justify-center w-12 h-12 rounded-full transition-all ${
-                    isActive('/calendar') ? 'bg-[#E8B44D] text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  className={`flex items-center justify-center w-12 h-12 rounded-full transition-colors ${
+                    isActive('/calendar') ? 'bg-gold text-black' : 'text-white/55 hover:text-white hover:bg-white/10'
                   }`}
                   title="Calendar"
+                  aria-label="Calendar"
+                  aria-current={isActive('/calendar') ? 'page' : undefined}
                 >
                   <CalendarIcon className="w-6 h-6" day={today} />
                 </button>
 
                 <button
                   onClick={() => go('/map')}
-                  className={`flex items-center justify-center w-12 h-12 rounded-full transition-all ${
-                    isActive('/map') ? 'bg-[#E8B44D] text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  className={`flex items-center justify-center w-12 h-12 rounded-full transition-colors ${
+                    isActive('/map') ? 'bg-gold text-black' : 'text-white/55 hover:text-white hover:bg-white/10'
                   }`}
                   title="Map"
+                  aria-label="Map"
+                  aria-current={isActive('/map') ? 'page' : undefined}
                 >
                   <MapIcon className="w-5 h-5" />
                 </button>
 
                 <button
                   onClick={openNewModal}
-                  className="flex items-center justify-center w-12 h-12 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                  className="flex items-center justify-center w-12 h-12 rounded-full text-white/55 hover:text-white hover:bg-white/10 transition-colors"
                   title="New"
+                  aria-label="New"
                 >
                   <PlusIcon className="w-5 h-5" />
                 </button>
 
-                <div className="w-px h-6 bg-white/10" />
+                <div className="w-px h-6 bg-line-strong" />
               </>
             )}
 
             {/* Master toggle — badger logo when closed, plus (rotated to an ×) when open */}
             <button
               onClick={() => setExpanded(o => !o)}
-              className={`flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-all overflow-hidden ${
+              aria-label={expanded ? 'Close navigation' : 'Open navigation'}
+              aria-expanded={expanded}
+              className={`flex items-center justify-center w-14 h-14 rounded-full transition-colors overflow-hidden ${
                 expanded
-                  ? 'bg-white/10 text-white'
+                  ? 'bg-white/10 text-white hover:bg-white/15'
                   : 'bg-white hover:bg-white/90'
               }`}
             >
@@ -161,7 +168,7 @@ export default function BottomNav() {
               ) : (
                 <img
                   src="/badger-logo.png"
-                  alt="Menu"
+                  alt=""
                   className="w-full h-full object-cover scale-110"
                 />
               )}
@@ -173,42 +180,45 @@ export default function BottomNav() {
       {/* ── New Entry Modal ── */}
       {showNewModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
           onClick={() => { setShowNewModal(false); setShowTimeOffForm(false) }}
         >
           <div
-            className="w-full max-w-lg bg-[#1a2332] border border-white/10 rounded-t-3xl p-6 pb-8 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="New entry"
+            className="w-full max-w-lg bg-surface border border-line-strong border-b-0 rounded-t-3xl p-6 pb-8 shadow-pop animate-sheet-up"
             onClick={e => e.stopPropagation()}
           >
             {!showTimeOffForm ? (
               <>
-                <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6" />
-                <p className="text-xs text-white/40 text-center uppercase tracking-widest mb-5">What are you creating?</p>
+                <div className="w-10 h-1 bg-white/15 rounded-full mx-auto mb-6" />
+                <p className="eyebrow text-center mb-5">What are you creating?</p>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => { setShowNewModal(false); router.push('/jobs/create') }}
-                    className="flex flex-col items-center gap-3 p-6 bg-[#0f1419] border border-white/10 rounded-2xl hover:bg-[#1e2938] hover:border-[#2a7b9b]/50 transition-all"
+                    className="flex flex-col items-center gap-3 p-6 bg-canvas border border-line rounded-2xl hover:bg-surface-raised hover:border-brand/60 transition-colors"
                   >
-                    <BriefcaseIcon className="w-8 h-8 text-[#2a7b9b]" />
+                    <BriefcaseIcon className="w-8 h-8 text-brand-light" />
                     <span className="font-semibold text-white">New Job</span>
-                    <span className="text-xs text-white/40 text-center leading-relaxed">Full job with flights, venues & details</span>
+                    <span className="text-xs text-white/50 text-center leading-relaxed">Full job with flights, venues & details</span>
                   </button>
                   <button
                     onClick={() => setShowTimeOffForm(true)}
-                    className="flex flex-col items-center gap-3 p-6 bg-[#0f1419] border border-white/10 rounded-2xl hover:bg-[#1e2938] hover:border-emerald-500/50 transition-all"
+                    className="flex flex-col items-center gap-3 p-6 bg-canvas border border-line rounded-2xl hover:bg-surface-raised hover:border-emerald-500/60 transition-colors"
                   >
                     <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span className="font-semibold text-white">Time Off</span>
-                    <span className="text-xs text-white/40 text-center leading-relaxed">Calendar-only — won't appear in jobs list</span>
+                    <span className="text-xs text-white/50 text-center leading-relaxed">Calendar-only — won't appear in jobs list</span>
                   </button>
                 </div>
               </>
             ) : (
               <>
-                <div className="flex items-center gap-3 mb-6">
-                  <button onClick={() => setShowTimeOffForm(false)} className="text-white/40 hover:text-white/80 transition-colors">
+                <div className="flex items-center gap-1 mb-5">
+                  <button onClick={() => setShowTimeOffForm(false)} className="icon-btn -ml-2" aria-label="Back">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
@@ -217,11 +227,11 @@ export default function BottomNav() {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs text-white/50 mb-2 font-medium">Person</label>
+                    <label className="label">Person</label>
                     <select
                       value={timeOffPerson}
                       onChange={e => setTimeOffPerson(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
+                      className="input"
                     >
                       {teamProfiles.map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
@@ -230,39 +240,39 @@ export default function BottomNav() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-white/50 mb-2 font-medium">Start Date <span className="text-red-400">*</span></label>
+                      <label className="label">Start Date <span className="text-red-400">*</span></label>
                       <input
                         type="date"
                         value={timeOffStart}
                         onChange={e => setTimeOffStart(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
+                        className="input"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-white/50 mb-2 font-medium">End Date</label>
+                      <label className="label">End Date</label>
                       <input
                         type="date"
                         value={timeOffEnd}
                         onChange={e => setTimeOffEnd(e.target.value)}
                         min={timeOffStart}
-                        className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
+                        className="input"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-white/50 mb-2 font-medium">Note (optional)</label>
+                    <label className="label">Note (optional)</label>
                     <input
                       type="text"
                       value={timeOffNote}
                       onChange={e => setTimeOffNote(e.target.value)}
                       placeholder="Vacation, sick day..."
-                      className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white placeholder:text-white/30"
+                      className="input"
                     />
                   </div>
                   <button
                     onClick={handleCreateTimeOff}
                     disabled={!timeOffStart || timeOffSaving}
-                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-colors"
+                    className="btn-primary w-full py-3"
                   >
                     {timeOffSaving ? 'Saving...' : 'Add to Calendar'}
                   </button>

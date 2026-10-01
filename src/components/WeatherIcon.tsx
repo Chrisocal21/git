@@ -146,7 +146,7 @@ export default function WeatherIcon({ location }: { location: string }) {
     return (
       <div className="flex items-center gap-2 self-center">
         <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />
-        <span className="text-[28px] font-light text-white/40 leading-none">--°</span>
+        <span className="font-display text-[28px] font-light text-white/40 leading-none">--°</span>
       </div>
     )
   }
@@ -174,9 +174,9 @@ export default function WeatherIcon({ location }: { location: string }) {
         className="flex items-center gap-2 self-center relative cursor-pointer"
       >
         <WeatherSVG condition={current.main} size="sm" />
-        <span className="text-[28px] font-light text-white leading-none">{Math.round(current.temp)}°</span>
+        <span className="font-display text-[28px] font-light text-white leading-none tabular">{Math.round(current.temp)}°</span>
         {hasBadWeather && (
-          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-[#2F5F7F] ${isSevere ? 'bg-red-500' : 'bg-yellow-400'}`} />
+          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-surface ${isSevere ? 'bg-red-500' : 'bg-yellow-400'}`} />
         )}
       </div>
 
@@ -188,21 +188,21 @@ export default function WeatherIcon({ location }: { location: string }) {
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
           <div
-            className="relative w-full sm:max-w-sm bg-gradient-to-b from-[#1c3a4a] to-[#0d1f2a] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden"
+            className="relative w-full sm:max-w-sm bg-surface border border-line-strong rounded-t-3xl sm:rounded-2xl shadow-pop animate-sheet-up overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Pull handle (mobile) */}
             <div className="flex justify-center pt-3 pb-1 sm:hidden">
-              <div className="w-10 h-1 bg-white/20 rounded-full" />
+              <div className="w-10 h-1 bg-white/15 rounded-full" />
             </div>
 
             {/* Header */}
             <div className="flex items-start justify-between px-5 pt-4 pb-2">
               <div>
-                <div className="text-xs text-white/50 uppercase tracking-widest mb-0.5">Weather</div>
-                <div className="text-lg font-semibold text-white">{data.location.name}{data.location.state ? `, ${data.location.state}` : ''}</div>
+                <div className="eyebrow mb-1">Weather</div>
+                <div className="font-display text-lg font-semibold text-white">{data.location.name}{data.location.state ? `, ${data.location.state}` : ''}</div>
               </div>
-              <button onClick={() => setShowSheet(false)} className="p-1 text-white/40 hover:text-white/80 transition-colors">
+              <button onClick={() => setShowSheet(false)} className="icon-btn -mr-2 -mt-1" aria-label="Close">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -212,22 +212,22 @@ export default function WeatherIcon({ location }: { location: string }) {
             {/* Current conditions */}
             <div className="flex items-center justify-between px-5 py-4">
               <div>
-                <div className="text-[56px] font-thin text-white leading-none tracking-tighter">{Math.round(current.temp)}°</div>
+                <div className="font-display text-[56px] font-extralight text-white leading-none tracking-tighter tabular">{Math.round(current.temp)}°</div>
                 <div className="text-sm text-white/60 mt-1 capitalize">{current.description}</div>
               </div>
               <WeatherSVG condition={current.main} size="lg" />
             </div>
 
             {/* Stats row */}
-            <div className="grid grid-cols-3 gap-px bg-white/5 mx-5 rounded-xl overflow-hidden mb-4">
+            <div className="grid grid-cols-3 gap-px bg-line border border-line mx-5 rounded-xl overflow-hidden mb-4">
               {[
                 { label: 'Feels like', value: `${Math.round(current.feels_like)}°` },
                 { label: 'Humidity', value: `${current.humidity}%` },
                 { label: 'Wind', value: `${current.wind_speed} mph` },
               ].map(s => (
-                <div key={s.label} className="bg-white/5 px-3 py-2.5 text-center">
-                  <div className="text-[10px] text-white/40 uppercase tracking-wider">{s.label}</div>
-                  <div className="text-sm font-semibold text-white mt-0.5">{s.value}</div>
+                <div key={s.label} className="bg-canvas/60 px-3 py-2.5 text-center">
+                  <div className="text-[10px] font-semibold text-white/45 uppercase tracking-wider">{s.label}</div>
+                  <div className="text-sm font-semibold text-white mt-0.5 tabular">{s.value}</div>
                 </div>
               ))}
             </div>
@@ -235,14 +235,14 @@ export default function WeatherIcon({ location }: { location: string }) {
             {/* 5-day forecast */}
             {daily && daily.length > 0 && (
               <div className="px-5 pb-6">
-                <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">5-Day Forecast</div>
+                <div className="eyebrow mb-2">5-Day Forecast</div>
                 <div className="grid grid-cols-5 gap-1.5">
                   {daily.map(day => (
-                    <div key={day.date} className="bg-white/5 rounded-xl py-2.5 flex flex-col items-center gap-1">
+                    <div key={day.date} className="bg-canvas/60 border border-line rounded-xl py-2.5 flex flex-col items-center gap-1 tabular">
                       <div className="text-[10px] text-white/50">{formatDay(day.date)}</div>
                       <WeatherSVG condition={day.main} size="xs" />
                       <div className="text-xs font-semibold text-white">{day.high}°</div>
-                      <div className="text-[10px] text-white/40">{day.low}°</div>
+                      <div className="text-[10px] text-white/45">{day.low}°</div>
                       {day.pop > 20 && (
                         <div className="text-[9px] text-blue-300">{day.pop}%</div>
                       )}

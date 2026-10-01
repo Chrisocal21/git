@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
 import { getTeamProfiles } from '@/lib/auth'
-import { AirplaneIcon, BriefcaseIcon } from '@/components/Icons'
+import { AirplaneIcon, BriefcaseIcon, MapPinIcon } from '@/components/Icons'
 
 // Per-profile color palette (index matches TEAM_PROFILES order)
 const DOT_COLORS = [
@@ -301,27 +301,28 @@ export default function CalendarPage() {
   }, [absenceMap, calendarDays, fldrs])
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white pb-24">
+    <div className="min-h-page text-white">
       {/* ── Header ── */}
-      <div className="sticky top-0 z-10 bg-[#1a1a1a]/95 backdrop-blur-sm border-b border-[#2a2a2a]">
-        <div className="flex items-center justify-between max-w-4xl mx-auto px-4 py-3">
+      <div className="sticky top-0 z-30 bg-canvas/85 backdrop-blur-md border-b border-line">
+        <div className="flex items-center justify-between max-w-4xl mx-auto px-4 h-14">
           <button
             onClick={() => router.back()}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className="icon-btn -ml-2"
+            aria-label="Back"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
 
-          <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+          <div className="flex items-center gap-1">
+            <button onClick={prevMonth} className="icon-btn" aria-label="Previous month">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-base font-semibold w-44 text-center">{monthLabel}</h1>
-            <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <h1 className="text-base font-semibold w-40 text-center tabular">{monthLabel}</h1>
+            <button onClick={nextMonth} className="icon-btn" aria-label="Next month">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
@@ -334,16 +335,16 @@ export default function CalendarPage() {
               const n = new Date()
               setCurrentMonth({ year: n.getFullYear(), month: n.getMonth() })
             }}
-            className="text-xs px-3 py-1.5 rounded-lg border border-white/20 hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+            className="btn-secondary px-3 py-1.5 text-xs font-medium"
           >
             Today
           </button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-3 pt-4">
+      <div className="max-w-4xl mx-auto px-4 pt-5">
         {/* ── Legend — only people with something on the calendar this month ── */}
-        <div className="flex flex-wrap gap-3 mb-4 px-1">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 mb-4">
           {monthAbsences.map(({ profileId, name }) => {
             const idx = profileIndex(profileId)
             return (
@@ -358,7 +359,7 @@ export default function CalendarPage() {
           {monthAbsences.length > 0 && (
             <div className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full bg-white/15" />
-              <span className="text-xs text-white/30">Past</span>
+              <span className="text-xs text-white/45">Past</span>
             </div>
           )}
         </div>
@@ -366,7 +367,7 @@ export default function CalendarPage() {
         {/* ── DOW headers ── */}
         <div className="grid grid-cols-7 mb-1">
           {DAYS_OF_WEEK.map(d => (
-            <div key={d} className="text-center text-[11px] text-white/30 font-medium py-1">
+            <div key={d} className="text-center text-[10px] font-semibold uppercase tracking-wider text-white/40 py-1.5">
               {d}
             </div>
           ))}
@@ -374,15 +375,15 @@ export default function CalendarPage() {
 
         {/* ── Grid ── */}
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-white/30 text-sm">
+          <div className="flex items-center justify-center py-20 text-white/45 text-sm">
             Loading...
           </div>
         ) : (
-          <div className="grid grid-cols-7 gap-px bg-[#2a2a2a] rounded-lg overflow-hidden border border-[#2a2a2a]">
+          <div className="grid grid-cols-7 gap-px bg-line-strong rounded-xl overflow-hidden border border-line-strong">
             {calendarDays.map((day, i) => {
               if (!day) {
                 return (
-                  <div key={`pad-${i}`} className="bg-[#181818] min-h-[72px] md:min-h-[96px]" />
+                  <div key={`pad-${i}`} className="bg-canvas min-h-[72px] md:min-h-[96px]" />
                 )
               }
 
@@ -398,18 +399,18 @@ export default function CalendarPage() {
                   key={day.dateKey}
                   type="button"
                   onClick={() => setSelectedDateKey(day.dateKey)}
-                  className={`text-left bg-[#1f1f1f] hover:bg-[#262626] transition-colors p-1 md:p-1.5 min-h-[72px] md:min-h-[96px] flex flex-col ${
-                    isToday ? 'ring-1 ring-inset ring-[#E8B44D]/60' : ''
+                  className={`text-left bg-surface hover:bg-surface-raised transition-colors p-1 md:p-1.5 min-h-[72px] md:min-h-[96px] flex flex-col ${
+                    isToday ? 'ring-1 ring-inset ring-gold/70' : ''
                   }`}
                 >
                   {/* Day number */}
                   <div
-                    className={`text-[11px] font-medium mb-1 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
+                    className={`text-[11px] font-medium tabular mb-1 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
                       isToday
-                        ? 'bg-[#E8B44D] text-black font-bold text-xs'
+                        ? 'bg-gold text-black font-bold text-xs'
                         : isPastDay
-                        ? 'text-white/20'
-                        : 'text-white/60'
+                        ? 'text-white/30'
+                        : 'text-white/70'
                     }`}
                   >
                     {day.date.getDate()}
@@ -502,7 +503,7 @@ export default function CalendarPage() {
               onClick={() => setJobsThisMonthOpen(o => !o)}
               className="w-full flex items-center justify-between mb-3 px-1"
             >
-              <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider">
+              <h2 className="eyebrow">
                 Jobs this month ({monthJobs.length})
               </h2>
               <svg
@@ -521,10 +522,10 @@ export default function CalendarPage() {
                     <button
                       key={job.jobId}
                       onClick={() => router.push(`/jobs/${job.jobId}`)}
-                      className={`w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                      className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border transition-colors ${
                         job.isPast
-                          ? 'bg-[#1f1f1f]/60 border-[#2a2a2a]'
-                          : 'bg-[#1f1f1f] border-[#2a2a2a] hover:bg-white/5'
+                          ? 'bg-surface/60 border-line'
+                          : 'bg-surface border-line hover:bg-surface-raised hover:border-line-strong'
                       }`}
                     >
                       <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
@@ -539,11 +540,12 @@ export default function CalendarPage() {
                           {job.jobTitle}
                         </div>
                         {job.location && (
-                          <div className={`text-xs mt-0.5 ${job.isPast ? 'text-white/15' : 'text-white/40'}`}>
-                            📍 {job.location}
+                          <div className={`text-xs mt-0.5 flex items-center gap-1 ${job.isPast ? 'text-white/25' : 'text-white/50'}`}>
+                            <MapPinIcon className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{job.location}</span>
                           </div>
                         )}
-                        <div className={`text-xs mt-0.5 ${job.isPast ? 'text-white/15' : 'text-white/40'}`}>
+                        <div className={`text-xs mt-0.5 ${job.isPast ? 'text-white/25' : 'text-white/50'}`}>
                           {job.people.join(', ')} · {job.days.length}d
                         </div>
                       </div>
@@ -561,7 +563,7 @@ export default function CalendarPage() {
         {/* ── Month summary ── */}
         {!loading && monthAbsences.length > 0 && (
           <div className="mt-6">
-            <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3 px-1">
+            <h2 className="eyebrow mb-3 px-1">
               Out this month
             </h2>
             <div className="space-y-2">
@@ -574,7 +576,7 @@ export default function CalendarPage() {
                 return (
                   <div
                     key={profileId}
-                    className="bg-[#1f1f1f] rounded-lg border border-[#2a2a2a] overflow-hidden"
+                    className="bg-surface rounded-xl border border-line overflow-hidden"
                   >
                     {/* Clickable header - minimal info */}
                     <button
@@ -625,7 +627,7 @@ export default function CalendarPage() {
 
                     {/* Expandable job details */}
                     {isExpanded && (
-                      <div className="px-3 pb-3 pt-1 space-y-2 border-t border-[#2a2a2a]">
+                      <div className="px-3 pb-3 pt-1 space-y-2 border-t border-line">
                         {jobs.map((job, jobIdx) => {
                           const Icon = job.dayType === 'off' 
                             ? (props: any) => (
@@ -662,8 +664,9 @@ export default function CalendarPage() {
                                   </span>
                                 </div>
                                 {job.dayType !== 'off' && job.location && (
-                                  <div className={`text-xs ${job.isPast ? 'text-white/20' : 'text-white/40'} mt-0.5`}>
-                                    📍 {job.location}
+                                  <div className={`text-xs ${job.isPast ? 'text-white/25' : 'text-white/50'} mt-0.5 flex items-center gap-1`}>
+                                    <MapPinIcon className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate">{job.location}</span>
                                   </div>
                                 )}
                                 <div className={`text-xs ${job.isPast ? 'text-white/20' : 'text-white/30'} mt-1 leading-relaxed`}>
@@ -684,7 +687,7 @@ export default function CalendarPage() {
         )}
 
         {!loading && monthAbsences.length === 0 && (
-          <p className="text-center text-white/20 text-sm mt-8">
+          <p className="text-center text-white/40 text-sm mt-8">
             No one out this month
           </p>
         )}
@@ -693,14 +696,16 @@ export default function CalendarPage() {
       {/* ── Day detail modal ── */}
       {selectedDateKey && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-0 md:p-4"
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in"
           onClick={() => setSelectedDateKey(null)}
         >
           <div
-            className="bg-[#1f1f1f] border border-[#2a2a2a] rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[80vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            className="bg-surface border border-line-strong rounded-t-3xl md:rounded-2xl w-full md:max-w-md max-h-[80vh] overflow-y-auto shadow-pop animate-sheet-up"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-[#1f1f1f] border-b border-[#2a2a2a] px-4 py-3 flex items-center justify-between">
+            <div className="sticky top-0 bg-surface border-b border-line pl-5 pr-3 py-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold">
                 {parseDate(selectedDateKey)?.toLocaleDateString('en-US', {
                   weekday: 'long',
@@ -711,7 +716,8 @@ export default function CalendarPage() {
               </h3>
               <button
                 onClick={() => setSelectedDateKey(null)}
-                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/50 hover:text-white"
+                className="icon-btn"
+                aria-label="Close"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -724,7 +730,7 @@ export default function CalendarPage() {
                 const absences = absenceMap.get(selectedDateKey) || []
                 if (absences.length === 0) {
                   return (
-                    <p className="text-center text-white/20 text-sm py-6">
+                    <p className="text-center text-white/40 text-sm py-6">
                       Nothing scheduled
                     </p>
                   )
@@ -765,7 +771,7 @@ export default function CalendarPage() {
                         setSelectedDateKey(null)
                         router.push(`/jobs/${job.jobId}`)
                       }}
-                      className={`w-full text-left flex items-start gap-3 p-3 rounded-lg border border-[#2a2a2a] transition-colors ${
+                      className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border border-line bg-canvas/40 transition-colors ${
                         isClickable ? 'hover:bg-white/5 active:bg-white/10 cursor-pointer' : 'cursor-default'
                       }`}
                     >
@@ -777,9 +783,9 @@ export default function CalendarPage() {
                           {job.dayType === 'off' ? 'Time Off' : job.jobTitle}
                         </div>
                         {location && job.dayType !== 'off' && (
-                          <div className="text-xs text-white/40 mt-0.5">📍 {location}</div>
+                          <div className="text-xs text-white/50 mt-0.5 flex items-center gap-1"><MapPinIcon className="w-3 h-3 flex-shrink-0" /><span className="truncate">{location}</span></div>
                         )}
-                        <div className="text-xs text-white/40 mt-1">
+                        <div className="text-xs text-white/50 mt-1">
                           {job.people.join(', ')}
                         </div>
                       </div>

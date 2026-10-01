@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
+import PageHeader from '@/components/PageHeader'
 
 interface BasePromptSet {
   id: string
@@ -23,7 +23,6 @@ function stripQuotes(s: string) {
 }
 
 export default function PromptCreatorPage() {
-  const router = useRouter()
 
   const [promptSets, setPromptSets] = useState<BasePromptSet[]>([])
   const [loadingPrompts, setLoadingPrompts] = useState(true)
@@ -261,91 +260,78 @@ export default function PromptCreatorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white pb-24">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] p-6 pb-8">
-        <div className="max-w-2xl mx-auto">
-          <button
-            onClick={() => router.back()}
-            className="mb-4 text-white/70 hover:text-white flex items-center gap-2 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
-          <h1 className="text-3xl font-bold text-[#E8B44D] mb-2">Prompt Creator</h1>
-          <p className="text-white/80 text-sm">
-            Take Prompt 1 &amp; Prompt 2 from a saved set or a past job, swap in a new theme and character, and save the result to the next job.
-          </p>
-        </div>
-      </div>
+    <div className="min-h-page text-white">
+      <PageHeader title="Prompt Creator" />
 
-      <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <div className="px-4 py-6 max-w-2xl mx-auto space-y-8">
+        <p className="text-sm text-white/60 leading-relaxed">
+          Take Prompt 1 &amp; Prompt 2 from a saved set or a past job, swap in a new theme and character, and save the result to the next job.
+        </p>
+
         {/* Base Prompt Library */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-[#E8B44D]">Base Prompt</h2>
+            <h2 className="text-base font-semibold text-white">Base Prompt</h2>
             <button
               onClick={() => setShowAddForm(o => !o)}
-              className="text-xs px-3 py-1.5 rounded-lg bg-[#2F5F7F] hover:bg-[#3A6B86] transition-colors text-white"
+              className="btn-secondary px-3 py-1.5 text-xs font-medium"
             >
               {showAddForm ? 'Cancel' : '+ Add Set'}
             </button>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-3">
+          <div className="segmented mb-3" role="tablist" aria-label="Base prompt source">
             <button
               onClick={() => setBaseTab('sets')}
-              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-colors ${
-                baseTab === 'sets' ? 'bg-[#E8B44D] text-black' : 'bg-[#1a1a1a] text-white/50 hover:text-white'
-              }`}
+              role="tab"
+              aria-selected={baseTab === 'sets'}
+              className={`segment text-xs py-2 ${baseTab === 'sets' ? 'segment-active' : ''}`}
             >
               Saved Sets ({promptSets.length})
             </button>
             <button
               onClick={() => setBaseTab('jobs')}
-              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-colors ${
-                baseTab === 'jobs' ? 'bg-[#E8B44D] text-black' : 'bg-[#1a1a1a] text-white/50 hover:text-white'
-              }`}
+              role="tab"
+              aria-selected={baseTab === 'jobs'}
+              className={`segment text-xs py-2 ${baseTab === 'jobs' ? 'segment-active' : ''}`}
             >
               Past Jobs ({jobsWithPrompts.length})
             </button>
           </div>
 
           {showAddForm && (
-            <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4 space-y-3 mb-3">
+            <div className="card p-4 space-y-3 mb-3">
               <input
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
                 placeholder="Label (e.g. San Diego Beach Engraving)"
-                className="w-full px-3 py-2 bg-[#0f0f0f] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                className="input"
               />
               <div>
-                <label className="block text-xs text-white/50 mb-1">Prompt 1</label>
+                <label className="label">Prompt 1</label>
                 <textarea
                   value={newPrompt1}
                   onChange={e => setNewPrompt1(e.target.value)}
                   placeholder="Paste Prompt 1 here..."
                   rows={6}
-                  className="w-full px-3 py-2 bg-[#0f0f0f] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none font-mono"
+                  className="input resize-none font-mono"
                 />
               </div>
               <div>
-                <label className="block text-xs text-white/50 mb-1">Prompt 2</label>
+                <label className="label">Prompt 2</label>
                 <textarea
                   value={newPrompt2}
                   onChange={e => setNewPrompt2(e.target.value)}
                   placeholder="Paste Prompt 2 here..."
                   rows={6}
-                  className="w-full px-3 py-2 bg-[#0f0f0f] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none font-mono"
+                  className="input resize-none font-mono"
                 />
               </div>
               <button
                 onClick={addPromptSet}
                 disabled={!newLabel.trim() || (!newPrompt1.trim() && !newPrompt2.trim())}
-                className="w-full py-2 bg-[#E8B44D] hover:bg-[#D4A03C] disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors text-sm"
+                className="btn-primary w-full"
               >
                 Save Prompt Set
               </button>
@@ -354,9 +340,9 @@ export default function PromptCreatorPage() {
 
           {baseTab === 'sets' && (
             loadingPrompts ? (
-              <div className="text-sm text-white/40 text-center py-6">Loading...</div>
+              <div className="text-sm text-white/45 text-center py-6">Loading...</div>
             ) : promptSets.length === 0 ? (
-              <div className="text-sm text-white/40 text-center py-6 border border-dashed border-white/10 rounded-xl">
+              <div className="text-sm text-white/50 text-center px-4 py-6 border border-dashed border-line-strong rounded-2xl">
                 No base prompt sets yet. Add one to get started.
               </div>
             ) : (
@@ -365,14 +351,15 @@ export default function PromptCreatorPage() {
                   <button
                     key={p.id}
                     onClick={() => setSelectedSetId(p.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    aria-pressed={selectedSetId === p.id}
+                    className={`w-full text-left p-3 rounded-xl border transition-colors ${
                       selectedSetId === p.id
-                        ? 'bg-[#E8B44D]/10 border-[#E8B44D]/40'
-                        : 'bg-[#1a1a1a] border-white/10 hover:bg-white/5'
+                        ? 'bg-gold/10 border-gold/40'
+                        : 'bg-surface border-line hover:bg-surface-raised hover:border-line-strong'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-medium ${selectedSetId === p.id ? 'text-[#E8B44D]' : 'text-white'}`}>
+                      <span className={`text-sm font-medium ${selectedSetId === p.id ? 'text-gold' : 'text-white'}`}>
                         {p.label}
                       </span>
                       <span
@@ -386,11 +373,11 @@ export default function PromptCreatorPage() {
                         </svg>
                       </span>
                     </div>
-                    <p className="text-xs text-white/40 mt-1 line-clamp-1">
+                    <p className="text-xs text-white/45 mt-1 line-clamp-1">
                       {p.prompt1 ? `P1: ${p.prompt1}` : ''}
                     </p>
                     {p.prompt2 && (
-                      <p className="text-xs text-white/40 mt-0.5 line-clamp-1">P2: {p.prompt2}</p>
+                      <p className="text-xs text-white/45 mt-0.5 line-clamp-1">P2: {p.prompt2}</p>
                     )}
                   </button>
                 ))}
@@ -400,9 +387,9 @@ export default function PromptCreatorPage() {
 
           {baseTab === 'jobs' && (
             loadingJobs ? (
-              <div className="text-sm text-white/40 text-center py-6">Loading...</div>
+              <div className="text-sm text-white/45 text-center py-6">Loading...</div>
             ) : jobsWithPrompts.length === 0 ? (
-              <div className="text-sm text-white/40 text-center py-6 border border-dashed border-white/10 rounded-xl">
+              <div className="text-sm text-white/50 text-center px-4 py-6 border border-dashed border-line-strong rounded-2xl">
                 No past jobs have saved prompts yet.
               </div>
             ) : (
@@ -411,25 +398,26 @@ export default function PromptCreatorPage() {
                   <button
                     key={job.id}
                     onClick={() => setSelectedJobBaseId(job.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    aria-pressed={selectedJobBaseId === job.id}
+                    className={`w-full text-left p-3 rounded-xl border transition-colors ${
                       selectedJobBaseId === job.id
-                        ? 'bg-[#E8B44D]/10 border-[#E8B44D]/40'
-                        : 'bg-[#1a1a1a] border-white/10 hover:bg-white/5'
+                        ? 'bg-gold/10 border-gold/40'
+                        : 'bg-surface border-line hover:bg-surface-raised hover:border-line-strong'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-medium ${selectedJobBaseId === job.id ? 'text-[#E8B44D]' : 'text-white'}`}>
+                      <span className={`text-sm font-medium ${selectedJobBaseId === job.id ? 'text-gold' : 'text-white'}`}>
                         {job.title}
                       </span>
-                      <span className="text-xs text-white/30 flex-shrink-0">
+                      <span className="text-xs text-white/40 flex-shrink-0 tabular">
                         {job.date_start ? new Date(job.date_start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
                       </span>
                     </div>
                     {job.job_info?.prompt_1 && (
-                      <p className="text-xs text-white/40 mt-1 line-clamp-1">P1: {job.job_info.prompt_1}</p>
+                      <p className="text-xs text-white/45 mt-1 line-clamp-1">P1: {job.job_info.prompt_1}</p>
                     )}
                     {job.job_info?.prompt_2 && (
-                      <p className="text-xs text-white/40 mt-0.5 line-clamp-1">P2: {job.job_info.prompt_2}</p>
+                      <p className="text-xs text-white/45 mt-0.5 line-clamp-1">P2: {job.job_info.prompt_2}</p>
                     )}
                   </button>
                 ))}
@@ -440,39 +428,39 @@ export default function PromptCreatorPage() {
 
         {/* Generator */}
         <section>
-          <h2 className="text-lg font-semibold text-[#E8B44D] mb-3">New Theme & Character</h2>
+          <h2 className="text-base font-semibold text-white mb-3">New Theme & Character</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-white/50 mb-1">New Theme</label>
+              <label className="label">New Theme</label>
               <input
                 value={theme}
                 onChange={e => setTheme(e.target.value)}
                 placeholder="e.g. Underwater fantasy world"
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                className="input bg-surface"
               />
             </div>
             <div>
-              <label className="block text-xs text-white/50 mb-1">New Character Idea</label>
+              <label className="label">New Character Idea</label>
               <input
                 value={character}
                 onChange={e => setCharacter(e.target.value)}
                 placeholder="e.g. A friendly robot mascot"
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                className="input bg-surface"
               />
             </div>
             <div>
-              <label className="block text-xs text-white/50 mb-1">Vision</label>
+              <label className="label">Vision</label>
               <textarea
                 value={vision}
                 onChange={e => setVision(e.target.value)}
                 placeholder="Just explain what you're going for in your own words — the more detail, the better the rewrite."
                 rows={4}
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                className="input bg-surface resize-none"
               />
             </div>
 
             {genError && (
-              <div className="text-xs text-red-400 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <div role="alert" className="text-xs text-red-300 px-3 py-2 bg-red-500/10 border border-red-500/25 rounded-lg">
                 {genError}
               </div>
             )}
@@ -480,7 +468,7 @@ export default function PromptCreatorPage() {
             <button
               onClick={generate}
               disabled={generating || !baseSource}
-              className="w-full py-2.5 bg-[#E8B44D] hover:bg-[#D4A03C] disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors text-sm"
+              className="btn-primary w-full py-3"
             >
               {generating ? 'Generating...' : 'Generate New Prompts'}
             </button>
@@ -497,7 +485,7 @@ export default function PromptCreatorPage() {
                   className="w-full flex items-center justify-between mb-2"
                 >
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-[#E8B44D]">Prompt 1</h2>
+                    <h2 className="text-base font-semibold text-white">Prompt 1</h2>
                     <svg
                       className={`w-4 h-4 text-white/40 transition-transform ${expanded1 ? 'rotate-180' : ''}`}
                       fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -508,12 +496,12 @@ export default function PromptCreatorPage() {
                   <span
                     role="button"
                     onClick={(e) => { e.stopPropagation(); copyToClipboard(generated.prompt1, 1) }}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-[#2F5F7F] hover:bg-[#3A6B86] transition-colors text-white"
+                    className="btn-secondary px-3 py-1.5 text-xs font-medium"
                   >
                     {copied1 ? 'Copied!' : 'Copy'}
                   </span>
                 </button>
-                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4">
+                <div className="card p-4">
                   <p className={`text-sm text-white/90 whitespace-pre-wrap font-mono ${expanded1 ? '' : 'line-clamp-2'}`}>
                     {generated.prompt1}
                   </p>
@@ -528,7 +516,7 @@ export default function PromptCreatorPage() {
                   className="w-full flex items-center justify-between mb-2"
                 >
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-[#E8B44D]">Prompt 2</h2>
+                    <h2 className="text-base font-semibold text-white">Prompt 2</h2>
                     <svg
                       className={`w-4 h-4 text-white/40 transition-transform ${expanded2 ? 'rotate-180' : ''}`}
                       fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -539,12 +527,12 @@ export default function PromptCreatorPage() {
                   <span
                     role="button"
                     onClick={(e) => { e.stopPropagation(); copyToClipboard(generated.prompt2, 2) }}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-[#2F5F7F] hover:bg-[#3A6B86] transition-colors text-white"
+                    className="btn-secondary px-3 py-1.5 text-xs font-medium"
                   >
                     {copied2 ? 'Copied!' : 'Copy'}
                   </span>
                 </button>
-                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4">
+                <div className="card p-4">
                   <p className={`text-sm text-white/90 whitespace-pre-wrap font-mono ${expanded2 ? '' : 'line-clamp-2'}`}>
                     {generated.prompt2}
                   </p>
@@ -553,9 +541,9 @@ export default function PromptCreatorPage() {
             )}
 
             {/* Refine after testing */}
-            <div className="bg-[#1a2332] border border-white/5 rounded-xl p-4 space-y-3">
+            <div className="card p-4 space-y-3">
               <div className="text-sm font-semibold text-white">Ran a test? Refine it</div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-white/55 leading-relaxed">
                 Tell it what to adjust based on what you saw — it'll tweak these same two prompts instead of starting over.
               </p>
               <textarea
@@ -563,32 +551,32 @@ export default function PromptCreatorPage() {
                 onChange={e => setGuidance(e.target.value)}
                 placeholder="e.g. The background is too busy, tone it down. Make the character bigger in frame."
                 rows={3}
-                className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                className="input resize-none"
               />
               {refineError && (
-                <div className="text-xs text-red-400 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <div role="alert" className="text-xs text-red-300 px-3 py-2 bg-red-500/10 border border-red-500/25 rounded-lg">
                   {refineError}
                 </div>
               )}
               <button
                 onClick={refine}
                 disabled={refining || !guidance.trim()}
-                className="w-full py-2 bg-[#E8B44D] hover:bg-[#D4A03C] disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors text-sm"
+                className="btn-primary w-full"
               >
                 {refining ? 'Refining...' : 'Refine with Guidance'}
               </button>
             </div>
 
             {/* Save to job */}
-            <div className="bg-[#1a2332] border border-white/5 rounded-xl p-4 space-y-3">
+            <div className="card p-4 space-y-3">
               <div className="text-sm font-semibold text-white">Save to a Job</div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-white/55 leading-relaxed">
                 Attach these prompts to a job's Prompt 1 / Prompt 2 fields, so they're logged there for future reuse.
               </p>
               <select
                 value={saveTargetJobId}
                 onChange={e => setSaveTargetJobId(e.target.value)}
-                className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                className="input"
               >
                 <option value="">Select a job...</option>
                 {savableJobs.map(job => (
@@ -600,7 +588,7 @@ export default function PromptCreatorPage() {
               <button
                 onClick={saveToJob}
                 disabled={!saveTargetJobId || saving}
-                className="w-full py-2 bg-[#2a7b9b] hover:bg-[#245f78] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-sm"
+                className="btn-brand w-full"
               >
                 {saving ? 'Saving...' : 'Save to Job'}
               </button>

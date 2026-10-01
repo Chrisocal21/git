@@ -174,7 +174,7 @@ function FldrMap({
           if (loc.notes) {
             contentHTML += `
               <div style="font-size: 12px; color: #888; margin-top: 6px; font-style: italic; line-height: 1.4;">
-                📝 ${loc.notes}
+                ${loc.notes}
               </div>
             `
           }
@@ -324,16 +324,16 @@ function FldrMap({
       ref={fullscreenContainerRef}
       className={forceFullscreen
         ? 'relative w-full h-full overflow-hidden'
-        : 'relative h-64 md:h-96 lg:h-[500px] xl:h-[600px] rounded-lg overflow-hidden border border-white/10'}
+        : 'relative h-64 md:h-96 lg:h-[500px] xl:h-[600px] rounded-xl overflow-hidden border border-line-strong'}
     >
       {loading && (
-        <div className="absolute inset-0 bg-[#0a0a0a] flex items-center justify-center z-10">
-          <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+        <div className="absolute inset-0 bg-canvas flex items-center justify-center z-10">
+          <div className="w-8 h-8 border-2 border-gold/20 border-t-gold rounded-full animate-spin"></div>
         </div>
       )}
 
       {error && (
-        <div className="absolute inset-0 bg-[#0a0a0a] flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-canvas flex items-center justify-center z-10">
           <div className="text-red-400 text-sm">{error}</div>
         </div>
       )}
@@ -342,8 +342,9 @@ function FldrMap({
       {!isFullscreenView && (
         <button
           onClick={toggleFullscreen}
-          className="absolute top-3 right-3 z-[1000] bg-white hover:bg-gray-100 rounded-sm shadow-md p-2 transition-colors"
+          className="absolute top-3 right-3 z-[1000] bg-white hover:bg-gray-100 rounded-lg shadow-md p-2 transition-colors"
           title="Toggle fullscreen view"
+          aria-label="Toggle fullscreen view"
         >
           <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 24 24">
             <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
@@ -353,19 +354,20 @@ function FldrMap({
 
       {/* Sidebar (visible only in fullscreen) */}
       {isFullscreenView && (
-        <div className={`absolute inset-y-0 left-0 z-[9999] w-[82vw] max-w-[360px] md:w-96 lg:w-[420px] bg-gradient-to-b from-[#2F5F7F] via-[#2a5570] to-[#1e3a4a] flex flex-col border-r border-white/10 shadow-2xl overflow-hidden transition-transform duration-300 ${
+        <div className={`absolute inset-y-0 left-0 z-[9999] w-[82vw] max-w-[360px] md:w-96 lg:w-[420px] bg-surface flex flex-col border-r border-line-strong shadow-pop overflow-hidden transition-transform duration-300 ${
           sidebarVisible ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}>
           {/* Header */}
-          <div className="flex-shrink-0 p-4 border-b border-white/20 bg-black/10">
+          <div className="flex-shrink-0 p-4 border-b border-line">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-bold text-lg">Nearby Places</h2>
+              <h2 className="text-white font-semibold text-lg">Nearby Places</h2>
               <div className="flex items-center gap-2">
                 {/* Mobile Close Button */}
                 <button 
                   onClick={() => setSidebarVisible(false)}
-                  className="md:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  className="md:hidden icon-btn"
                   title="Hide sidebar"
+                  aria-label="Hide sidebar"
                 >
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -374,8 +376,9 @@ function FldrMap({
                 {/* Desktop Exit Fullscreen Button */}
                 <button 
                   onClick={toggleFullscreen}
-                  className="hidden md:block p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  className="hidden md:inline-flex icon-btn"
                   title="Exit fullscreen"
+                  aria-label="Exit fullscreen"
                 >
                   <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
@@ -386,16 +389,16 @@ function FldrMap({
 
             {/* Location Toggles */}
             <div className="space-y-2 mb-4">
-              <div className="text-white/70 text-xs font-semibold mb-2">SEARCH FROM:</div>
+              <div className="eyebrow mb-2">Search from</div>
               
               {/* Current Location */}
               <button
                 onClick={getCurrentLocation}
                 disabled={gettingCurrentLocation}
-                className={`w-full px-3 py-2.5 rounded-lg text-left transition-all flex items-center gap-3 ${
+                className={`w-full px-3 py-2.5 rounded-xl text-left transition-colors flex items-center gap-3 ${
                   selectedLocation && !venueAddress && !hotelAddress && !airportAddress
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white/5 hover:bg-white/10 text-white/80'
+                    ? 'bg-brand text-white'
+                    : 'bg-canvas/60 border border-line hover:bg-white/5 text-white/80'
                 }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -410,10 +413,10 @@ function FldrMap({
               {venueAddress && (
                 <button
                   onClick={() => handleLocationToggle(venueAddress)}
-                  className={`w-full px-3 py-2.5 rounded-lg text-left transition-all flex items-center gap-3 ${
+                  className={`w-full px-3 py-2.5 rounded-xl text-left transition-colors flex items-center gap-3 ${
                     selectedLocation === venueAddress
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white/5 hover:bg-white/10 text-white/80'
+                      ? 'bg-brand text-white'
+                      : 'bg-canvas/60 border border-line hover:bg-white/5 text-white/80'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -430,10 +433,10 @@ function FldrMap({
               {hotelAddress && (
                 <button
                   onClick={() => handleLocationToggle(hotelAddress)}
-                  className={`w-full px-3 py-2.5 rounded-lg text-left transition-all flex items-center gap-3 ${
+                  className={`w-full px-3 py-2.5 rounded-xl text-left transition-colors flex items-center gap-3 ${
                     selectedLocation === hotelAddress
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white/5 hover:bg-white/10 text-white/80'
+                      ? 'bg-brand text-white'
+                      : 'bg-canvas/60 border border-line hover:bg-white/5 text-white/80'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -450,10 +453,10 @@ function FldrMap({
               {airportAddress && (
                 <button
                   onClick={() => handleLocationToggle(airportAddress)}
-                  className={`w-full px-3 py-2.5 rounded-lg text-left transition-all flex items-center gap-3 ${
+                  className={`w-full px-3 py-2.5 rounded-xl text-left transition-colors flex items-center gap-3 ${
                     selectedLocation === airportAddress
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white/5 hover:bg-white/10 text-white/80'
+                      ? 'bg-brand text-white'
+                      : 'bg-canvas/60 border border-line hover:bg-white/5 text-white/80'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -479,10 +482,11 @@ function FldrMap({
                   <button
                     key={type}
                     onClick={() => onNearbyTypeChange(type)}
-                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                    aria-pressed={nearbyType === type}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
                       nearbyType === type
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                        : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                        ? 'bg-brand text-white'
+                        : 'bg-canvas/60 border border-line text-white/70 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -499,30 +503,30 @@ function FldrMap({
           <div className="flex-1 overflow-y-auto p-3">
             {!selectedLocation ? (
               <div className="flex items-center justify-center h-full text-center">
-                <div className="text-white/50 text-sm">Select a location above to find nearby places</div>
+                <div className="text-white/55 text-sm px-6">Select a location above to find nearby places</div>
               </div>
             ) : nearbyLoading ? (
               <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                <div className="w-8 h-8 border-2 border-gold/20 border-t-gold rounded-full animate-spin mb-4"></div>
                 <div className="text-white/80 text-sm">Finding nearby places...</div>
               </div>
             ) : nearbyPlaces && nearbyPlaces.places && nearbyPlaces.places.length > 0 ? (
               <div className="space-y-2">
                 {nearbyPlaces.places.map((place: NearbyPlace, idx: number) => (
-                  <div key={idx} className="bg-white/5 hover:bg-white/10 rounded-lg p-3 border border-white/10 hover:border-blue-500/50 transition-all">
+                  <div key={idx} className="bg-canvas/60 hover:bg-white/5 rounded-xl p-3 border border-line hover:border-line-strong transition-colors">
                     <div className="flex justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="text-white font-semibold text-sm mb-1 truncate">{place.name}</div>
-                        <div className="text-gray-400 text-xs line-clamp-2">{place.vicinity}</div>
+                        <div className="text-white/55 text-xs line-clamp-2">{place.vicinity}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <div className="text-blue-400 font-bold text-xs whitespace-nowrap">{place.distance}</div>
+                        <div className="text-brand-light font-semibold text-xs whitespace-nowrap tabular">{place.distance}</div>
                         {place.rating && (
-                          <div className="flex items-center gap-1 bg-yellow-500/20 px-2 py-0.5 rounded-full">
+                          <div className="flex items-center gap-1 bg-yellow-500/15 px-2 py-0.5 rounded-full">
                             <svg className="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                             </svg>
-                            <span className="text-yellow-300 text-xs font-medium">{place.rating}</span>
+                            <span className="text-yellow-300 text-xs font-medium tabular">{place.rating}</span>
                           </div>
                         )}
                       </div>
@@ -532,7 +536,7 @@ function FldrMap({
                       href={`https://www.google.com/search?q=${encodeURIComponent(place.name + ' ' + place.vicinity)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs font-medium transition-colors"
+                      className="inline-flex items-center gap-1 text-brand-light hover:text-white text-xs font-medium transition-colors"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -544,11 +548,11 @@ function FldrMap({
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <svg className="w-16 h-16 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg className="w-10 h-10 text-white/20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <div className="text-white/70 font-medium mb-2">No places found</div>
-                <div className="text-gray-400 text-sm">Try a different category</div>
+                <div className="text-white/50 text-sm">Try a different category</div>
               </div>
             )}
           </div>
@@ -559,8 +563,9 @@ function FldrMap({
       {isFullscreenView && !sidebarVisible && (
         <button
           onClick={() => setSidebarVisible(true)}
-          className="md:hidden absolute top-[max(4.5rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-[10000] bg-gradient-to-b from-[#2F5F7F] to-[#1e3a4a] text-white p-3 rounded-lg shadow-2xl hover:scale-110 transition-transform"
+          className="md:hidden absolute top-[max(4.5rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-[10000] bg-surface/90 border border-line-strong backdrop-blur-md text-white p-2.5 rounded-xl shadow-pop hover:bg-surface-raised transition-colors"
           title="Show sidebar"
+          aria-label="Show sidebar"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -572,8 +577,9 @@ function FldrMap({
       {!forceFullscreen && isFullscreenView && !sidebarVisible && (
         <button
           onClick={toggleFullscreen}
-          className="md:hidden absolute top-4 right-4 z-[10000] bg-white text-gray-700 p-3 rounded-lg shadow-2xl hover:scale-110 transition-transform"
+          className="md:hidden absolute top-4 right-4 z-[10000] bg-surface/90 border border-line-strong backdrop-blur-md text-white p-2.5 rounded-xl shadow-pop hover:bg-surface-raised transition-colors"
           title="Exit fullscreen"
+          aria-label="Exit fullscreen"
         >
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>

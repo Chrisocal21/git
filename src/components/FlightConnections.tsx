@@ -154,10 +154,10 @@ export default function FlightConnections({ segments }: { segments: FlightSegmen
   const issues = links.filter(l => l.issue && l.issue !== 'long').length + (openEnded ? 1 : 0)
 
   return (
-    <div className="p-3 bg-black/20 border border-white/10 rounded-lg space-y-3">
+    <div className="p-3 bg-canvas/50 border border-line rounded-xl space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-[#2a7b9b]">Connection Check</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full border ${issues === 0 ? 'text-green-400 border-green-500/40 bg-green-500/10' : 'text-red-400 border-red-500/40 bg-red-500/10'}`}>
+        <span className="text-sm font-semibold text-brand-light">Connection Check</span>
+        <span className={`text-xs px-2 py-0.5 rounded-full border ${issues === 0 ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-red-300 border-red-500/30 bg-red-500/10'}`}>
           {issues === 0 ? 'All connected' : `${issues} ${issues === 1 ? 'issue' : 'issues'}`}
         </span>
       </div>
@@ -174,8 +174,8 @@ export default function FlightConnections({ segments }: { segments: FlightSegmen
                 onClick={() => setSelected(name)}
                 className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                   name === active
-                    ? 'bg-[#2a7b9b]/25 border-[#2a7b9b] text-white'
-                    : 'border-white/10 text-gray-400 hover:text-white'
+                    ? 'bg-brand/25 border-brand text-white'
+                    : 'border-line text-gray-400 hover:text-white'
                 }`}
               >
                 {name}
@@ -223,23 +223,23 @@ export default function FlightConnections({ segments }: { segments: FlightSegmen
       {/* Issue list */}
       <ul className="space-y-1">
         {links.filter(l => l.issue).map((l, i) => (
-          <li key={i} className={`text-xs px-2 py-1 border rounded ${issueStyle[l.issue!]}`}>
+          <li key={i} className={`text-xs px-2.5 py-1.5 border rounded-lg ${issueStyle[l.issue!]}`}>
             {code(l.from.arrival_code) || '???'} → {code(l.to.departure_code) || '???'}: {l.note}
             {l.layoverMin !== null && l.layoverMin >= 0 && l.issue !== 'gap' ? ` (${fmtDur(l.layoverMin)})` : ''}
           </li>
         ))}
         {openEnded && (
-          <li className="text-xs px-2 py-1 border rounded text-red-400 border-red-500/40 bg-red-500/10">
+          <li className="text-xs px-2.5 py-1.5 border rounded-lg text-red-300 border-red-500/30 bg-red-500/10">
             Trip starts at {first} but ends at {last} — no flight back to {first}
           </li>
         )}
         {sorted.some(s => !ms(s.departure_time) || !ms(s.arrival_time)) && (
-          <li className="text-xs px-2 py-1 border rounded text-yellow-400 border-yellow-500/40 bg-yellow-500/10">
+          <li className="text-xs px-2.5 py-1.5 border rounded-lg text-yellow-300 border-yellow-500/30 bg-yellow-500/10">
             Some segments are missing times, so order and layovers are approximate
           </li>
         )}
         {active === UNASSIGNED && (
-          <li className="text-xs text-gray-500">Add travelers to segments to see each person&apos;s itinerary.</li>
+          <li className="text-xs text-white/45">Add travelers to segments to see each person&apos;s itinerary.</li>
         )}
       </ul>
     </div>
@@ -251,7 +251,7 @@ function Node({ label, bad }: { label: string; bad?: boolean }) {
     <div className="flex flex-col items-center">
       <div
         className={`w-14 h-14 rounded-full border-2 flex items-center justify-center font-mono font-bold text-sm ${
-          bad ? 'border-red-500/60 text-red-300 bg-red-500/10' : 'border-[#2a7b9b] text-white bg-[#2a7b9b]/15'
+          bad ? 'border-red-500/60 text-red-300 bg-red-500/10' : 'border-brand text-white bg-brand/15'
         }`}
       >
         {label}
@@ -267,8 +267,8 @@ function Edge({ seg }: { seg: FlightSegment }) {
         {[seg.airline, seg.flight_number].filter(Boolean).join(' ') || 'Flight'}
       </div>
       <div className="flex items-center w-full my-1">
-        <div className="flex-1 h-px bg-[#2a7b9b]" />
-        <span className="text-[#2a7b9b] text-xs leading-none">▶</span>
+        <div className="flex-1 h-px bg-brand" />
+        <span className="text-brand-light text-xs leading-none">▶</span>
       </div>
       <div className="text-[10px] text-gray-500 leading-tight text-center">{fmtTime(seg.departure_time)}</div>
     </div>
@@ -283,7 +283,7 @@ function LayoverBadge({ link }: { link: Link }) {
     : 'text-gray-500'
   return (
     <div className="flex flex-col items-center w-20 pt-3">
-      <div className={`h-px w-full border-t border-dashed ${link.issue === 'gap' ? 'border-red-500/60' : 'border-white/20'}`} />
+      <div className={`h-px w-full border-t border-dashed ${link.issue === 'gap' ? 'border-red-500/60' : 'border-line-strong'}`} />
       <div className={`text-[10px] mt-1 text-center leading-tight ${color}`}>
         {link.issue === 'gap'
           ? 'not connected'

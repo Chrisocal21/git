@@ -1,52 +1,86 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { BurrowLogo } from '@/components/BurrowLogo'
+import PageHeader from '@/components/PageHeader'
+
+// Icon values are SVG path data (24px outline set)
+const QUICK_FEATURES = [
+  {
+    title: 'Auto-Sync',
+    body: 'All changes sync to cloud automatically. Access from any device.',
+    icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z',
+  },
+  {
+    title: 'Offline Mode',
+    body: 'Works without internet. Changes sync when you reconnect.',
+    icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z',
+  },
+  {
+    title: 'Weather',
+    body: 'Auto weather forecast for every job location on event day.',
+    icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z',
+  },
+  {
+    title: 'Map View',
+    body: 'See all jobs on a map. Plan routes. Check distances.',
+    icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
+  },
+  {
+    title: 'Homebase Time',
+    body: 'Menu shows San Diego time. Always know homebase hours.',
+    icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+  },
+  {
+    title: 'Team Sharing',
+    body: 'Share jobs with team. Everyone sees updates in real-time.',
+    icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+  },
+]
+
+function Step({ title, action, detail }: { title: string; action: string; detail: string }) {
+  return (
+    <div className="card p-4">
+      <h3 className="text-white font-semibold text-sm mb-1.5">{title}</h3>
+      <p className="text-white/80 text-sm mb-1">{action}</p>
+      <p className="text-white/50 text-xs">{detail}</p>
+    </div>
+  )
+}
+
+function Tip({ lead, children }: { lead: string; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span className="text-gold leading-5" aria-hidden="true">→</span>
+      <span className="text-white/75 leading-relaxed"><strong className="text-white font-semibold">{lead}</strong>{children}</span>
+    </li>
+  )
+}
 
 export default function HowToPage() {
-  const router = useRouter()
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] p-6 pb-8">
-        <div className="max-w-3xl mx-auto">
-          <button
-            onClick={() => router.back()}
-            className="mb-4 text-white/70 hover:text-white flex items-center gap-2 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
-          <div className="flex items-center gap-4 mb-2">
-            <BurrowLogo className="w-12 h-12 flex-shrink-0" />
-            <div>
-              <h1 className="text-3xl font-bold text-[#E8B44D]">About & How to Use</h1>
-              <p className="text-white/80 text-sm">Burrow · Version 1.0.0</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-page text-white">
+      <PageHeader title="About & How to Use" subtitle="Burrow · Version 1.0.0" width="max-w-3xl" />
 
       {/* Content */}
-      <div className="p-6 max-w-3xl mx-auto pb-24 space-y-6">
+      <div className="px-4 py-8 max-w-3xl mx-auto space-y-10">
 
         {/* Why Burrow? */}
         <section>
-          <h2 className="text-2xl font-bold text-[#E8B44D] mb-4">Why Burrow?</h2>
-          <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-6 rounded-xl border border-[#E8B44D]/10 space-y-4">
-            <p className="text-white/90 text-lg leading-relaxed">
+          <div className="flex items-center gap-3 mb-4">
+            <BurrowLogo className="w-10 h-10 flex-shrink-0" />
+            <h2 className="text-2xl font-semibold text-white">Why Burrow?</h2>
+          </div>
+          <div className="card shadow-card p-6 space-y-4">
+            <p className="text-white text-lg leading-relaxed">
               Because a badger needs its burrow to collect its stuff.
             </p>
-            <p className="text-white/90 leading-relaxed">
+            <p className="text-white/75 leading-relaxed">
               When you're traveling for work, you've got flights, hotels, venues, client info, addresses, checklists—everything scattered everywhere. Emails. Texts. Calendar. Notes app. Screenshots.
             </p>
-            <p className="text-white/90 leading-relaxed">
+            <p className="text-white/75 leading-relaxed">
               Burrow is one place to keep it all. Everything for a job, organized and ready when you need it. Works offline. Syncs when you're back online.
             </p>
-            <p className="text-white/80 leading-relaxed">
+            <p className="text-white/75 leading-relaxed">
               Simple. Organized. Like a badger's burrow.
             </p>
           </div>
@@ -54,136 +88,99 @@ export default function HowToPage() {
 
         {/* Getting Started */}
         <section>
-          <h2 className="text-2xl font-bold text-[#E8B44D] mb-4">Getting Started</h2>
+          <h2 className="eyebrow text-gold mb-3">Getting Started</h2>
           <div className="space-y-3">
-            <div className="bg-gradient-to-br from-[#2F5F7F]/30 to-[#1a3a4d]/30 p-4 rounded-lg">
-              <h3 className="text-[#E8B44D] font-semibold mb-2">Install to Home Screen</h3>
-              <p className="text-white/80 text-sm mb-2">Tap your browser's share button → "Add to Home Screen"</p>
-              <p className="text-white/60 text-xs">One tap access. Works like a native app.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/30 to-[#1a3a4d]/30 p-4 rounded-lg">
-              <h3 className="text-[#E8B44D] font-semibold mb-2">Navigation</h3>
-              <p className="text-white/80 text-sm mb-2">Three icons at the bottom: Jobs | Map | New</p>
-              <p className="text-white/60 text-xs">Menu button for profile, homebase time, and settings.</p>
-            </div>
+            <Step
+              title="Install to Home Screen"
+              action={'Tap your browser\'s share button → "Add to Home Screen"'}
+              detail="One tap access. Works like a native app."
+            />
+            <Step
+              title="Navigation"
+              action="Tap the badger at the bottom: Jobs | Calendar | Map | New"
+              detail="Gold marks where you are. Tap the badger again to tuck it away."
+            />
+            <Step
+              title="Menu"
+              action="Top right on the Jobs page → profile, homebase time, and the rest"
+              detail="Scan QR, Team Calendar, Weather, Prompt Creator, Tools, Flight Map, Quick Notes."
+            />
+            <Step
+              title="Getting Back"
+              action="Every page has a back arrow, top left"
+              detail="The header stays put while you scroll."
+            />
           </div>
         </section>
 
         {/* Managing Jobs */}
         <section>
-          <h2 className="text-2xl font-bold text-[#E8B44D] mb-4">Managing Jobs</h2>
+          <h2 className="eyebrow text-gold mb-3">Managing Jobs</h2>
           <div className="space-y-3">
-            <div className="bg-gradient-to-br from-[#2F5F7F]/30 to-[#1a3a4d]/30 p-4 rounded-lg">
-              <h3 className="text-[#E8B44D] font-semibold mb-2">Create a Job</h3>
-              <p className="text-white/80 text-sm mb-2">Tap "New" button → Fill in details → Save</p>
-              <p className="text-white/60 text-xs">Choose job type (Caricatures or Personalization), add date, location, client info.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/30 to-[#1a3a4d]/30 p-4 rounded-lg">
-              <h3 className="text-[#E8B44D] font-semibold mb-2">Filter Jobs</h3>
-              <p className="text-white/80 text-sm mb-2">Team/My Jobs toggle + All/Current/Complete status</p>
-              <p className="text-white/60 text-xs">Find exactly what you need. Current hides completed jobs.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/30 to-[#1a3a4d]/30 p-4 rounded-lg">
-              <h3 className="text-[#E8B44D] font-semibold mb-2">View & Edit</h3>
-              <p className="text-white/80 text-sm mb-2">Tap any job card → Make changes → Auto-saves</p>
-              <p className="text-white/60 text-xs">Weather, timezone, and map info update automatically.</p>
-            </div>
+            <Step
+              title="Create a Job"
+              action={'Badger → "New" → New Job → Title, dates, location → Create Job'}
+              detail="Job type (Caricatures or Personalization), client info, and everything else go in on the job page. Time Off lives under New too."
+            />
+            <Step
+              title="Filter Jobs"
+              action="All / My Jobs toggle + Completed Archive"
+              detail="Find exactly what you need. Completed jobs stay out of the way until you open the archive."
+            />
+            <Step
+              title="View & Edit"
+              action="Tap any job card → Make changes → Auto-saves"
+              detail="Save stays at the top if you want to be sure. A gold dot means unsaved changes. Weather, timezone, and map info update automatically."
+            />
+            <Step
+              title="Read the Colors"
+              action="Gold = the main action. Teal = tabs, toggles, and links."
+              detail="Status pills: yellow pending, green confirmed, blue in progress."
+            />
           </div>
         </section>
 
         {/* Quick Features */}
         <section>
-          <h2 className="text-2xl font-bold text-[#E8B44D] mb-4">Quick Features</h2>
+          <h2 className="eyebrow text-gold mb-3">Quick Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-4 rounded-lg border border-[#E8B44D]/10">
-              <svg className="w-6 h-6 mb-2 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-              </svg>
-              <h3 className="text-[#E8B44D] font-semibold mb-1 text-sm">Auto-Sync</h3>
-              <p className="text-white/70 text-xs">All changes sync to cloud automatically. Access from any device.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-4 rounded-lg border border-[#E8B44D]/10">
-              <svg className="w-6 h-6 mb-2 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <h3 className="text-[#E8B44D] font-semibold mb-1 text-sm">Offline Mode</h3>
-              <p className="text-white/70 text-xs">Works without internet. Changes sync when you reconnect.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-4 rounded-lg border border-[#E8B44D]/10">
-              <svg className="w-6 h-6 mb-2 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-              </svg>
-              <h3 className="text-[#E8B44D] font-semibold mb-1 text-sm">Weather</h3>
-              <p className="text-white/70 text-xs">Auto weather forecast for every job location on event day.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-4 rounded-lg border border-[#E8B44D]/10">
-              <svg className="w-6 h-6 mb-2 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
-              <h3 className="text-[#E8B44D] font-semibold mb-1 text-sm">Map View</h3>
-              <p className="text-white/70 text-xs">See all jobs on a map. Plan routes. Check distances.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-4 rounded-lg border border-[#E8B44D]/10">
-              <svg className="w-6 h-6 mb-2 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h3 className="text-[#E8B44D] font-semibold mb-1 text-sm">Homebase Time</h3>
-              <p className="text-white/70 text-xs">Menu shows San Diego time. Always know homebase hours.</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-[#2F5F7F]/20 to-[#1a3a4d]/20 p-4 rounded-lg border border-[#E8B44D]/10">
-              <svg className="w-6 h-6 mb-2 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <h3 className="text-[#E8B44D] font-semibold mb-1 text-sm">Team Sharing</h3>
-              <p className="text-white/70 text-xs">Share jobs with team. Everyone sees updates in real-time.</p>
-            </div>
+            {QUICK_FEATURES.map(feature => (
+              <div key={feature.title} className="card p-4 flex items-start gap-3.5">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gold/10 text-gold">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={feature.icon} />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-white font-semibold mb-1 text-sm">{feature.title}</h3>
+                  <p className="text-white/60 text-xs leading-relaxed">{feature.body}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
         {/* Pro Tips */}
         <section>
-          <h2 className="text-2xl font-bold text-[#E8B44D] mb-4">Pro Tips</h2>
-          <div className="bg-gradient-to-br from-[#E8B44D]/10 to-[#2F5F7F]/10 p-5 rounded-xl border border-[#E8B44D]/20">
+          <h2 className="eyebrow text-gold mb-3">Pro Tips</h2>
+          <div className="card p-5">
             <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-3">
-                <span className="text-[#E8B44D] text-lg">→</span>
-                <span className="text-white/90"><strong className="text-[#E8B44D]">Use address autocomplete</strong> when creating jobs for accurate locations and automatic weather</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-[#E8B44D] text-lg">→</span>
-                <span className="text-white/90"><strong className="text-[#E8B44D]">Add checklists</strong> for equipment, materials, or setup steps—check off as you go</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-[#E8B44D] text-lg">→</span>
-                <span className="text-white/90"><strong className="text-[#E8B44D]">Add airport codes</strong> for travel jobs—keeps flight info organized</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-[#E8B44D] text-lg">→</span>
-                <span className="text-white/90"><strong className="text-[#E8B44D]">Use notes freely</strong>—client preferences, venue details, anything you need to remember</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-[#E8B44D] text-lg">→</span>
-                <span className="text-white/90"><strong className="text-[#E8B44D]">Check Map view</strong> when planning travel—see where all your jobs are in relation to each other</span>
-              </li>
+              <Tip lead="Use address autocomplete"> when creating jobs for accurate locations and automatic weather</Tip>
+              <Tip lead="Add checklists"> for equipment, materials, or setup steps—check off as you go</Tip>
+              <Tip lead="Add airport codes"> for travel jobs—keeps flight info organized</Tip>
+              <Tip lead="Use notes freely">—client preferences, venue details, anything you need to remember</Tip>
+              <Tip lead="Check Map view"> when planning travel—see where all your jobs are in relation to each other</Tip>
             </ul>
           </div>
         </section>
 
         {/* That's It */}
         <section>
-          <div className="bg-gradient-to-r from-[#2F5F7F] to-[#3A6B86] p-6 rounded-xl text-center">
-            <p className="text-xl text-white font-semibold mb-2">
+          <div className="rounded-2xl border border-brand/40 bg-brand/10 p-6 text-center">
+            <p className="font-display text-xl text-white font-semibold mb-2">
               Built for a badger.
             </p>
-            <p className="text-white/70 text-sm">
+            <p className="text-white/65 text-sm">
               Everything organized. Everything ready. If you get lost, come back here.
             </p>
           </div>

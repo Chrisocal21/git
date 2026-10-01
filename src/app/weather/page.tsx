@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
 import { WeatherSVG } from '@/components/WeatherIcon'
+import PageHeader from '@/components/PageHeader'
 
 interface JobWeather {
   fldrId: string
@@ -128,31 +129,15 @@ export default function WeatherPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] pb-20">
-      {/* Header */}
-      <div className="sticky top-0 bg-gradient-to-b from-[#0a0a0a] to-transparent z-10 px-4 pt-5 pb-4">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Job Weather</h1>
-            <p className="text-xs text-white/40 mt-0.5">Current weather at destinations</p>
-          </div>
-          <button
-            onClick={() => router.back()}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white/60 hover:text-white"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
+    <div className="min-h-page">
+      <PageHeader title="Job Weather" subtitle="Current weather at destinations" width="max-w-lg" />
 
       {/* Cards */}
-      <div className="px-4 space-y-3 max-w-lg mx-auto">
+      <div className="px-4 py-5 space-y-3 max-w-lg mx-auto">
         {loading && (
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-52 rounded-2xl bg-white/5 animate-pulse" />
+              <div key={i} className="h-52 rounded-2xl border border-line bg-surface animate-pulse" />
             ))}
           </div>
         )}
@@ -162,7 +147,7 @@ export default function WeatherPage() {
             <svg className="w-12 h-12 text-white/20 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
             </svg>
-            <p className="text-white/40 text-sm">No upcoming jobs with locations</p>
+            <p className="text-white/50 text-sm">No upcoming jobs with locations</p>
           </div>
         )}
 
@@ -170,26 +155,28 @@ export default function WeatherPage() {
           <button
             key={job.fldrId}
             onClick={() => router.push(`/jobs/${job.fldrId}`)}
-            className="w-full text-left rounded-2xl overflow-hidden bg-gradient-to-br from-[#1c3a4a] to-[#0d2133] border border-white/5 shadow-lg active:scale-[0.98] transition-transform"
+            className="card shadow-card w-full text-left overflow-hidden hover:border-line-strong active:scale-[0.99] transition"
           >
             {/* Card header */}
-            <div className="px-4 pt-4 pb-3 border-b border-white/5 flex items-start justify-between gap-3">
+            <div className="px-4 pt-4 pb-3 border-b border-line flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[11px] text-[#E8B44D]/80 uppercase tracking-widest font-medium truncate">
+                <div className="eyebrow text-gold/90 truncate">
                   {job.clientName || job.location}
                 </div>
-                <div className="text-base font-semibold text-white leading-tight truncate mt-0.5">
+                <div className="font-display text-base font-semibold text-white leading-tight truncate mt-1">
                   {job.location}
                 </div>
-                <div className="text-xs text-white/40 mt-1">
-                  <span className="text-white/25 uppercase tracking-wider text-[10px] mr-1">Trip</span>
+                <div className="text-xs text-white/55 mt-1.5 tabular">
+                  <span className="text-white/35 uppercase tracking-wider text-[10px] font-semibold mr-1.5">Trip</span>
                   {formatDate(job.dateStart)}{job.dateEnd && job.dateEnd !== job.dateStart ? ` – ${formatDate(job.dateEnd)}` : ''}
-                </div>                {job.timezone && (
-                  <div className="text-xs text-white/30 mt-0.5">
-                    <span className="text-white/20 uppercase tracking-wider text-[10px] mr-1">Local</span>
+                </div>
+                {job.timezone && (
+                  <div className="text-xs text-white/55 mt-0.5 tabular">
+                    <span className="text-white/35 uppercase tracking-wider text-[10px] font-semibold mr-1.5">Local</span>
                     {getLocalTime(job.timezone)}
                   </div>
-                )}              </div>
+                )}
+              </div>
 
               {/* Current temp */}
               <div className="flex-shrink-0 flex items-center gap-2">
@@ -198,7 +185,7 @@ export default function WeatherPage() {
                 ) : job.current ? (
                   <>
                     <WeatherSVG condition={job.current.main} size="sm" />
-                    <span className="text-3xl font-thin text-white leading-none">{Math.round(job.current.temp)}°</span>
+                    <span className="font-display text-3xl font-light text-white leading-none tabular">{Math.round(job.current.temp)}°</span>
                   </>
                 ) : (
                   <span className="text-sm text-white/30">—</span>
@@ -208,26 +195,26 @@ export default function WeatherPage() {
 
             {/* Current details */}
             {job.current && !job.loading && (
-              <div className="px-4 py-2.5 flex items-center gap-4 text-xs text-white/50">
+              <div className="px-4 py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-white/55">
                 <span className="capitalize">{job.current.description}</span>
-                <span>·</span>
+                <span className="text-white/25" aria-hidden="true">·</span>
                 <span>Feels {Math.round(job.current.feels_like)}°</span>
-                <span>·</span>
+                <span className="text-white/25" aria-hidden="true">·</span>
                 <span>{job.current.humidity}% humidity</span>
-                <span>·</span>
+                <span className="text-white/25" aria-hidden="true">·</span>
                 <span>{job.current.wind_speed} mph</span>
               </div>
             )}
 
             {/* 5-day forecast strip */}
             {!job.loading && job.daily.length > 0 && (
-              <div className="grid grid-cols-5 gap-px bg-white/[0.04] border-t border-white/5">
+              <div className="grid grid-cols-5 divide-x divide-line border-t border-line bg-canvas/50">
                 {job.daily.map(day => (
-                  <div key={day.date} className="bg-[#0d2133] py-2.5 flex flex-col items-center gap-1">
-                    <div className="text-[10px] text-white/40">{formatDay(day.date)}</div>
+                  <div key={day.date} className="py-3 flex flex-col items-center gap-1 tabular">
+                    <div className="text-[10px] font-medium text-white/50">{formatDay(day.date)}</div>
                     <WeatherSVG condition={day.main} size="xs" />
                     <div className="text-xs font-semibold text-white">{day.high}°</div>
-                    <div className="text-[10px] text-white/35">{day.low}°</div>
+                    <div className="text-[10px] text-white/45">{day.low}°</div>
                     {day.pop > 20 && (
                       <div className="text-[9px] text-blue-300">{day.pop}%</div>
                     )}
@@ -238,13 +225,13 @@ export default function WeatherPage() {
 
             {job.loading && (
               <div className="h-24 flex items-center justify-center">
-                <div className="text-xs text-white/30">Loading weather…</div>
+                <div className="text-xs text-white/45">Loading weather…</div>
               </div>
             )}
 
             {!job.loading && job.error && (
               <div className="h-16 flex items-center justify-center">
-                <div className="text-xs text-white/20">Weather unavailable</div>
+                <div className="text-xs text-white/40">Weather unavailable</div>
               </div>
             )}
           </button>

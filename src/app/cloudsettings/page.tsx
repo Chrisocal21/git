@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react'
+import PageHeader from '@/components/PageHeader'
 
 export default function CloudSettingsPage() {
   const [migrating, setMigrating] = useState(false)
@@ -66,36 +67,41 @@ export default function CloudSettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-2">Cloud Settings</h1>
-      <p className="text-gray-400 text-sm mb-6">Advanced admin tools</p>
-      
-      <div className="space-y-4">
+    <div className="min-h-page text-white">
+      <PageHeader title="Cloud Settings" subtitle="Advanced admin tools" width="max-w-md" />
+
+      <div className="px-4 py-6 max-w-md mx-auto">
+      <div className="space-y-3">
         <a
           href="/import"
-          className="block p-4 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-lg transition-colors"
+          className="card shadow-card flex items-center justify-between gap-3 p-4 hover:bg-surface-raised hover:border-line-strong transition-colors"
         >
-          <div className="font-semibold mb-1">Import History</div>
-          <div className="text-sm text-gray-400">
-            Import jobs from old TripFldr database
+          <div>
+            <div className="font-semibold text-sm mb-1">Import History</div>
+            <div className="text-sm text-white/55">
+              Import jobs from old TripFldr database
+            </div>
           </div>
+          <svg className="w-4 h-4 text-white/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </a>
 
-        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-          <div className="font-semibold mb-1">Migrate to D1</div>
-          <div className="text-sm text-gray-400 mb-3">
+        <div className="card shadow-card p-4">
+          <div className="font-semibold text-sm mb-1">Migrate to D1</div>
+          <div className="text-sm text-white/55 mb-3">
             Push existing localStorage data to cloud database
           </div>
           <button
             onClick={handleMigrateToD1}
             disabled={migrating}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-sm rounded-lg transition-colors"
+            className="btn-brand py-2"
           >
             {migrating ? 'Migrating...' : 'Migrate to D1'}
           </button>
           {migrationResult && (
-            <div className="mt-3 p-3 bg-gray-800 rounded text-xs">
-              <div className="text-green-400">{migrationResult.migrated} migrated</div>
+            <div className="mt-3 p-3 bg-canvas border border-line rounded-lg text-xs tabular">
+              <div className="text-emerald-400">{migrationResult.migrated} migrated</div>
               {migrationResult.failed > 0 && (
                 <div className="text-red-400">{migrationResult.failed} failed</div>
               )}
@@ -103,24 +109,25 @@ export default function CloudSettingsPage() {
           )}
         </div>
 
-        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-          <div className="font-semibold mb-1">Clear Cache</div>
-          <div className="text-sm text-gray-400 mb-3">
+        <div className="card shadow-card p-4">
+          <div className="font-semibold text-sm mb-1">Clear Cache</div>
+          <div className="text-sm text-white/55 mb-3">
             Remove all cached data from localStorage
           </div>
           <button
             onClick={handleClearCache}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-sm rounded-lg transition-colors"
+            className="btn-danger py-2"
           >
             Clear All Cache
           </button>
         </div>
       </div>
 
-      <div className="mt-8 p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-        <div className="text-xs text-yellow-400">
+      <div className="mt-6 px-4 py-3 bg-yellow-500/10 border border-yellow-500/25 rounded-xl">
+        <div className="text-xs text-yellow-300">
           WARNING: This page is only accessible via direct URL
         </div>
+      </div>
       </div>
     </div>
   )

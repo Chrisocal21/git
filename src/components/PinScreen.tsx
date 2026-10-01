@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { BurrowLogo } from './BurrowLogo'
 
 const PIN_STORAGE_KEY = 'burrow-pin-auth'
 
@@ -21,10 +22,10 @@ export default function PinScreen() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     setIsVerifying(true)
     setError(false)
-    
+
     try {
       // Call API to verify PIN
       const response = await fetch('/api/verify-pin', {
@@ -34,9 +35,9 @@ export default function PinScreen() {
         },
         body: JSON.stringify({ pin }),
       })
-      
+
       const data = await response.json()
-      
+
       if (data.verified) {
         // PIN is correct
         if (rememberMe) {
@@ -75,25 +76,26 @@ export default function PinScreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-[100000] bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#2a2a2a] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="fixed inset-0 z-[100000] bg-canvas flex items-center justify-center p-6 overflow-y-auto">
+      {/* Soft teal wash behind the mark */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 80% 50% at 50% 20%, rgba(42,123,155,0.16) 0%, transparent 70%)' }}
+        aria-hidden="true"
+      />
+
+      <div className="relative w-full max-w-sm">
         {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="inline-block">
-            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-[#3A6B86] to-[#2F5F7F] rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(232,180,77,0.2)]">
-              <svg className="w-10 h-10 text-[#E8B44D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">burrow</h1>
-          <p className="text-white/60">Enter PIN to continue</p>
+        <div className="text-center mb-10">
+          <BurrowLogo className="w-16 h-16 mx-auto mb-5" />
+          <h1 className="text-3xl font-semibold text-white mb-2">burrow</h1>
+          <p className="text-sm text-white/55">Enter PIN to continue</p>
         </div>
 
         {/* PIN Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label htmlFor="pin" className="block text-sm font-medium text-white/80 mb-2">
+            <label htmlFor="pin" className="label">
               Team PIN
             </label>
             <input
@@ -106,38 +108,38 @@ export default function PinScreen() {
               onChange={(e) => handlePinChange(e.target.value)}
               placeholder="••••••"
               autoFocus
-              className={`w-full px-6 py-4 bg-white/5 border-2 rounded-xl text-center text-2xl tracking-[0.5em] font-mono transition-all focus:outline-none ${
+              aria-invalid={error}
+              aria-describedby={error ? 'pin-error' : undefined}
+              className={`w-full px-6 py-4 bg-surface border rounded-xl text-center text-2xl tracking-[0.5em] font-mono tabular transition-colors placeholder:text-white/20 focus:outline-none focus:ring-2 ${
                 error
-                  ? 'border-red-500/50 focus:border-red-500 text-red-400'
-                  : 'border-white/10 focus:border-[#E8B44D] text-white'
+                  ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30 text-red-400'
+                  : 'border-line-strong focus:border-gold focus:ring-gold/25 text-white'
               }`}
             />
             {error && (
-              <p className="mt-2 text-sm text-red-400 text-center animate-shake">
+              <p id="pin-error" role="alert" className="mt-2 text-sm text-red-400 text-center animate-shake">
                 Incorrect PIN. Please try again.
               </p>
             )}
           </div>
 
           {/* Remember Me */}
-          <div className="flex items-center">
+          <label htmlFor="remember" className="flex items-center gap-2.5 text-sm text-white/65 cursor-pointer select-none">
             <input
               id="remember"
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 rounded border-white/20 bg-white/5 text-[#E8B44D] focus:ring-[#E8B44D] focus:ring-offset-0 focus:ring-2"
+              className="w-4 h-4 rounded"
             />
-            <label htmlFor="remember" className="ml-2 text-sm text-white/70">
-              Remember me on this device
-            </label>
-          </div>
+            Remember me on this device
+          </label>
 
           {/* Submit Button */}
           <button
             type="submit"
             disabled={pin.length !== 6 || isVerifying}
-            className="w-full py-4 bg-gradient-to-r from-[#E8B44D] to-[#D4A03C] hover:from-[#D4A03C] hover:to-[#C08F2B] text-black font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_12px_rgba(232,180,77,0.3)]"
+            className="btn-primary w-full py-3.5 rounded-xl text-base"
           >
             {isVerifying ? (
               <span className="flex items-center justify-center gap-2">
@@ -156,21 +158,10 @@ export default function PinScreen() {
         </form>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-xs text-white/40">
+        <div className="mt-10 text-center eyebrow text-white/30">
           For team members only
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-10px); }
-          75% { transform: translateX(10px); }
-        }
-        .animate-shake {
-          animation: shake 0.3s ease-in-out;
-        }
-      `}</style>
     </div>
   )
 }
@@ -184,9 +175,9 @@ export function usePinAuth() {
       const savedAuth = localStorage.getItem(PIN_STORAGE_KEY)
       setIsAuthenticated(savedAuth === 'true')
     }
-    
+
     checkAuth()
-    
+
     // Listen for storage changes (for multi-tab support)
     window.addEventListener('storage', checkAuth)
     return () => window.removeEventListener('storage', checkAuth)

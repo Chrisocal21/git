@@ -55,8 +55,8 @@ export default function PinAuthWrapper({ children }: { children: React.ReactNode
   // Show nothing while checking auth (prevents flash and hydration mismatch)
   if (isLoading || isAuthenticated === null) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0a0a] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#E8B44D]/20 border-t-[#E8B44D] rounded-full animate-spin"></div>
+      <div className="min-h-[100dvh] bg-canvas flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gold/20 border-t-gold rounded-full animate-spin"></div>
       </div>
     )
   }

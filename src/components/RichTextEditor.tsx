@@ -138,13 +138,13 @@ export default function RichTextEditor({
   }
 
   const renderToolbar = () => (
-    <div className="flex flex-wrap items-center gap-1 p-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-t-lg">
+    <div className="flex flex-wrap items-center gap-1 p-2 bg-surface-raised border border-line-strong rounded-t-lg">
       {/* Font controls */}
-      <div className="flex items-center gap-1 border-r border-[#2a2a2a] pr-2">
+      <div className="flex items-center gap-1 border-r border-line pr-2">
         <select 
           value={fontFamily}
           onChange={(e) => changeFontFamily(e.target.value)}
-          className="px-2 py-1 bg-[#0a0a0a] border border-[#2a2a2a] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#3b82f6]"
+          className="px-2 py-1.5 bg-canvas border border-line-strong rounded-md text-xs focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
         >
           <option value="system-ui">System</option>
           <option value="Arial">Arial</option>
@@ -157,7 +157,7 @@ export default function RichTextEditor({
         <select 
           value={fontSize}
           onChange={(e) => changeFontSize(e.target.value)}
-          className="px-2 py-1 bg-[#0a0a0a] border border-[#2a2a2a] rounded text-xs w-16 focus:outline-none focus:ring-1 focus:ring-[#3b82f6]"
+          className="px-2 py-1.5 bg-canvas border border-line-strong rounded-md text-xs w-16 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
         >
           <option value="12">12</option>
           <option value="14">14</option>
@@ -172,31 +172,31 @@ export default function RichTextEditor({
       </div>
 
       {/* Text formatting */}
-      <div className="flex items-center gap-1 border-r border-[#2a2a2a] pr-2">
+      <div className="flex items-center gap-1 border-r border-line pr-2">
         <button
           onClick={() => execCommand('bold')}
-          className={`p-2 rounded hover:bg-[#2a2a2a] transition-colors ${isBold ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : ''}`}
+          className={`p-2 rounded-md hover:bg-white/10 transition-colors ${isBold ? 'bg-brand/20 text-brand-light' : ''}`}
           title="Bold (Ctrl+B)"
         >
           <span className="font-bold text-sm">B</span>
         </button>
         <button
           onClick={() => execCommand('italic')}
-          className={`p-2 rounded hover:bg-[#2a2a2a] transition-colors ${isItalic ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : ''}`}
+          className={`p-2 rounded-md hover:bg-white/10 transition-colors ${isItalic ? 'bg-brand/20 text-brand-light' : ''}`}
           title="Italic (Ctrl+I)"
         >
           <span className="italic text-sm">I</span>
         </button>
         <button
           onClick={() => execCommand('underline')}
-          className={`p-2 rounded hover:bg-[#2a2a2a] transition-colors ${isUnderline ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : ''}`}
+          className={`p-2 rounded-md hover:bg-white/10 transition-colors ${isUnderline ? 'bg-brand/20 text-brand-light' : ''}`}
           title="Underline (Ctrl+U)"
         >
           <span className="underline text-sm">U</span>
         </button>
         <button
           onClick={() => execCommand('strikeThrough')}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors"
           title="Strikethrough"
         >
           <span className="line-through text-sm">S</span>
@@ -204,10 +204,10 @@ export default function RichTextEditor({
       </div>
 
       {/* Alignment */}
-      <div className="flex items-center gap-1 border-r border-[#2a2a2a] pr-2">
+      <div className="flex items-center gap-1 border-r border-line pr-2">
         <button
           onClick={() => changeAlignment('left')}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors"
           title="Align Left"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,7 +216,7 @@ export default function RichTextEditor({
         </button>
         <button
           onClick={() => changeAlignment('center')}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors"
           title="Align Center"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -225,7 +225,7 @@ export default function RichTextEditor({
         </button>
         <button
           onClick={() => changeAlignment('right')}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors"
           title="Align Right"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,10 +235,10 @@ export default function RichTextEditor({
       </div>
 
       {/* Lists */}
-      <div className="flex items-center gap-1 border-r border-[#2a2a2a] pr-2">
+      <div className="flex items-center gap-1 border-r border-line pr-2">
         <button
           onClick={() => insertList('ul')}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors"
           title="Bullet List"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,7 +250,7 @@ export default function RichTextEditor({
         </button>
         <button
           onClick={() => insertList('ol')}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors"
           title="Numbered List"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -260,10 +260,10 @@ export default function RichTextEditor({
       </div>
 
       {/* Additional tools */}
-      <div className="flex items-center gap-1 border-r border-[#2a2a2a] pr-2">
+      <div className="flex items-center gap-1 border-r border-line pr-2">
         <button
           onClick={clearFormatting}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors text-xs"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors text-xs"
           title="Clear Formatting"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -276,7 +276,7 @@ export default function RichTextEditor({
       <div className="flex items-center ml-auto">
         <button
           onClick={toggleFullscreen}
-          className="p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors"
           title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
         >
           {isFullscreen ? (
@@ -302,7 +302,7 @@ export default function RichTextEditor({
       onMouseUp={updateFormatState}
       onKeyUp={updateFormatState}
       className={`
-        bg-[#0a0a0a] border border-[#2a2a2a] border-t-0 p-4 
+        bg-canvas border border-line border-t-0 p-4 
         focus:outline-none overflow-y-auto
         ${isFullscreen ? 'h-[calc(100vh-80px)] text-lg rounded-b-lg' : 'min-h-[400px] rounded-b-lg'}
       `}
@@ -316,7 +316,7 @@ export default function RichTextEditor({
 
   // Fullscreen overlay portal
   const fullscreenOverlay = isFullscreen && mounted ? createPortal(
-    <div className="fixed inset-0 z-[99999] bg-[#0a0a0a] flex flex-col p-6">
+    <div className="fixed inset-0 z-[99999] bg-canvas flex flex-col p-6">
       {renderToolbar()}
       {renderEditor()}
       <style jsx>{`

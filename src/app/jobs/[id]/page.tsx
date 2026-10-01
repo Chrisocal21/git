@@ -2743,7 +2743,7 @@ export default function FldrDetailPage() {
 
   return (
     <div 
-      className="min-h-screen bg-[#0f1419]"
+      className="min-h-page"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -2751,14 +2751,14 @@ export default function FldrDetailPage() {
       {/* Pull-to-refresh indicator */}
       {(isPulling || isRefreshing) && (
         <div 
-          className="fixed top-0 left-0 right-0 flex justify-center items-center bg-[#0a0a0a] z-50 transition-all"
+          className="fixed top-0 left-0 right-0 flex justify-center items-center bg-canvas z-50 transition-all"
           style={{
             height: isRefreshing ? '60px' : `${Math.min(pullDistance, 80)}px`,
             opacity: isRefreshing ? 1 : Math.min(pullDistance / 80, 1)
           }}
         >
           {isRefreshing ? (
-            <div className="flex items-center gap-2 text-[#3b82f6]">
+            <div className="flex items-center gap-2 text-brand-light">
               <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -2766,14 +2766,15 @@ export default function FldrDetailPage() {
               <span className="text-sm font-medium">Refreshing...</span>
             </div>
           ) : (
-            <div className="text-[#3b82f6] text-sm font-medium">
+            <div className="text-brand-light text-sm font-medium">
               {pullDistance > 80 ? 'Release to refresh' : 'Pull to refresh'}
             </div>
           )}
         </div>
       )}
-      {/* iOS-style Header */}
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10 px-4 max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="sticky top-0 z-30 mb-4 border-b border-line bg-canvas/85 backdrop-blur-md">
+      <div className="flex items-center justify-between h-14 px-4 max-w-2xl mx-auto">
         {/* Left side - Back button */}
         <button
           onClick={async () => {
@@ -2781,21 +2782,21 @@ export default function FldrDetailPage() {
             await flushAndSave()
             router.push('/jobs')
           }}
-          className="flex items-center gap-1 text-[#3b82f6] hover:text-[#2563eb] text-[15px] font-normal transition-colors"
+          className="flex items-center gap-1 -ml-1.5 pl-1 pr-2.5 h-9 rounded-lg text-white/70 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           <span>Back</span>
         </button>
 
         {/* Right side - Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
           {/* Online indicator and refresh */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 mr-1">
             <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-xs text-gray-400">{online ? 'Online' : 'Offline'}</span>
+              <div className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-red-500'}`} />
+              <span className="text-xs text-white/55">{online ? 'Online' : 'Offline'}</span>
             </div>
             {online && !isRefreshing && (
               <button
@@ -2803,8 +2804,9 @@ export default function FldrDetailPage() {
                   setIsRefreshing(true)
                   await handleRefresh()
                 }}
-                className="text-gray-400 hover:text-[#3b82f6] transition-colors p-1"
+                className="icon-btn h-8 w-8"
                 title="Refresh from server"
+                aria-label="Refresh from server"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -2812,7 +2814,7 @@ export default function FldrDetailPage() {
               </button>
             )}
             {isRefreshing && (
-              <svg className="animate-spin h-4 w-4 text-[#3b82f6]" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-4 w-4 mx-2 text-brand-light" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
@@ -2823,10 +2825,10 @@ export default function FldrDetailPage() {
           <button
             onClick={manualSave}
             disabled={saving || !fldr}
-            className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+            className={`h-9 px-3 rounded-lg font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50 ${
               unsavedChanges
-                ? 'bg-[#2a7b9b] hover:bg-[#3a8bab] text-white'
-                : 'bg-white/10 hover:bg-white/15 text-gray-200'
+                ? 'bg-brand hover:bg-brand-hover text-white'
+                : 'bg-white/5 border border-line-strong hover:bg-white/10 text-white/85'
             }`}
             title={unsavedChanges ? 'Save changes to server' : 'Save now'}
           >
@@ -2836,7 +2838,7 @@ export default function FldrDetailPage() {
             </svg>
             <span>{saving ? 'Saving...' : 'Save'}</span>
             {unsavedChanges && !saving && (
-              <span className="w-2 h-2 bg-red-500 rounded-full" />
+              <span className="w-2 h-2 bg-gold rounded-full" aria-label="Unsaved changes" />
             )}
           </button>
 
@@ -2844,8 +2846,9 @@ export default function FldrDetailPage() {
             <>
               <button
                 onClick={enableEditMode}
-                className="p-1.5 text-gray-400 hover:text-[#3b82f6] transition-colors"
+                className="icon-btn"
                 title="Edit"
+                aria-label="Edit"
               >
                 <PencilIcon className="w-[18px] h-[18px]" />
               </button>
@@ -2855,8 +2858,9 @@ export default function FldrDetailPage() {
                   await duplicateJob()
                 }}
                 disabled={saving}
-                className="p-1.5 text-gray-400 hover:text-[#3b82f6] transition-colors disabled:opacity-50"
+                className="icon-btn disabled:opacity-50"
                 title="Duplicate this job"
+                aria-label="Duplicate this job"
               >
                 <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -2871,8 +2875,10 @@ export default function FldrDetailPage() {
                     setShowExportMenu(!showExportMenu)
                   }}
                   disabled={generatingOverview || generatingPDF !== null}
-                  className="p-1.5 text-gray-400 hover:text-[#3b82f6] transition-colors disabled:opacity-50"
+                  className="icon-btn disabled:opacity-50"
                   title="Export options"
+                  aria-label="Export options"
+                  aria-expanded={showExportMenu}
                 >
                   <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2880,7 +2886,7 @@ export default function FldrDetailPage() {
                 </button>
 
                 {showExportMenu && (
-                  <div className="absolute top-full right-0 mt-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-lg py-1 min-w-[200px] z-50">
+                  <div className="absolute top-full right-0 mt-2 bg-surface border border-line-strong rounded-xl shadow-pop py-1.5 min-w-[220px] z-50 animate-slide-in">
                     <button
                       onClick={async () => {
                         await flushAndSave()
@@ -2888,7 +2894,7 @@ export default function FldrDetailPage() {
                         setShowExportMenu(false)
                       }}
                       disabled={generatingOverview}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2896,10 +2902,10 @@ export default function FldrDetailPage() {
                       <span>{generatingOverview ? 'Generating...' : 'Text Overview'}</span>
                     </button>
                     
-                    <div className="border-t border-[#2a2a2a] my-1"></div>
+                    <div className="border-t border-line my-1"></div>
                     
-                    <div className="px-3 py-1">
-                      <span className="text-xs text-gray-500 font-medium">Quick PDF (1 page)</span>
+                    <div className="px-4 pt-2 pb-1">
+                      <span className="eyebrow text-[10px]">Quick PDF (1 page)</span>
                     </div>
                     <button
                       onClick={() => {
@@ -2907,7 +2913,7 @@ export default function FldrDetailPage() {
                         setShowExportMenu(false)
                       }}
                       disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -2920,7 +2926,7 @@ export default function FldrDetailPage() {
                         setShowExportMenu(false)
                       }}
                       disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -2928,10 +2934,10 @@ export default function FldrDetailPage() {
                       <span>Share PDF</span>
                     </button>
                     
-                    <div className="border-t border-[#2a2a2a] my-1"></div>
+                    <div className="border-t border-line my-1"></div>
                     
-                    <div className="px-3 py-1">
-                      <span className="text-xs text-gray-500 font-medium">Full Trip Brief</span>
+                    <div className="px-4 pt-2 pb-1">
+                      <span className="eyebrow text-[10px]">Full Trip Brief</span>
                     </div>
                     <button
                       onClick={() => {
@@ -2939,7 +2945,7 @@ export default function FldrDetailPage() {
                         setShowExportMenu(false)
                       }}
                       disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -2952,7 +2958,7 @@ export default function FldrDetailPage() {
                         setShowExportMenu(false)
                       }}
                       disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -2960,7 +2966,7 @@ export default function FldrDetailPage() {
                       <span>Share PDF</span>
                     </button>
                     
-                    <div className="border-t border-[#2a2a2a] my-1"></div>
+                    <div className="border-t border-line my-1"></div>
                     
                     {/* Archive/Unarchive */}
                     <button
@@ -2978,7 +2984,7 @@ export default function FldrDetailPage() {
                         setShowExportMenu(false)
                       }}
                       disabled={saving}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -2986,7 +2992,7 @@ export default function FldrDetailPage() {
                       <span>{saving ? 'Updating...' : fldr.archived ? 'Unarchive Job' : 'Archive Job'}</span>
                     </button>
                     
-                    <div className="border-t border-[#2a2a2a] my-1"></div>
+                    <div className="border-t border-line my-1"></div>
                     
                     <button
                       onClick={async () => {
@@ -2995,7 +3001,7 @@ export default function FldrDetailPage() {
                         setShowExportMenu(false)
                       }}
                       disabled={saving}
-                      className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -3009,14 +3015,15 @@ export default function FldrDetailPage() {
           )}
         </div>
       </div>
+      </div>
 
       {/* Save Status Indicator */}
       {(saving || lastSaved) && (
-        <div className="mb-3 text-center px-4 max-w-2xl mx-auto">
+        <div className="mb-3 text-center px-4 max-w-2xl mx-auto" aria-live="polite">
           {saving ? (
-            <span className="text-xs text-yellow-400">Saving...</span>
+            <span className="text-[11px] text-yellow-300">Saving...</span>
           ) : lastSaved && (
-            <span className="text-xs text-gray-500">
+            <span className="text-[11px] text-white/40">
               Saved {new Date().getTime() - lastSaved.getTime() < 60000
                 ? 'just now'
                 : `${Math.floor((new Date().getTime() - lastSaved.getTime()) / 60000)}m ago`}
@@ -3027,52 +3034,52 @@ export default function FldrDetailPage() {
 
       <div className="mb-6 px-4 max-w-2xl mx-auto">
         {editMode ? (
-          <div className="space-y-4 p-5 bg-[#1a2332] border border-white/5 rounded-2xl">
+          <div className="card shadow-card space-y-4 p-5">
             <div>
-              <label className="block text-sm font-medium mb-2 text-white/70">
+              <label className="label">
                 Title <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-white"
+                className="input"
                 placeholder="Client name"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-2 text-white/70">
+                <label className="label">
                   Start Date <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="date"
                   value={editDateStart}
                   onChange={(e) => setEditDateStart(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-white"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-white/70">
-                  End Date <span className="text-xs text-white/40">(optional)</span>
+                <label className="label">
+                  End Date <span className="text-white/35 font-normal">(optional)</span>
                 </label>
                 <input
                   type="date"
                   value={editDateEnd}
                   onChange={(e) => setEditDateEnd(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-white"
+                  className="input"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2 text-white/70">
-                Location <span className="text-xs text-white/40">(optional)</span>
+              <label className="label">
+                Location <span className="text-white/35 font-normal">(optional)</span>
               </label>
               <input
                 type="text"
                 value={editLocation}
                 onChange={(e) => setEditLocation(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-white"
+                className="input"
                 placeholder="City, State"
               />
             </div>
@@ -3080,35 +3087,36 @@ export default function FldrDetailPage() {
               <button
                 onClick={saveBasicInfo}
                 disabled={!editTitle.trim() || !editDateStart || saving}
-                className="flex-1 px-4 py-2.5 bg-[#2a7b9b] hover:bg-[#3a8bab] rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white"
+                className="btn-brand flex-1"
               >
                 {saving ? 'Saving...' : 'Save'}
               </button>
               <button
                 onClick={cancelEdit}
                 disabled={saving}
-                className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white"
+                className="btn-secondary flex-1"
               >
                 Cancel
               </button>
             </div>
           </div>
         ) : (
-          <div className="p-5 bg-[#1a2332] border border-white/5 rounded-2xl">
-            <div className="flex items-start justify-between mb-3">
-              <h2 className="text-2xl font-semibold text-white">{fldr.title}</h2>
-              <div className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-                fldr.status === 'incomplete' ? 'bg-yellow-500/20 text-yellow-300' :
-                fldr.status === 'ready' ? 'bg-blue-500/20 text-blue-300' :
-                fldr.status === 'active' ? 'bg-green-500/20 text-green-300' :
-                'bg-gray-500/20 text-gray-300'
+          <div className="card shadow-card p-5">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h2 className="text-2xl font-semibold text-white leading-tight min-w-0 break-words">{fldr.title}</h2>
+              <div className={`badge flex-shrink-0 mt-1 ${
+                fldr.status === 'incomplete' ? 'bg-yellow-500/15 text-yellow-300' :
+                fldr.status === 'ready' ? 'bg-blue-500/15 text-blue-300' :
+                fldr.status === 'active' ? 'bg-emerald-500/15 text-emerald-300' :
+                'bg-white/10 text-white/60'
               }`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
                 {fldr.status}
               </div>
             </div>
-            <div className="text-white/60 text-sm">
+            <div className="text-white/60 text-sm tabular">
               {formatDate(fldr.date_start)}
-              {fldr.date_end && ` - ${formatDate(fldr.date_end)}`}
+              {fldr.date_end && ` – ${formatDate(fldr.date_end)}`}
             </div>
             
             {/* Countdown Timers */}
@@ -3120,11 +3128,11 @@ export default function FldrDetailPage() {
               const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
               
               if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob !== null && daysUntilJob >= 0)) {
-                const urgencyColor = soonest !== null && soonest <= 2 ? 'text-red-300' : soonest !== null && soonest <= 7 ? 'text-yellow-300' : 'text-green-300'
-                const urgencyBg = soonest !== null && soonest <= 2 ? 'bg-red-500/20 border-red-400/40' : soonest !== null && soonest <= 7 ? 'bg-yellow-500/20 border-yellow-400/40' : 'bg-green-500/20 border-green-400/40'
+                const urgencyColor = soonest !== null && soonest <= 2 ? 'text-red-300' : soonest !== null && soonest <= 7 ? 'text-yellow-300' : 'text-emerald-300'
+                const urgencyBg = soonest !== null && soonest <= 2 ? 'bg-red-500/10 border-red-400/30' : soonest !== null && soonest <= 7 ? 'bg-yellow-500/10 border-yellow-400/30' : 'bg-emerald-500/10 border-emerald-400/30'
                 
                 return (
-                  <div className={`mt-3 px-4 py-3 ${urgencyBg} border rounded-lg space-y-2`}>
+                  <div className={`mt-4 px-4 py-3 ${urgencyBg} border rounded-xl space-y-2`}>
                     {daysUntilFlight !== null && daysUntilFlight >= 0 && (
                       <div className="flex items-center gap-3">
                         <svg className={`w-5 h-5 ${urgencyColor} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3147,7 +3155,7 @@ export default function FldrDetailPage() {
                             {daysUntilJob === 0 ? 'Job is Today!' : daysUntilJob === 1 ? '1 Day Until Job' : `${daysUntilJob} Days Until Job`}
                           </div>
                           {daysUntilJob > 0 && (
-                            <div className="text-xs text-gray-300 mt-0.5">
+                            <div className="text-xs text-white/60 mt-0.5">
                               Starting {formatDate(fldr.date_start)}
                             </div>
                           )}
@@ -3161,10 +3169,10 @@ export default function FldrDetailPage() {
             })()}
             
             {fldr.location && (
-              <div className="flex items-center gap-2 mt-2">
-                <div className="text-gray-300">{fldr.location}</div>
+              <div className="flex items-center gap-2.5 mt-1.5">
+                <div className="text-white/85">{fldr.location}</div>
                 {locationTime && (
-                  <div className="flex items-center gap-1 text-xs text-gray-300">
+                  <div className="flex items-center gap-1 text-xs text-white/55 tabular">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -3175,8 +3183,8 @@ export default function FldrDetailPage() {
             )}
             
             {/* Job Status Selector */}
-            <div className="mt-3 p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg">
-              <label htmlFor="job-status" className="block text-xs text-gray-300 mb-2">Job Status</label>
+            <div className="mt-4 pt-4 border-t border-line">
+              <label htmlFor="job-status" className="label">Job Status</label>
               <select
                 id="job-status"
                 value={fldr.job_status || ''}
@@ -3191,7 +3199,7 @@ export default function FldrDetailPage() {
                     setSaving(false)
                   }
                 }}
-                className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
+                className="input"
               >
                 <option value="" className="bg-gray-800 text-white">Not Set</option>
                 <option value="pending" className="bg-gray-800 text-white">Pending</option>
@@ -3205,16 +3213,21 @@ export default function FldrDetailPage() {
       </div>
 
       {/* Status Actions & Map */}
-      <div className="px-4 max-w-2xl mx-auto mb-3 space-y-2">
+      <div className="px-4 max-w-2xl mx-auto mb-4 space-y-2">
         {((fldr.status === 'ready' || fldr.status === 'incomplete') || fldr.status === 'active' || fldr.status === 'complete') && (
           <>
             {(fldr.status === 'ready' || fldr.status === 'incomplete') && (
               <button
                 onClick={() => updateStatus('active')}
                 disabled={saving}
-                className="w-full px-3 py-1.5 bg-[#2a7b9b]/10 hover:bg-[#2a7b9b]/20 border border-[#2a7b9b]/30 rounded-lg font-normal text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all text-[#2a7b9b]"
+                className="btn w-full font-medium bg-brand/15 hover:bg-brand/25 border border-brand/40 text-brand-light"
               >
-                {saving ? 'Activating...' : '✓ Activate Job'}
+                {!saving && (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {saving ? 'Activating...' : 'Activate Job'}
               </button>
             )}
             {fldr.status === 'active' && (
@@ -3222,16 +3235,21 @@ export default function FldrDetailPage() {
                 <button
                   onClick={() => updateStatus('complete')}
                   disabled={saving}
-                  className="flex-1 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg font-normal text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all text-blue-300"
+                  className="btn flex-1 font-medium bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300"
                 >
                   {saving ? 'Completing...' : 'Mark Complete'}
                 </button>
                 <button
                   onClick={() => updateStatus('ready')}
                   disabled={saving}
-                  className="flex-1 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-lg font-normal text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all text-amber-300"
+                  className="btn flex-1 font-medium bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300"
                 >
-                  {saving ? 'Pausing...' : '⏸ Pause'}
+                  {!saving && (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
+                    </svg>
+                  )}
+                  {saving ? 'Pausing...' : 'Pause'}
                 </button>
               </div>
             )}
@@ -3239,9 +3257,14 @@ export default function FldrDetailPage() {
               <button
                 onClick={() => updateStatus('active')}
                 disabled={saving}
-                className="w-full px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg font-normal text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all text-blue-300"
+                className="btn w-full font-medium bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300"
               >
-                {saving ? 'Reactivating...' : '↻ Reactivate Job'}
+                {!saving && (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+                {saving ? 'Reactivating...' : 'Reactivate Job'}
               </button>
             )}
           </>
@@ -3250,22 +3273,25 @@ export default function FldrDetailPage() {
         {/* Map Button */}
         <button
           onClick={() => setShowMapModal(true)}
-          className="w-full px-3 py-1.5 bg-[#2a7b9b]/10 hover:bg-[#2a7b9b]/20 border border-[#2a7b9b]/30 rounded-lg font-normal text-sm transition-all text-[#2a7b9b]"
+          className="btn-secondary w-full font-medium"
         >
-          🗺️ Open Google Maps & Nearby Places
+          <svg className="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          Open Google Maps & Nearby Places
         </button>
       </div>
 
       {/* Job Summary - Cross-module overview */}
       <div className="px-4 max-w-2xl mx-auto mb-4">
-      <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
+      <div className="card shadow-card overflow-hidden">
         <button
           onClick={() => toggleCard('summary')}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+          className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
         >
-          <span className="font-semibold">Job Summary</span>
+          <span className="font-display font-semibold">Job Summary</span>
           <ChevronDownIcon
-            className={`w-5 h-5 transition-transform ${
+            className={`w-5 h-5 text-white/45 transition-transform ${
               expandedCards.summary ? 'rotate-180' : ''
             }`}
           />
@@ -3274,8 +3300,8 @@ export default function FldrDetailPage() {
           <div className="px-4 pb-4 space-y-3 text-sm">
             {/* Job Info */}
             {fldr.job_info && (
-              <div className="p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg">
-                <div className="font-semibold text-[#2a7b9b] mb-2">Job Details</div>
+              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
+                <div className="font-semibold text-brand-light mb-2">Job Details</div>
                 {fldr.job_info.job_title && (
                   <div><span className="text-gray-400">Title:</span> {fldr.job_info.job_title}</div>
                 )}
@@ -3302,8 +3328,8 @@ export default function FldrDetailPage() {
 
             {/* Travel Distances */}
             {distances && distances.distances && distances.distances.length > 0 && (
-              <div className="p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg backdrop-blur-sm">
-                <div className="font-semibold text-[#2a7b9b] mb-2">Travel Times</div>
+              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
+                <div className="font-semibold text-brand-light mb-2">Travel Times</div>
                 <div className="space-y-1.5">
                   {distances.distances.map((dist: any, idx: number) => {
                     if (dist.error) return null
@@ -3334,8 +3360,8 @@ export default function FldrDetailPage() {
 
             {/* Products */}
             {fldr.products && fldr.products.length > 0 && (
-              <div className="p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg backdrop-blur-sm">
-                <div className="font-semibold text-[#2a7b9b] mb-2">
+              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
+                <div className="font-semibold text-brand-light mb-2">
                   Products ({fldr.products.reduce((sum, p) => sum + p.quantity, 0)} total)
                 </div>
                 {fldr.products.map((product, idx) => (
@@ -3349,8 +3375,8 @@ export default function FldrDetailPage() {
 
             {/* Flight Info */}
             {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
-              <div className="p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg backdrop-blur-sm">
-                <div className="font-semibold text-[#2a7b9b] mb-2">Flights ({fldr.flight_info.length} segments)</div>
+              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
+                <div className="font-semibold text-brand-light mb-2">Flights ({fldr.flight_info.length} segments)</div>
                 <div className="space-y-2">
                   {fldr.flight_info.map((segment, idx) => (
                     <div key={segment.id} className="space-y-1">
@@ -3375,7 +3401,7 @@ export default function FldrDetailPage() {
                         )}
                       </div>
                       {segment.travelers && segment.travelers.length > 0 && (
-                        <div className="text-xs text-[#2a7b9b] ml-7">
+                        <div className="text-xs text-brand-light ml-7">
                           {segment.travelers.join(', ')}
                         </div>
                       )}
@@ -3409,8 +3435,8 @@ export default function FldrDetailPage() {
 
             {/* Hotel & Venue */}
             {(fldr.flight_info?.some(f => f.departure_address || f.arrival_address) || fldr.hotel_info?.name || fldr.venue_info?.name) && (
-              <div className="p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg backdrop-blur-sm space-y-2">
-                <div className="font-semibold text-[#2a7b9b] mb-2">Locations</div>
+              <div className="p-3 bg-canvas/50 border border-line rounded-lg backdrop-blur-sm space-y-2">
+                <div className="font-semibold text-brand-light mb-2">Locations</div>
                 
                 {/* Hotel */}
                 {fldr.hotel_info?.name && (
@@ -3468,8 +3494,8 @@ export default function FldrDetailPage() {
 
             {/* Team & People */}
             {(fldr.people && fldr.people.length > 0) && (
-              <div className="p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg backdrop-blur-sm">
-                <div className="font-semibold text-[#2a7b9b] mb-2">People ({fldr.people.length})</div>
+              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
+                <div className="font-semibold text-brand-light mb-2">People ({fldr.people.length})</div>
                 {fldr.people.slice(0, 5).map((person, idx) => (
                   <div key={idx} className="text-xs">
                     {person.name} {person.role && `(${person.role})`}
@@ -3483,12 +3509,12 @@ export default function FldrDetailPage() {
 
             {/* Checklist Progress */}
             {fldr.checklist && fldr.checklist.length > 0 && (
-              <div className="p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg backdrop-blur-sm">
-                <div className="font-semibold text-[#2a7b9b] mb-2">Checklist Progress</div>
+              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
+                <div className="font-semibold text-brand-light mb-2">Checklist Progress</div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-white/10 rounded-full h-2">
                     <div 
-                      className="bg-[#2a7b9b] h-2 rounded-full transition-all"
+                      className="bg-brand h-2 rounded-full transition-all"
                       style={{ width: `${(fldr.checklist.filter(i => i.completed).length / fldr.checklist.length) * 100}%` }}
                     />
                   </div>
@@ -3506,10 +3532,10 @@ export default function FldrDetailPage() {
       <div className="space-y-3 px-4 max-w-2xl mx-auto">
         {/* Weather Card - Only show if the job has a location */}
         {(fldr.location || fldr.venue_info?.address) && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
+          <div className="card shadow-card overflow-hidden">
             <button
               onClick={() => toggleCard('weather')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+              className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
             >
               <div className="text-left">
                 <span className="font-semibold block">Weather</span>
@@ -3525,7 +3551,7 @@ export default function FldrDetailPage() {
                   </div>
                 )}
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.weather ? 'rotate-180' : ''
                   }`}
                 />
@@ -3544,11 +3570,11 @@ export default function FldrDetailPage() {
                 {!jobWeather.loading && !jobWeather.error && jobWeather.current && (
                   <>
                     {jobWeather.cityLabel && (
-                      <div className="text-xs text-[#2a7b9b] font-semibold uppercase tracking-wide mb-2">
+                      <div className="text-xs text-brand-light font-semibold uppercase tracking-wide mb-2">
                         {jobWeather.cityLabel}
                       </div>
                     )}
-                    <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                    <div className="flex items-center justify-between pb-3 border-b border-line">
                       <div className="flex items-center gap-3">
                         <WeatherSVG condition={jobWeather.current.main} size="lg" />
                         <div>
@@ -3590,14 +3616,14 @@ export default function FldrDetailPage() {
 
         {/* Pre-trip Info Card - Only show if job_info enabled */}
         {fldr.job_info !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
+          <div className="card shadow-card overflow-hidden">
             <button
               onClick={() => toggleCard('preTrip')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+              className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
             >
-              <span className="font-semibold">Pre-trip Info</span>
+              <span className="font-display font-semibold">Pre-trip Info</span>
               <ChevronDownIcon
-                className={`w-5 h-5 transition-transform ${
+                className={`w-5 h-5 text-white/45 transition-transform ${
                   expandedCards.preTrip ? 'rotate-180' : ''
                 }`}
               />
@@ -3605,11 +3631,11 @@ export default function FldrDetailPage() {
             {expandedCards.preTrip && (
               <div className="px-4 pb-4 space-y-3">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Pre-engrave Details</label>
+                  <label className="label">Pre-engrave Details</label>
                   <textarea
                     value={fldr.job_info?.pre_engrave_details || ''}
                     onChange={(e) => updateJobInfo('pre_engrave_details', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                    className="input resize-none"
                     rows={3}
                     placeholder="Pre-engrave prep notes..."
                   />
@@ -3625,14 +3651,14 @@ export default function FldrDetailPage() {
         )}
 
         {/* Itinerary Card - Always shown, auto-generated from time data */}
-        <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="card shadow-card overflow-hidden">
           <button
             onClick={() => toggleCard('itinerary')}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
           >
-            <span className="font-semibold">Itinerary</span>
+            <span className="font-display font-semibold">Itinerary</span>
             <ChevronDownIcon
-              className={`w-5 h-5 transition-transform ${
+              className={`w-5 h-5 text-white/45 transition-transform ${
                 expandedCards.itinerary ? 'rotate-180' : ''
               }`}
             />
@@ -3640,7 +3666,7 @@ export default function FldrDetailPage() {
           {expandedCards.itinerary && (
             <div className="px-4 pb-4">
               {/* Info banner about itinerary features */}
-              <div className="mb-3 p-3 bg-[#0f1419]/50 border border-white/5 rounded-lg backdrop-blur-sm">
+              <div className="mb-3 p-3 bg-canvas/50 border border-line rounded-lg backdrop-blur-sm">
                 <div className="flex items-start gap-2">
                   <svg className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -3677,8 +3703,8 @@ export default function FldrDetailPage() {
                 return (
                   <div className="space-y-4">
                     {Object.keys(itinerary).map((day, dayIndex) => (
-                      <div key={day} className={dayIndex > 0 ? 'border-t border-white/10 pt-4' : ''}>
-                        <div className="text-sm font-semibold text-[#2a7b9b] mb-3">
+                      <div key={day} className={dayIndex > 0 ? 'border-t border-line pt-4' : ''}>
+                        <div className="text-sm font-semibold text-brand-light mb-3">
                           {day}
                         </div>
                         <div className="space-y-3">
@@ -3693,14 +3719,14 @@ export default function FldrDetailPage() {
                                 key={eventIndex} 
                                 className={`pl-4 border-l-2 transition-all ${
                                   isPast 
-                                    ? 'border-[#2a7b9b]/20 opacity-50' 
+                                    ? 'border-brand/20 opacity-50' 
                                     : isNext 
-                                      ? 'border-[#10b981] bg-[#10b981]/5 shadow-sm' 
-                                      : 'border-[#2a7b9b]/40'
+                                      ? 'border-emerald-500 bg-emerald-500/5 shadow-sm' 
+                                      : 'border-brand/40'
                                 }`}
                               >
                                 <div className="flex items-baseline gap-2 mb-1">
-                                  <span className={`text-xs font-medium ${isPast ? 'text-gray-400' : isNext ? 'text-[#10b981]' : 'text-[#2a7b9b]'}`}>
+                                  <span className={`text-xs font-medium ${isPast ? 'text-gray-400' : isNext ? 'text-emerald-500' : 'text-brand-light'}`}>
                                     {event.dateTime.toLocaleTimeString('en-US', {
                                       hour: 'numeric',
                                       minute: '2-digit',
@@ -3714,7 +3740,7 @@ export default function FldrDetailPage() {
                                   }`}>
                                     {event.title}
                                     {isNext && (
-                                      <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-[#10b981]/20 text-[#10b981] rounded border border-[#10b981]/30">
+                                      <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-emerald-500/20 text-emerald-500 rounded border border-emerald-500/30">
                                         NEXT
                                       </span>
                                     )}
@@ -3742,15 +3768,15 @@ export default function FldrDetailPage() {
 
         {/* Flight Info Card - Only show if enabled */}
         {fldr.flight_info !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('flight')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Flight Info</span>
+                <span className="font-display font-semibold">Flight Info</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.flight ? 'rotate-180' : ''
                   }`}
                 />
@@ -3759,7 +3785,7 @@ export default function FldrDetailPage() {
                 {fldr.flight_info && fldr.flight_info.length > 0 && (
                   <button
                     onClick={copyFlightInfo}
-                    className="text-xs text-gray-400 hover:text-[#2a7b9b] px-2 py-1 rounded border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-1"
+                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
                     title="Copy all flight details"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3771,10 +3797,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -3785,7 +3811,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('flight_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3807,7 +3833,7 @@ export default function FldrDetailPage() {
                         setShowParseEmailModal('flight')
                         setParseEmailText('')
                       }}
-                      className="text-xs text-[#10b981] hover:text-[#059669] flex items-center gap-1"
+                      className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -3816,7 +3842,7 @@ export default function FldrDetailPage() {
                     </button>
                     <button
                       onClick={addFlightSegment}
-                      className="text-xs text-[#2a7b9b] hover:text-[#D4A03C]"
+                      className="text-xs font-medium text-brand-light hover:text-white transition-colors"
                     >
                       + Add Flight Segment
                     </button>
@@ -3829,29 +3855,29 @@ export default function FldrDetailPage() {
 
                 {/* Round Trip Toggle */}
                 {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
-                  <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-lg backdrop-blur-sm">
+                  <div className="flex items-center gap-2.5 p-3 bg-white/5 border border-line rounded-xl">
                     <input
                       type="checkbox"
                       id="roundTrip"
                       checked={isRoundTrip || (Array.isArray(fldr.flight_info) && fldr.flight_info.some(seg => seg.segment_type === 'return'))}
                       onChange={(e) => toggleRoundTrip(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-600 text-[#2a7b9b] focus:ring-[#2a7b9b] focus:ring-offset-0 bg-black/50"
+                      className="w-4 h-4 rounded flex-shrink-0"
                     />
-                    <label htmlFor="roundTrip" className="text-sm text-gray-100 cursor-pointer">
+                    <label htmlFor="roundTrip" className="text-sm text-white cursor-pointer whitespace-nowrap">
                       Round Trip
                     </label>
-                    <span className="text-xs text-gray-500 ml-auto">
+                    <span className="text-xs text-white/45 ml-auto text-right">
                       Auto-creates return flight with reversed airports
                     </span>
                   </div>
                 )}
 
                 {(!fldr.flight_info || !Array.isArray(fldr.flight_info) || fldr.flight_info.length === 0) && (
-                  <div className="p-4 bg-black/20 border border-white/10 rounded-lg text-center">
+                  <div className="p-5 border border-dashed border-line-strong rounded-xl text-center">
                     <p className="text-sm text-gray-400 mb-2">No flight segments yet</p>
                     <button
                       onClick={addFlightSegment}
-                      className="text-sm text-[#2a7b9b] hover:text-[#D4A03C]"
+                      className="text-sm font-medium text-brand-light hover:text-white transition-colors"
                     >
                       Add First Segment
                     </button>
@@ -3859,16 +3885,16 @@ export default function FldrDetailPage() {
                 )}
 
                 {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.map((segment, index) => (
-                  <div key={segment.id} className="p-4 bg-white/5 rounded-lg space-y-3 border border-white/10 backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-[#2a7b9b]">
+                  <div key={segment.id} className="p-4 bg-white/5 rounded-xl space-y-3 border border-line">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-sm font-semibold text-brand-light whitespace-nowrap">
                           Segment {index + 1}
                         </span>
                         <select
                           value={segment.segment_type || 'other'}
                           onChange={(e) => updateFlightSegment(index, 'segment_type', e.target.value)}
-                          className="text-xs px-2 py-1 bg-[#0f1419] border border-white/10 rounded focus:outline-none focus:ring-1 focus:ring-[#2a7b9b]"
+                          className="min-w-0 text-xs px-2 py-1.5 bg-canvas border border-line-strong rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
                         >
                           <option value="outbound">Outbound</option>
                           <option value="return">Return</option>
@@ -3879,7 +3905,7 @@ export default function FldrDetailPage() {
                       {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 1 && (
                         <button
                           onClick={() => removeFlightSegment(index)}
-                          className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                          className="flex-shrink-0 text-xs text-red-400 hover:text-red-300 px-2.5 py-1.5 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                         >
                           Remove
                         </button>
@@ -3887,12 +3913,12 @@ export default function FldrDetailPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Travelers</label>
+                      <label className="label">Travelers</label>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {(segment.travelers || []).map((traveler, tIdx) => (
                           <span
                             key={tIdx}
-                            className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-[#2a7b9b]/15 text-[#2a7b9b] border border-[#2a7b9b]/30 rounded-full"
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-brand/15 text-brand-light border border-brand/30 rounded-full"
                           >
                             {traveler}
                             <button
@@ -3924,7 +3950,7 @@ export default function FldrDetailPage() {
                             }
                           }}
                           placeholder="Add name, press Enter"
-                          className="min-w-[140px] flex-1 px-2 py-1 bg-[#0f1419] border border-white/10 rounded-full focus:outline-none focus:ring-1 focus:ring-[#2a7b9b] text-xs"
+                          className="min-w-[140px] flex-1 px-3 py-1.5 bg-canvas border border-line-strong rounded-full focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40 text-xs placeholder:text-white/30"
                         />
                       </div>
                       {fldr.job_info?.team_members && fldr.job_info.team_members.filter(Boolean).length > 0 && (
@@ -3938,24 +3964,24 @@ export default function FldrDetailPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Departure Airport</label>
+                        <label className="label">Departure Airport</label>
                         <AirportAutocomplete
                           type="name"
                           value={segment.departure_airport || ''}
                           onChange={(value) => updateFlightSegment(index, 'departure_airport', value)}
                           onAirportSelect={(airport) => updateSegmentDepartureAirport(index, airport)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="Type airport name or code..."
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Code</label>
+                        <label className="label">Code</label>
                         <AirportAutocomplete
                           type="code"
                           value={segment.departure_code || ''}
                           onChange={(value) => updateFlightSegment(index, 'departure_code', value)}
                           onAirportSelect={(airport) => updateSegmentDepartureAirport(index, airport)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="LAX"
                         />
                       </div>
@@ -3963,13 +3989,13 @@ export default function FldrDetailPage() {
 
                     {segment.departure_address && (
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Departure Airport Address</label>
+                        <label className="label">Departure Airport Address</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
                             value={segment.departure_address}
                             readOnly
-                            className="flex-1 px-3 py-2 bg-[#0f1419]/50 border border-white/5 rounded-lg text-sm text-gray-300 cursor-not-allowed"
+                            className="flex-1 px-3 py-2 bg-canvas/50 border border-line rounded-lg text-sm text-gray-300 cursor-not-allowed"
                           />
                           <CopyButton text={segment.departure_address} label="Copy address" />
                         </div>
@@ -3977,35 +4003,35 @@ export default function FldrDetailPage() {
                     )}
 
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Departure Time</label>
+                      <label className="label">Departure Time</label>
                       <input
                         type="datetime-local"
                         value={segment.departure_time || ''}
                         onChange={(e) => updateFlightSegment(index, 'departure_time', e.target.value)}
-                        className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                        className="input"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Arrival Airport</label>
+                        <label className="label">Arrival Airport</label>
                         <AirportAutocomplete
                           type="name"
                           value={segment.arrival_airport || ''}
                           onChange={(value) => updateFlightSegment(index, 'arrival_airport', value)}
                           onAirportSelect={(airport) => updateSegmentArrivalAirport(index, airport)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="Type airport name or code..."
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Code</label>
+                        <label className="label">Code</label>
                         <AirportAutocomplete
                           type="code"
                           value={segment.arrival_code || ''}
                           onChange={(value) => updateFlightSegment(index, 'arrival_code', value)}
                           onAirportSelect={(airport) => updateSegmentArrivalAirport(index, airport)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="JFK"
                         />
                       </div>
@@ -4013,13 +4039,13 @@ export default function FldrDetailPage() {
 
                     {segment.arrival_address && (
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Arrival Airport Address</label>
+                        <label className="label">Arrival Airport Address</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
                             value={segment.arrival_address}
                             readOnly
-                            className="flex-1 px-3 py-2 bg-[#0f1419]/50 border border-white/5 rounded-lg text-sm text-gray-300 cursor-not-allowed"
+                            className="flex-1 px-3 py-2 bg-canvas/50 border border-line rounded-lg text-sm text-gray-300 cursor-not-allowed"
                           />
                           <CopyButton text={segment.arrival_address} label="Copy address" />
                         </div>
@@ -4027,55 +4053,55 @@ export default function FldrDetailPage() {
                     )}
 
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Arrival Time</label>
+                      <label className="label">Arrival Time</label>
                       <input
                         type="datetime-local"
                         value={segment.arrival_time || ''}
                         onChange={(e) => updateFlightSegment(index, 'arrival_time', e.target.value)}
-                        className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                        className="input"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Airline</label>
+                        <label className="label">Airline</label>
                         <input
                           type="text"
                           value={segment.airline || ''}
                           onChange={(e) => updateFlightSegment(index, 'airline', e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="Airline name"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Flight Number</label>
+                        <label className="label">Flight Number</label>
                         <input
                           type="text"
                           value={segment.flight_number || ''}
                           onChange={(e) => updateFlightSegment(index, 'flight_number', e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="e.g. AA123"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
+                      <label className="label">Confirmation Number</label>
                       <input
                         type="text"
                         value={segment.confirmation || ''}
                         onChange={(e) => updateFlightSegment(index, 'confirmation', e.target.value)}
-                        className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                        className="input"
                         placeholder="Confirmation code"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                      <label className="label">Notes</label>
                       <textarea
                         value={segment.notes || ''}
                         onChange={(e) => updateFlightSegment(index, 'notes', e.target.value)}
-                        className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                        className="input resize-none"
                         rows={2}
                         placeholder="Additional flight notes..."
                       />
@@ -4091,15 +4117,15 @@ export default function FldrDetailPage() {
 
         {/* Hotel Info Card - Only show if enabled */}
         {fldr.hotel_info !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('hotel')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Hotel Info</span>
+                <span className="font-display font-semibold">Hotel Info</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.hotel ? 'rotate-180' : ''
                   }`}
                 />
@@ -4108,7 +4134,7 @@ export default function FldrDetailPage() {
                 {fldr.hotel_info && (fldr.hotel_info.name || fldr.hotel_info.address) && (
                   <button
                     onClick={copyHotelInfo}
-                    className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded border border-[#2a2a2a] hover:bg-white/5 transition-colors flex items-center gap-1"
+                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
                     title="Copy hotel details"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4120,10 +4146,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -4134,7 +4160,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('hotel_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4152,7 +4178,7 @@ export default function FldrDetailPage() {
                       setShowParseEmailModal('hotel')
                       setParseEmailText('')
                     }}
-                    className="text-xs text-[#10b981] hover:text-[#059669] flex items-center gap-1"
+                    className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -4161,41 +4187,41 @@ export default function FldrDetailPage() {
                   </button>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Hotel Name</label>
+                  <label className="label">Hotel Name</label>
                   <input
                     type="text"
                     value={fldr.hotel_info?.name || ''}
                     onChange={(e) => updateHotelInfo('name', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Hotel name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Address</label>
+                  <label className="label">Address</label>
                   <div className="flex items-center gap-2">
                     <AddressAutocomplete
                       value={fldr.hotel_info?.address || ''}
                       onChange={(value) => updateHotelInfo('address', value)}
-                      className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input flex-1"
                       placeholder="Start typing hotel address..."
                     />
                     <CopyButton text={fldr.hotel_info?.address || ''} label="Copy address" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Phone</label>
+                  <label className="label">Phone</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="tel"
                       value={fldr.hotel_info?.phone || ''}
                       onChange={(e) => updateHotelInfo('phone', e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input flex-1"
                       placeholder="Hotel phone number"
                     />
                     {fldr.hotel_info?.phone && (
                       <a
                         href={`tel:${fldr.hotel_info.phone}`}
-                        className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium"
+                        className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-colors text-xs font-medium"
                         title="Call hotel"
                       >
                         Call
@@ -4205,40 +4231,40 @@ export default function FldrDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Check-in</label>
+                    <label className="label">Check-in</label>
                     <input
                       type="datetime-local"
                       value={fldr.hotel_info?.check_in || ''}
                       onChange={(e) => updateHotelInfo('check_in', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Check-out</label>
+                    <label className="label">Check-out</label>
                     <input
                       type="datetime-local"
                       value={fldr.hotel_info?.check_out || ''}
                       onChange={(e) => updateHotelInfo('check_out', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
+                  <label className="label">Confirmation Number</label>
                   <input
                     type="text"
                     value={fldr.hotel_info?.confirmation || ''}
                     onChange={(e) => updateHotelInfo('confirmation', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Confirmation code"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                  <label className="label">Notes</label>
                   <textarea
                     value={fldr.hotel_info?.notes || ''}
                     onChange={(e) => updateHotelInfo('notes', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                    className="input resize-none"
                     rows={2}
                     placeholder="Additional hotel notes..."
                   />
@@ -4250,15 +4276,15 @@ export default function FldrDetailPage() {
 
         {/* Venue Info Card - Only show if enabled */}
         {fldr.venue_info !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('venue')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Venue Info</span>
+                <span className="font-display font-semibold">Venue Info</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.venue ? 'rotate-180' : ''
                   }`}
                 />
@@ -4267,7 +4293,7 @@ export default function FldrDetailPage() {
                 {fldr.venue_info && (fldr.venue_info.name || fldr.venue_info.address) && (
                   <button
                     onClick={copyVenueInfo}
-                    className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded border border-[#2a2a2a] hover:bg-white/5 transition-colors flex items-center gap-1"
+                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
                     title="Copy venue details"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4279,10 +4305,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -4293,7 +4319,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('venue_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4305,51 +4331,51 @@ export default function FldrDetailPage() {
             {expandedCards.venue && (
               <div className="px-4 pb-4 space-y-3">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Venue Name</label>
+                  <label className="label">Venue Name</label>
                   <input
                     type="text"
                     value={fldr.venue_info?.name || ''}
                     onChange={(e) => updateVenueInfo('name', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Event venue name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Address</label>
+                  <label className="label">Address</label>
                   <div className="flex items-center gap-2">
                     <AddressAutocomplete
                       value={fldr.venue_info?.address || ''}
                       onChange={(value) => updateVenueInfo('address', value)}
-                      className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input flex-1"
                       placeholder="Start typing venue address..."
                     />
                     <CopyButton text={fldr.venue_info?.address || ''} label="Copy address" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Contact Name</label>
+                  <label className="label">Contact Name</label>
                   <input
                     type="text"
                     value={fldr.venue_info?.contact_name || ''}
                     onChange={(e) => updateVenueInfo('contact_name', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Venue contact person"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Contact Phone</label>
+                  <label className="label">Contact Phone</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="tel"
                       value={fldr.venue_info?.contact_phone || ''}
                       onChange={(e) => updateVenueInfo('contact_phone', e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input flex-1"
                       placeholder="Venue contact phone"
                     />
                     {fldr.venue_info?.contact_phone && (
                       <a
                         href={`tel:${fldr.venue_info.contact_phone}`}
-                        className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium"
+                        className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-colors text-xs font-medium"
                         title="Call venue"
                       >
                         Call
@@ -4358,11 +4384,11 @@ export default function FldrDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                  <label className="label">Notes</label>
                   <textarea
                     value={fldr.venue_info?.notes || ''}
                     onChange={(e) => updateVenueInfo('notes', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                    className="input resize-none"
                     rows={2}
                     placeholder="Additional venue notes..."
                   />
@@ -4374,15 +4400,15 @@ export default function FldrDetailPage() {
 
         {/* Rental Car Info Card - Only show if enabled */}
         {fldr.rental_car_info !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('rentalCar')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Rental Car</span>
+                <span className="font-display font-semibold">Rental Car</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.rentalCar ? 'rotate-180' : ''
                   }`}
                 />
@@ -4391,10 +4417,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -4405,7 +4431,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('rental_car_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4423,7 +4449,7 @@ export default function FldrDetailPage() {
                       setShowParseEmailModal('rental_car')
                       setParseEmailText('')
                     }}
-                    className="text-xs text-[#10b981] hover:text-[#059669] flex items-center gap-1"
+                    className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -4433,100 +4459,100 @@ export default function FldrDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Company</label>
+                    <label className="label">Company</label>
                     <input
                       type="text"
                       value={fldr.rental_car_info?.company || ''}
                       onChange={(e) => updateRentalCarInfo('company', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                       placeholder="e.g. Hertz"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Vehicle Type</label>
+                    <label className="label">Vehicle Type</label>
                     <input
                       type="text"
                       value={fldr.rental_car_info?.vehicle_type || ''}
                       onChange={(e) => updateRentalCarInfo('vehicle_type', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                       placeholder="e.g. SUV"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Insurance Policy Number</label>
+                    <label className="label">Insurance Policy Number</label>
                     <input
                       type="text"
                       value={fldr.rental_car_info?.insurance_policy_number || ''}
                       onChange={(e) => updateRentalCarInfo('insurance_policy_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                       placeholder="Insurance policy number"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Travel Reservation</label>
+                    <label className="label">Travel Reservation</label>
                     <input
                       type="text"
                       value={fldr.rental_car_info?.travel_reservation || ''}
                       onChange={(e) => updateRentalCarInfo('travel_reservation', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                       placeholder="Travel reservation number"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Pickup Location</label>
+                  <label className="label">Pickup Location</label>
                   <AddressAutocomplete
                     value={fldr.rental_car_info?.pickup_location || ''}
                     onChange={(value) => updateRentalCarInfo('pickup_location', value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Start typing pickup location..."
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Pickup Time</label>
+                  <label className="label">Pickup Time</label>
                   <input
                     type="datetime-local"
                     value={fldr.rental_car_info?.pickup_time || ''}
                     onChange={(e) => updateRentalCarInfo('pickup_time', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Dropoff Location</label>
+                  <label className="label">Dropoff Location</label>
                   <AddressAutocomplete
                     value={fldr.rental_car_info?.dropoff_location || ''}
                     onChange={(value) => updateRentalCarInfo('dropoff_location', value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Start typing dropoff location..."
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Dropoff Time</label>
+                  <label className="label">Dropoff Time</label>
                   <input
                     type="datetime-local"
                     value={fldr.rental_car_info?.dropoff_time || ''}
                     onChange={(e) => updateRentalCarInfo('dropoff_time', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Confirmation Number</label>
+                  <label className="label">Confirmation Number</label>
                   <input
                     type="text"
                     value={fldr.rental_car_info?.confirmation || ''}
                     onChange={(e) => updateRentalCarInfo('confirmation', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Confirmation code"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                  <label className="label">Notes</label>
                   <textarea
                     value={fldr.rental_car_info?.notes || ''}
                     onChange={(e) => updateRentalCarInfo('notes', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                    className="input resize-none"
                     rows={2}
                     placeholder="Additional rental car notes..."
                   />
@@ -4538,15 +4564,15 @@ export default function FldrDetailPage() {
 
         {/* Job Info Card - Only show if job_info enabled */}
         {fldr.job_info !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('jobInfo')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Job Info</span>
+                <span className="font-display font-semibold">Job Info</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.jobInfo ? 'rotate-180' : ''
                   }`}
                 />
@@ -4555,7 +4581,7 @@ export default function FldrDetailPage() {
                 {fldr.job_info && (fldr.job_info.client_name || fldr.job_info.client_contact_name) && (
                   <button
                     onClick={copyClientInfo}
-                    className="text-xs text-gray-400 hover:text-[#2a7b9b] px-2 py-1 rounded border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-1"
+                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
                     title="Copy client details"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4567,10 +4593,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -4581,7 +4607,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('job_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4593,7 +4619,7 @@ export default function FldrDetailPage() {
             {expandedCards.jobInfo && (
               <div className="px-4 pb-4 space-y-3">
                 {/* Job Overview - Cross-module summary */}
-                <div className="p-3 bg-black/40 border border-white/10 rounded-lg space-y-2">
+                <div className="p-3 bg-black/40 border border-line rounded-lg space-y-2">
                   <div className="text-xs font-semibold text-gray-400 mb-2">Job Overview</div>
                   
                   {/* Products Summary */}
@@ -4665,41 +4691,41 @@ export default function FldrDetailPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Job Title</label>
+                  <label className="label">Job Title</label>
                   <input
                     type="text"
                     value={fldr.job_info?.job_title || ''}
                     onChange={(e) => updateJobInfo('job_title', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Job title or name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Client Name</label>
+                  <label className="label">Client Name</label>
                   <input
                     type="text"
                     value={fldr.job_info?.client_name || ''}
                     onChange={(e) => updateJobInfo('client_name', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Client/company name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Distributor Name</label>
+                  <label className="label">Distributor Name</label>
                   <input
                     type="text"
                     value={fldr.job_info?.distributor_name || ''}
                     onChange={(e) => updateJobInfo('distributor_name', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Distributor name (if applicable)"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Job Type</label>
+                  <label className="label">Job Type</label>
                   <select
                     value={fldr.job_info?.job_type || ''}
                     onChange={(e) => updateJobInfo('job_type', e.target.value || null)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm text-white"
+                    className="input"
                   >
                     <option value="" className="bg-gray-800 text-white">Select type</option>
                     <option value="caricatures" className="bg-gray-800 text-white">Caricatures</option>
@@ -4707,29 +4733,29 @@ export default function FldrDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Contact Name</label>
+                  <label className="label">Contact Name</label>
                   <input
                     type="text"
                     value={fldr.job_info?.client_contact_name || ''}
                     onChange={(e) => updateJobInfo('client_contact_name', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                    className="input"
                     placeholder="Contact person"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Phone</label>
+                  <label className="label">Phone</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="tel"
                       value={fldr.job_info?.client_contact_phone || ''}
                       onChange={(e) => updateJobInfo('client_contact_phone', e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input flex-1"
                       placeholder="Phone"
                     />
                     {fldr.job_info?.client_contact_phone && (
                       <a
                         href={`tel:${fldr.job_info.client_contact_phone}`}
-                        className="px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded-lg hover:bg-[#10b981]/20 transition-colors text-xs font-medium whitespace-nowrap"
+                        className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-colors text-xs font-medium whitespace-nowrap"
                         title="Call contact"
                       >
                         Call
@@ -4738,19 +4764,19 @@ export default function FldrDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Email</label>
+                  <label className="label">Email</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="email"
                       value={fldr.job_info?.client_contact_email || ''}
                       onChange={(e) => updateJobInfo('client_contact_email', e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input flex-1"
                       placeholder="Email"
                     />
                     {fldr.job_info?.client_contact_email && (
                       <a
                         href={`mailto:${fldr.job_info.client_contact_email}`}
-                        className="px-3 py-2 bg-[#3b82f6]/10 border border-[#3b82f6]/30 text-[#3b82f6] rounded-lg hover:bg-[#3b82f6]/20 transition-colors text-xs font-medium whitespace-nowrap"
+                        className="px-3 py-2 bg-brand/10 border border-brand/30 text-brand-light rounded-lg hover:bg-brand/20 transition-colors text-xs font-medium whitespace-nowrap"
                         title="Send email"
                       >
                         Email
@@ -4759,11 +4785,11 @@ export default function FldrDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Event Details</label>
+                  <label className="label">Event Details</label>
                   <textarea
                     value={fldr.job_info?.event_details || ''}
                     onChange={(e) => updateJobInfo('event_details', e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                    className="input resize-none"
                     rows={3}
                     placeholder="Event context, special instructions..."
                   />
@@ -4773,12 +4799,12 @@ export default function FldrDetailPage() {
                   
                   {/* Show Up Time - always single datetime */}
                   <div className="mb-3">
-                    <label className="block text-xs text-gray-400 mb-1">Show Up Time (one-time)</label>
+                    <label className="label">Show Up Time (one-time)</label>
                     <input
                       type="datetime-local"
                       value={fldr.job_info?.show_up_time || ''}
                       onChange={(e) => updateJobInfo('show_up_time', e.target.value || null)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                     />
                   </div>
 
@@ -4804,39 +4830,39 @@ export default function FldrDetailPage() {
                       <p className="text-xs text-gray-500 mb-2">Set times that repeat each day between job start/end dates:</p>
                       <div className="space-y-2">
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Daily Start Time</label>
+                          <label className="label">Daily Start Time</label>
                           <input
                             type="time"
                             value={fldr.job_info?.daily_start_time || ''}
                             onChange={(e) => updateJobInfo('daily_start_time', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Daily End Time</label>
+                          <label className="label">Daily End Time</label>
                           <input
                             type="time"
                             value={fldr.job_info?.daily_end_time || ''}
                             onChange={(e) => updateJobInfo('daily_end_time', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Daily Break Start</label>
+                          <label className="label">Daily Break Start</label>
                           <input
                             type="time"
                             value={fldr.job_info?.daily_break_start || ''}
                             onChange={(e) => updateJobInfo('daily_break_start', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Daily Break End</label>
+                          <label className="label">Daily Break End</label>
                           <input
                             type="time"
                             value={fldr.job_info?.daily_break_end || ''}
                             onChange={(e) => updateJobInfo('daily_break_end', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                       </div>
@@ -4846,39 +4872,39 @@ export default function FldrDetailPage() {
                     <div>
                       <div className="space-y-2">
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Job Start Time</label>
+                          <label className="label">Job Start Time</label>
                           <input
                             type="datetime-local"
                             value={fldr.job_info?.job_start_time || ''}
                             onChange={(e) => updateJobInfo('job_start_time', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Job End Time</label>
+                          <label className="label">Job End Time</label>
                           <input
                             type="datetime-local"
                             value={fldr.job_info?.job_end_time || ''}
                             onChange={(e) => updateJobInfo('job_end_time', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Break Start</label>
+                          <label className="label">Break Start</label>
                           <input
                             type="datetime-local"
                             value={fldr.job_info?.break_start_time || ''}
                             onChange={(e) => updateJobInfo('break_start_time', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Break End</label>
+                          <label className="label">Break End</label>
                           <input
                             type="datetime-local"
                             value={fldr.job_info?.break_end_time || ''}
                             onChange={(e) => updateJobInfo('break_end_time', e.target.value || null)}
-                            className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                            className="input"
                           />
                         </div>
                       </div>
@@ -4890,18 +4916,18 @@ export default function FldrDetailPage() {
                     <label className="text-xs text-gray-400">Reference Links</label>
                     <button
                       onClick={addReferenceLink}
-                      className="text-xs text-[#2a7b9b] hover:text-[#D4A03C]"
+                      className="text-xs font-medium text-brand-light hover:text-white transition-colors"
                     >
                       + Add
                     </button>
                   </div>
                   {(fldr.job_info?.reference_links || []).map((link, index) => (
-                    <div key={index} className="space-y-2 mb-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                    <div key={index} className="space-y-2 mb-3 p-3 bg-white/5 rounded-lg border border-line">
                       <input
                         type="text"
                         value={link.label}
                         onChange={(e) => updateReferenceLink(index, 'label', e.target.value)}
-                        className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                        className="input"
                         placeholder="Label"
                       />
                       <div className="flex gap-2">
@@ -4909,7 +4935,7 @@ export default function FldrDetailPage() {
                           type="url"
                           value={link.url}
                           onChange={(e) => updateReferenceLink(index, 'url', e.target.value)}
-                          className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input flex-1"
                           placeholder="URL"
                         />
                         <button
@@ -4935,7 +4961,7 @@ export default function FldrDetailPage() {
                       {fldr.job_info?.prompt_1 && (
                         <button
                           onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_1 || '')}
-                          className="text-xs text-gray-400 hover:text-[#2a7b9b] px-2 py-0.5 rounded border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-1"
+                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -4947,7 +4973,7 @@ export default function FldrDetailPage() {
                     <textarea
                       value={fldr.job_info?.prompt_1 || ''}
                       onChange={(e) => updateJobInfo('prompt_1', e.target.value || null)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                      className="input resize-none"
                       rows={4}
                       placeholder="Paste prompt here..."
                     />
@@ -4958,7 +4984,7 @@ export default function FldrDetailPage() {
                       {fldr.job_info?.prompt_2 && (
                         <button
                           onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_2 || '')}
-                          className="text-xs text-gray-400 hover:text-[#2a7b9b] px-2 py-0.5 rounded border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-1"
+                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -4970,7 +4996,7 @@ export default function FldrDetailPage() {
                     <textarea
                       value={fldr.job_info?.prompt_2 || ''}
                       onChange={(e) => updateJobInfo('prompt_2', e.target.value || null)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm resize-none"
+                      className="input resize-none"
                       rows={4}
                       placeholder="Paste prompt here..."
                     />
@@ -4983,15 +5009,15 @@ export default function FldrDetailPage() {
 
         {/* Checklist Card - Only show if enabled */}
         {fldr.checklist !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('checklist')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Checklist</span>
+                <span className="font-display font-semibold">Checklist</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.checklist ? 'rotate-180' : ''
                   }`}
                 />
@@ -5000,10 +5026,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -5014,7 +5040,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('checklist')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5031,7 +5057,7 @@ export default function FldrDetailPage() {
                   </span>
                   <button
                     onClick={addChecklistItem}
-                    className="text-xs text-[#2a7b9b] hover:text-[#D4A03C]"
+                    className="text-xs font-medium text-brand-light hover:text-white transition-colors"
                   >
                     + Add Item
                   </button>
@@ -5076,15 +5102,15 @@ export default function FldrDetailPage() {
                         type="checkbox"
                         checked={item.completed}
                         onChange={() => toggleChecklistItem(index)}
-                        className="w-4 h-4 mt-2 rounded border-white/20 bg-black/50 text-[#2a7b9b] focus:ring-[#2a7b9b]"
+                        className="w-4 h-4 mt-3 rounded flex-shrink-0"
                       />
                       <div className="flex-1">
                         <input
                           type="text"
                           value={item.item}
                           onChange={(e) => updateChecklistItem(index, e.target.value)}
-                          className={`w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm ${
-                            item.completed ? 'line-through text-gray-500' : ''
+                          className={`input ${
+                            item.completed ? 'line-through text-white/40' : ''
                           }`}
                           placeholder="Item"
                         />
@@ -5118,15 +5144,15 @@ export default function FldrDetailPage() {
 
         {/* People Card - Only show if enabled */}
         {fldr.people !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('people')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">People</span>
+                <span className="font-display font-semibold">People</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.people ? 'rotate-180' : ''
                   }`}
                 />
@@ -5135,10 +5161,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -5149,7 +5175,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('people')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5164,7 +5190,7 @@ export default function FldrDetailPage() {
                   <span className="text-xs text-gray-400">{(fldr.people || []).length} people</span>
                   <button
                     onClick={addPerson}
-                    className="text-xs text-[#2a7b9b] hover:text-[#D4A03C]"
+                    className="text-xs font-medium text-brand-light hover:text-white transition-colors"
                   >
                     + Add Person
                   </button>
@@ -5180,14 +5206,14 @@ export default function FldrDetailPage() {
                   </div>
                 </div>
                 {(fldr.people || []).map((person, index) => (
-                  <div key={index} className="p-3 bg-white/5 rounded-lg space-y-2 border border-white/10">
+                  <div key={index} className="p-3 bg-white/5 rounded-lg space-y-2 border border-line">
                     <div className="flex items-start justify-between gap-2">
                       <input
                         type="text"
                         value={person.name}
                         onChange={(e) => updatePerson(index, 'name', e.target.value)}
                         onBlur={(e) => handlePersonNameBlur(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm font-medium"
+                        className="input flex-1 font-medium"
                         placeholder="Name"
                       />
                       <button
@@ -5201,7 +5227,7 @@ export default function FldrDetailPage() {
                       type="text"
                       value={person.role || ''}
                       onChange={(e) => updatePerson(index, 'role', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                      className="input"
                       placeholder="Role"
                     />
                     <div className="grid grid-cols-2 gap-2">
@@ -5210,13 +5236,13 @@ export default function FldrDetailPage() {
                           type="tel"
                           value={person.phone || ''}
                           onChange={(e) => updatePerson(index, 'phone', e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="Phone"
                         />
                         {person.phone && (
                           <a
                             href={`tel:${person.phone}`}
-                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] rounded hover:bg-[#10b981]/20 transition-colors text-xs"
+                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded hover:bg-emerald-500/20 transition-colors text-xs"
                           >
                             Call
                           </a>
@@ -5227,13 +5253,13 @@ export default function FldrDetailPage() {
                           type="email"
                           value={person.email || ''}
                           onChange={(e) => updatePerson(index, 'email', e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="Email"
                         />
                         {person.email && (
                           <a
                             href={`mailto:${person.email}`}
-                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-[#3b82f6]/10 border border-[#3b82f6]/30 text-[#3b82f6] rounded hover:bg-[#3b82f6]/20 transition-colors text-xs"
+                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-brand/10 border border-brand/30 text-brand-light rounded hover:bg-brand/20 transition-colors text-xs"
                           >
                             Email
                           </a>
@@ -5252,15 +5278,15 @@ export default function FldrDetailPage() {
 
         {/* Photos Card - Only show if enabled */}
         {fldr.photos !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('photos')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Photos</span>
+                <span className="font-display font-semibold">Photos</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.photos ? 'rotate-180' : ''
                   }`}
                 />
@@ -5269,10 +5295,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -5283,7 +5309,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('photos')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5296,7 +5322,7 @@ export default function FldrDetailPage() {
               <div className="px-4 pb-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-gray-400">{(fldr.photos || []).length} photos</span>
-                  <label className="text-xs text-[#3b82f6] hover:text-[#2563eb] cursor-pointer">
+                  <label className="text-xs text-brand-light hover:text-brand-hover cursor-pointer">
                     + Add Photo
                     <input
                       type="file"
@@ -5358,7 +5384,7 @@ export default function FldrDetailPage() {
                   </label>
                 </div>
                 {(fldr.photos || []).map((photo, index) => (
-                  <div key={photo.id} className="p-3 bg-[#0a0a0a] rounded-lg space-y-2">
+                  <div key={photo.id} className="p-3 bg-canvas rounded-lg space-y-2">
                     <div className="relative">
                       <img
                         src={photo.url}
@@ -5379,7 +5405,7 @@ export default function FldrDetailPage() {
                       type="text"
                       value={photo.caption || ''}
                       onChange={(e) => updatePhotoCaption(index, e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] text-sm"
+                      className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm"
                       placeholder="Add caption..."
                     />
                   </div>
@@ -5394,15 +5420,15 @@ export default function FldrDetailPage() {
 
         {/* Products Card - Only show if enabled */}
         {fldr.products !== null && (
-          <div className="bg-[#1a2332] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center justify-between">
+          <div className="card shadow-card overflow-hidden">
+            <div className="w-full px-4 py-3.5 flex items-center justify-between">
               <button
                 onClick={() => toggleCard('products')}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
               >
-                <span className="font-semibold">Products</span>
+                <span className="font-display font-semibold">Products</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 transition-transform ${
+                  className={`w-5 h-5 text-white/45 transition-transform ${
                     expandedCards.products ? 'rotate-180' : ''
                   }`}
                 />
@@ -5411,10 +5437,10 @@ export default function FldrDetailPage() {
                 <button
                   onClick={manualSave}
                   disabled={saving || !fldr}
-                  className={`p-1.5 rounded border transition-colors ${
+                  className={`p-1.5 rounded-lg border transition-colors ${
                     unsavedChanges
-                      ? 'bg-[#2a7b9b]/10 text-[#2a7b9b] border-[#2a7b9b]/30 hover:bg-[#2a7b9b]/20'
-                      : 'bg-white/10 hover:bg-white/15 text-gray-200 border-white/20'
+                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
+                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
                   }`}
                   title={unsavedChanges ? 'Save changes' : 'Save now'}
                 >
@@ -5425,7 +5451,7 @@ export default function FldrDetailPage() {
                 </button>
                 <button
                   onClick={() => disableModule('products')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
                   title="Remove module"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5442,20 +5468,20 @@ export default function FldrDetailPage() {
                   </span>
                   <button
                     onClick={addProduct}
-                    className="text-xs text-[#2a7b9b] hover:text-[#D4A03C]"
+                    className="text-xs font-medium text-brand-light hover:text-white transition-colors"
                   >
                     + Add Product
                   </button>
                 </div>
 
                 {(fldr.products || []).map((product, index) => (
-                  <div key={product.id} className="p-3 bg-white/5 rounded-lg space-y-2 border border-white/10">
+                  <div key={product.id} className="p-3 bg-white/5 rounded-lg space-y-2 border border-line">
                     <div className="flex items-start gap-2">
                       <input
                         type="text"
                         value={product.name}
                         onChange={(e) => updateProduct(index, 'name', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm font-medium"
+                        className="input flex-1 font-medium"
                         placeholder="Product name"
                       />
                       <button
@@ -5467,33 +5493,33 @@ export default function FldrDetailPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">SKU</label>
+                        <label className="label">SKU</label>
                         <input
                           type="text"
                           value={product.sku || ''}
                           onChange={(e) => updateProduct(index, 'sku', e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                           placeholder="SKU"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Quantity</label>
+                        <label className="label">Quantity</label>
                         <input
                           type="number"
                           min="1"
                           value={product.quantity}
                           onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                          className="input"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                      <label className="label">Notes</label>
                       <input
                         type="text"
                         value={product.notes || ''}
                         onChange={(e) => updateProduct(index, 'notes', e.target.value)}
-                        className="w-full px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm"
+                        className="input"
                         placeholder="Notes (optional)"
                       />
                     </div>
@@ -5508,14 +5534,14 @@ export default function FldrDetailPage() {
         )}
 
         {/* Notes Card */}
-        <div className="bg-[#1a2332] border border-white/5 rounded-lg">
+        <div className="bg-surface border border-line rounded-lg">
           <button
             onClick={() => toggleCard('notes')}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
           >
-            <span className="font-semibold">Notes</span>
+            <span className="font-display font-semibold">Notes</span>
             <ChevronDownIcon
-              className={`w-5 h-5 transition-transform ${
+              className={`w-5 h-5 text-white/45 transition-transform ${
                 expandedCards.notes ? 'rotate-180' : ''
               }`}
             />
@@ -5526,7 +5552,7 @@ export default function FldrDetailPage() {
                 <label className="block text-xs text-gray-400">Notes</label>
                 <button
                   onClick={() => setUseRichEditor(!useRichEditor)}
-                  className="text-xs px-3 py-1 bg-[#2a7b9b] hover:bg-[#3a8bab] rounded-md transition-colors"
+                  className="text-xs px-3 py-1 bg-brand hover:bg-brand-hover rounded-md transition-colors"
                 >
                   {useRichEditor ? 'Simple Editor' : 'Rich Text Editor'}
                 </button>
@@ -5543,7 +5569,7 @@ export default function FldrDetailPage() {
                   <textarea
                     value={fldr.notes}
                     onChange={(e) => updateNotes(e.target.value)}
-                    className="w-full min-h-[120px] px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] resize-none"
+                    className="input min-h-[120px] resize-none leading-relaxed"
                     placeholder="Add notes..."
                   />
                 )}
@@ -5555,13 +5581,13 @@ export default function FldrDetailPage() {
 
       {/* Add Module Section */}
       <div className="px-4 max-w-2xl mx-auto mt-6">
-      <div className="p-4 bg-[#1a2332] border border-white/5 rounded-2xl">
-        <h3 className="text-sm font-semibold mb-3 text-gray-400">Add Module</h3>
+      <div className="card p-4">
+        <h3 className="eyebrow font-sans mb-3">Add Module</h3>
         <div className="flex flex-wrap gap-2">
           {fldr.flight_info === null && (
             <button
               onClick={() => enableModule('flight_info')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Flight Info
             </button>
@@ -5569,7 +5595,7 @@ export default function FldrDetailPage() {
           {fldr.hotel_info === null && (
             <button
               onClick={() => enableModule('hotel_info')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Hotel Info
             </button>
@@ -5577,7 +5603,7 @@ export default function FldrDetailPage() {
           {fldr.venue_info === null && (
             <button
               onClick={() => enableModule('venue_info')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Venue Info
             </button>
@@ -5585,7 +5611,7 @@ export default function FldrDetailPage() {
           {fldr.rental_car_info === null && (
             <button
               onClick={() => enableModule('rental_car_info')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Rental Car
             </button>
@@ -5593,7 +5619,7 @@ export default function FldrDetailPage() {
           {fldr.job_info === null && (
             <button
               onClick={() => enableModule('job_info')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Job Info
             </button>
@@ -5601,7 +5627,7 @@ export default function FldrDetailPage() {
           {fldr.checklist === null && (
             <button
               onClick={() => enableModule('checklist')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Checklist
             </button>
@@ -5609,7 +5635,7 @@ export default function FldrDetailPage() {
           {fldr.people === null && (
             <button
               onClick={() => enableModule('people')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + People
             </button>
@@ -5617,7 +5643,7 @@ export default function FldrDetailPage() {
           {fldr.photos === null && (
             <button
               onClick={() => enableModule('photos')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Photos
             </button>
@@ -5625,14 +5651,14 @@ export default function FldrDetailPage() {
           {fldr.products === null && (
             <button
               onClick={() => enableModule('products')}
-              className="px-3 py-2 bg-white/5 border border-[#2a7b9b]/30 rounded-lg text-sm hover:border-[#2a7b9b] hover:bg-white/10 transition-colors"
+              className="btn-secondary px-3 py-2 font-medium"
             >
               + Products
             </button>
           )}
         </div>
         {fldr.flight_info !== null && fldr.hotel_info !== null && fldr.venue_info !== null && fldr.rental_car_info !== null && fldr.job_info !== null && fldr.checklist !== null && fldr.people !== null && fldr.photos !== null && fldr.products !== null && (
-          <p className="text-xs text-gray-500">All modules enabled</p>
+          <p className="text-xs text-white/45">All modules enabled</p>
         )}
       </div>
       </div>
@@ -5641,7 +5667,7 @@ export default function FldrDetailPage() {
       <div className="px-4 max-w-2xl mx-auto mt-4 mb-4">
         <button
           onClick={() => deleteJob()}
-          className="w-full py-3 rounded-lg border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/10 hover:border-red-500/60 transition-colors flex items-center justify-center gap-2"
+          className="btn-danger w-full py-3 bg-transparent"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -5662,7 +5688,8 @@ export default function FldrDetailPage() {
                 e.stopPropagation()
                 setExpandedPhotoIndex(null)
               }}
-              className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full z-10"
+              aria-label="Close"
+              className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black/80 rounded-full backdrop-blur-sm transition-colors z-10"
             >
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -5687,7 +5714,7 @@ export default function FldrDetailPage() {
       {/* Parse Email Modal */}
       {showParseEmailModal && (
         <div 
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
           onClick={async () => {
             await flushAndSave()
             setShowParseEmailModal(null)
@@ -5697,11 +5724,13 @@ export default function FldrDetailPage() {
           }}
         >
           <div 
-            className="bg-[#1a2332] border border-white/20 rounded-lg p-6 max-w-2xl w-full backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+            role="dialog"
+            aria-modal="true"
+            className="bg-surface border border-line-strong rounded-2xl p-5 sm:p-6 max-w-2xl w-full max-h-[90dvh] overflow-y-auto shadow-pop animate-sheet-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">
+              <h3 className="text-lg font-semibold pr-3">
                 Parse {showParseEmailModal === 'flight' ? 'Flight' : showParseEmailModal === 'hotel' ? 'Hotel' : 'Rental Car'} Confirmation Email
               </h3>
               <button
@@ -5712,7 +5741,8 @@ export default function FldrDetailPage() {
                   setParseEmailImage(null)
                   setParseInputMode('text')
                 }}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                className="icon-btn -mr-2"
+                aria-label="Close"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -5721,13 +5751,13 @@ export default function FldrDetailPage() {
             </div>
             
             {/* Input mode tabs */}
-            <div className="flex gap-2 mb-4 border-b border-white/10">
+            <div className="flex gap-2 mb-4 border-b border-line">
               <button
                 onClick={() => setParseInputMode('text')}
                 className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                   parseInputMode === 'text'
-                    ? 'text-[#2a7b9b] border-[#2a7b9b]'
-                    : 'text-gray-400 border-transparent hover:text-gray-300'
+                    ? 'text-brand-light border-brand'
+                    : 'text-white/55 border-transparent hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -5741,8 +5771,8 @@ export default function FldrDetailPage() {
                 onClick={() => setParseInputMode('image')}
                 className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                   parseInputMode === 'image'
-                    ? 'text-[#2a7b9b] border-[#2a7b9b]'
-                    : 'text-gray-400 border-transparent hover:text-gray-300'
+                    ? 'text-brand-light border-brand'
+                    : 'text-white/55 border-transparent hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -5757,29 +5787,29 @@ export default function FldrDetailPage() {
             <div className="space-y-4">
               {parseInputMode === 'text' ? (
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">
+                  <label className="label">
                     Paste your confirmation email below:
                   </label>
                   <textarea
                     value={parseEmailText}
                     onChange={(e) => setParseEmailText(e.target.value)}
-                    className="w-full h-64 px-3 py-2 bg-[#0f1419] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2a7b9b] text-sm font-mono resize-none"
+                    className="input h-64 font-mono resize-none"
                     placeholder={`Paste the entire confirmation email here...\n\nExample:\nYour ${showParseEmailModal === 'flight' ? 'flight' : showParseEmailModal === 'hotel' ? 'hotel reservation' : 'rental car booking'} has been confirmed!\n\n${showParseEmailModal === 'flight' ? 'Flight: AA123\nFrom: Los Angeles (LAX) - Mar 15, 2024 at 2:30 PM\nTo: New York (JFK) - Mar 15, 2024 at 10:45 PM\nConfirmation: ABC123' : showParseEmailModal === 'hotel' ? 'Hotel: Marriott Downtown\nAddress: 123 Main St, New York, NY 10001\nCheck-in: Mar 15, 2024 at 3:00 PM\nCheck-out: Mar 18, 2024 at 11:00 AM\nConfirmation: ABC123' : 'Company: Hertz\nVehicle: Economy\nPick-up: LAX Airport - Mar 15, 2024 at 2:00 PM\nDrop-off: LAX Airport - Mar 18, 2024 at 10:00 AM\nConfirmation: ABC123'}`}
                   />
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">
+                  <label className="label">
                     Upload a screenshot of your confirmation email:
                   </label>
                   {!parseEmailImage ? (
-                    <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-white/20 rounded-lg cursor-pointer hover:border-[#2a7b9b] transition-colors bg-black/30 backdrop-blur-sm">
+                    <label className="flex flex-col items-center justify-center w-full h-64 border border-dashed border-line-strong rounded-xl cursor-pointer hover:border-brand hover:bg-white/[0.02] transition-colors bg-canvas/60">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <svg className="w-12 h-12 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        <svg className="w-10 h-10 mb-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                         <p className="mb-2 text-sm text-gray-400">
-                          <span className="font-semibold">Click to upload</span> or drag and drop
+                          <span className="font-display font-semibold">Click to upload</span> or drag and drop
                         </p>
                         <p className="text-xs text-gray-500">PNG, JPG, JPEG (MAX. 10MB)</p>
                       </div>
@@ -5808,11 +5838,12 @@ export default function FldrDetailPage() {
                       <img
                         src={parseEmailImage}
                         alt="Confirmation screenshot"
-                        className="w-full h-64 object-contain bg-[#0f1419]/50 border border-white/5 rounded-lg"
+                        className="w-full h-64 object-contain bg-canvas/60 border border-line rounded-xl"
                       />
                       <button
                         onClick={() => setParseEmailImage(null)}
-                        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                        aria-label="Remove screenshot"
+                        className="absolute top-2 right-2 p-2 bg-black/70 text-white rounded-lg hover:bg-red-600/80 backdrop-blur-sm transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -5823,8 +5854,8 @@ export default function FldrDetailPage() {
                 </div>
               )}
               
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-white/45">
                   AI will extract and populate the form fields automatically
                 </p>
                 <div className="flex gap-2">
@@ -5836,14 +5867,14 @@ export default function FldrDetailPage() {
                       setParseEmailImage(null)
                       setParseInputMode('text')
                     }}
-                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm hover:bg-white/10 transition-colors"
+                    className="btn-secondary py-2 font-medium"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={parseEmail}
                     disabled={(parseInputMode === 'text' && !parseEmailText.trim()) || (parseInputMode === 'image' && !parseEmailImage) || parsingEmail}
-                    className="px-4 py-2 bg-[#2a7b9b] text-black font-medium rounded-lg text-sm hover:bg-[#3a8bab] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="btn-brand py-2"
                   >
                     {parsingEmail ? (
                       <>
@@ -5871,24 +5902,27 @@ export default function FldrDetailPage() {
 
       {showOverviewModal && (
         <div 
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
           onClick={async () => {
             await flushAndSave()
             setShowOverviewModal(false)
           }}
         >
           <div 
-            className="bg-[#1a2332] border border-white/20 rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+            role="dialog"
+            aria-modal="true"
+            className="bg-surface border border-line-strong rounded-2xl p-5 sm:p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto shadow-pop animate-sheet-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">Job Overview</h3>
+              <h3 className="text-lg font-semibold">Job Overview</h3>
               <button
                 onClick={async () => {
                   await flushAndSave()
                   setShowOverviewModal(false)
                 }}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                className="icon-btn -mr-2"
+                aria-label="Close"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -5896,14 +5930,14 @@ export default function FldrDetailPage() {
               </button>
             </div>
             
-            <div className="bg-[#0f1419]/50 border border-white/5 rounded-lg p-4 mb-4 backdrop-blur-sm">
-              <pre className="whitespace-pre-wrap font-mono text-sm text-gray-300 leading-relaxed">
+            <div className="bg-canvas/60 border border-line rounded-xl p-4 mb-4">
+              <pre className="whitespace-pre-wrap font-mono text-sm text-white/80 leading-relaxed">
                 {generatedOverview}
               </pre>
             </div>
             
             <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-white/45">
                 Copy this overview to use in emails, reports, or other programs
               </p>
               <CopyButton 
@@ -5926,7 +5960,8 @@ export default function FldrDetailPage() {
           >
             <button
               onClick={() => setShowMapModal(false)}
-              className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] z-[20000] p-3 bg-black/80 hover:bg-black/90 rounded-lg transition-colors shadow-lg"
+              aria-label="Close map"
+              className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] z-[20000] p-2.5 bg-surface/90 hover:bg-surface-raised border border-line-strong rounded-xl backdrop-blur-md transition-colors shadow-pop"
             >
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -5957,17 +5992,17 @@ export default function FldrDetailPage() {
 
       {/* Toast confirm dialogs */}
       {confirmDialog && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-6" onClick={() => setConfirmDialog(null)}>
-          <div className="w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-6 bg-black/60 animate-fade-in" onClick={() => setConfirmDialog(null)}>
+          <div role="alertdialog" aria-modal="true" className="w-full max-w-sm bg-surface border border-line-strong rounded-2xl overflow-hidden shadow-pop" onClick={e => e.stopPropagation()}>
             {confirmDialog.type === 'module' && (
               <>
                 <div className="p-5 pb-3">
                   <p className="text-white font-semibold text-center">Remove module?</p>
-                  <p className="text-white/50 text-sm text-center mt-1">All data in this module will be permanently deleted.</p>
+                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">All data in this module will be permanently deleted.</p>
                 </div>
-                <div className="flex border-t border-white/10">
+                <div className="flex border-t border-line">
                   <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={async () => { setConfirmDialog(null); const m = confirmDialog.module; setFldr(prev => prev ? { ...prev, [m]: null } : prev); await saveFldr({ [m]: null }); setExpandedCards(prev => ({ ...prev, [m.replace('_info', '')]: false })) }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-white/10 transition-colors">Remove</button>
+                  <button onClick={async () => { setConfirmDialog(null); const m = confirmDialog.module; setFldr(prev => prev ? { ...prev, [m]: null } : prev); await saveFldr({ [m]: null }); setExpandedCards(prev => ({ ...prev, [m.replace('_info', '')]: false })) }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-line transition-colors">Remove</button>
                 </div>
               </>
             )}
@@ -5975,11 +6010,11 @@ export default function FldrDetailPage() {
               <>
                 <div className="p-5 pb-3">
                   <p className="text-white font-semibold text-center">Delete job?</p>
-                  <p className="text-white/50 text-sm text-center mt-1">&ldquo;{fldr?.title}&rdquo; will be permanently deleted. This cannot be undone.</p>
+                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">&ldquo;{fldr?.title}&rdquo; will be permanently deleted. This cannot be undone.</p>
                 </div>
-                <div className="flex border-t border-white/10">
+                <div className="flex border-t border-line">
                   <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={doDeleteJob} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-white/10 transition-colors">Delete</button>
+                  <button onClick={doDeleteJob} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-line transition-colors">Delete</button>
                 </div>
               </>
             )}
@@ -5987,11 +6022,11 @@ export default function FldrDetailPage() {
               <>
                 <div className="p-5 pb-3">
                   <p className="text-white font-semibold text-center">Clear offline data?</p>
-                  <p className="text-white/50 text-sm text-center mt-1">All locally saved changes will be removed.</p>
+                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">All locally saved changes will be removed.</p>
                 </div>
-                <div className="flex border-t border-white/10">
+                <div className="flex border-t border-line">
                   <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={() => { setConfirmDialog(null); clearAllCache(); setHasUnsynced(false); router.push('/jobs') }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-white/10 transition-colors">Clear</button>
+                  <button onClick={() => { setConfirmDialog(null); clearAllCache(); setHasUnsynced(false); router.push('/jobs') }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-line transition-colors">Clear</button>
                 </div>
               </>
             )}
@@ -5999,11 +6034,11 @@ export default function FldrDetailPage() {
               <>
                 <div className="p-5 pb-3">
                   <p className="text-white font-semibold text-center">Duplicate job?</p>
-                  <p className="text-white/50 text-sm text-center mt-1">A copy will be created. You can update dates and details after.</p>
+                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">A copy will be created. You can update dates and details after.</p>
                 </div>
-                <div className="flex border-t border-white/10">
+                <div className="flex border-t border-line">
                   <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={doDuplicateJob} className="flex-1 py-3.5 text-[#2a7b9b] hover:bg-[#2a7b9b]/10 text-sm font-semibold border-l border-white/10 transition-colors">Duplicate</button>
+                  <button onClick={doDuplicateJob} className="flex-1 py-3.5 text-brand-light hover:bg-brand/10 text-sm font-semibold border-l border-line transition-colors">Duplicate</button>
                 </div>
               </>
             )}

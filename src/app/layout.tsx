@@ -1,15 +1,29 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter, Sora } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import PinAuthWrapper from '@/components/PinAuthWrapper'
+
+// Self-hosted at build time: no runtime request to Google, works offline
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+})
+
+const sora = Sora({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-display',
+})
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#0a0a0a',
+  themeColor: '#0f1419',
 }
 
 export const metadata: Metadata = {
@@ -32,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${sora.variable}`} suppressHydrationWarning>
       <head>
         {/* PWA capability tags */}
         <meta name="mobile-web-app-capable" content="yes" />
@@ -44,7 +58,7 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <ServiceWorkerRegistration />
         <PinAuthWrapper>
-          <div className="min-h-screen pb-16">
+          <div className="min-h-screen pb-28">
             {children}
           </div>
           <BottomNav />

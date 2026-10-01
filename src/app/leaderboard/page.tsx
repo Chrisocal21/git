@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { LeaderboardEntry } from '@/app/api/leaderboard/route'
+import PageHeader from '@/components/PageHeader'
 
 const TrophyIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -39,21 +40,22 @@ const RankBadge = ({ rank }: { rank: number }) => {
     const s = RANK_BADGE_STYLES[rank]
     return (
       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${s.bg} shrink-0`}>
-        <span className={`text-sm font-bold ${s.text}`}>{rank + 1}</span>
+        <span className={`text-sm font-bold tabular ${s.text}`}>{rank + 1}</span>
       </div>
     )
   }
   return (
     <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 shrink-0">
-      <span className="text-xs font-bold text-gray-500">{rank + 1}</span>
+      <span className="text-xs font-bold tabular text-white/45">{rank + 1}</span>
     </div>
   )
 }
 
+// Podium places get a tinted border; everyone else gets the standard hairline
 const RANK_COLORS = [
-  'from-yellow-500/20 to-yellow-500/5 border-yellow-500/30',
-  'from-gray-400/20 to-gray-400/5 border-gray-400/30',
-  'from-orange-700/20 to-orange-700/5 border-orange-700/30',
+  'border-yellow-500/40',
+  'border-gray-400/30',
+  'border-orange-600/40',
 ]
 
 export default function LeaderboardPage() {
@@ -75,80 +77,70 @@ export default function LeaderboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#111111] text-white pb-8">
-      <div className="sticky top-0 z-10 bg-[#111111]/90 backdrop-blur-sm border-b border-white/10 px-4 py-4">
-        <div className="max-w-lg mx-auto flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="text-gray-400 hover:text-white transition-colors text-sm"
-          >
-            ← Back
-          </button>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold tracking-tight">Leaderboard</h1>
-            {!loading && (
-              <p className="text-xs text-gray-500">{totalJobs} total jobs tracked</p>
-            )}
-          </div>
-          <TrophyIcon className="w-6 h-6 text-[#E8B44D]" />
-        </div>
-      </div>
+    <div className="min-h-page text-white">
+      <PageHeader
+        title="Leaderboard"
+        subtitle={!loading ? `${totalJobs} total jobs tracked` : undefined}
+        width="max-w-lg"
+        actions={<TrophyIcon className="w-6 h-6 text-gold mr-1" />}
+      />
 
-      <div className="max-w-lg mx-auto px-4 pt-6 space-y-3">
+      <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-20 bg-white/5 rounded-xl animate-pulse" />
+            <div key={i} className="h-[72px] rounded-2xl border border-line bg-surface animate-pulse" />
           ))
         ) : leaderboard.length === 0 ? (
-          <div className="text-center text-gray-500 py-16">
-            <ClipboardIcon className="w-10 h-10 mx-auto mb-3 text-gray-600" />
-            <p>No team member data yet.</p>
-            <p className="text-sm mt-1">Add team members to jobs to see the leaderboard.</p>
+          <div className="text-center py-16">
+            <ClipboardIcon className="w-10 h-10 mx-auto mb-3 text-white/20" />
+            <p className="text-white/70">No team member data yet.</p>
+            <p className="text-sm text-white/45 mt-1">Add team members to jobs to see the leaderboard.</p>
           </div>
         ) : (
           leaderboard.map((entry, i) => {
             const isExpanded = expanded === entry.name
-            const rankColor = RANK_COLORS[i] ?? 'from-white/10 to-white/5 border-white/10'
+            const rankColor = RANK_COLORS[i] ?? 'border-line'
             const topThree = i < 3
 
             return (
               <div
                 key={entry.name}
-                className={`rounded-xl border bg-gradient-to-br ${rankColor} overflow-hidden transition-all`}
+                className={`card shadow-card ${rankColor} overflow-hidden transition-colors`}
               >
                 <button
                   onClick={() => setExpanded(isExpanded ? null : entry.name)}
-                  className="w-full flex items-center gap-4 px-4 py-4 text-left"
+                  aria-expanded={isExpanded}
+                  className="w-full flex items-center gap-4 px-4 py-4 text-left hover:bg-white/[0.03] transition-colors"
                 >
                   <RankBadge rank={i} />
 
                   <div className="flex-1 min-w-0">
-                    <p className={`font-semibold truncate ${topThree ? 'text-white' : 'text-gray-300'}`}>
+                    <p className={`font-semibold truncate ${topThree ? 'text-white' : 'text-white/80'}`}>
                       {entry.name}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-white/45 tabular">
                       {entry.jobCount} {entry.jobCount === 1 ? 'job' : 'jobs'}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
-                    <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div className="w-20 sm:w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-[#E8B44D] rounded-full transition-all duration-700"
+                        className="h-full bg-gold rounded-full transition-all duration-700"
                         style={{
                           width: `${Math.round((entry.jobCount / leaderboard[0].jobCount) * 100)}%`,
                         }}
                       />
                     </div>
-                    <span className={`text-lg font-bold min-w-[2ch] text-right ${topThree ? 'text-[#E8B44D]' : 'text-gray-400'}`}>
+                    <span className={`font-display text-lg font-semibold tabular min-w-[2ch] text-right ${topThree ? 'text-gold' : 'text-white/60'}`}>
                       {entry.jobCount}
                     </span>
-                    <ChevronIcon up={isExpanded} className="w-4 h-4 text-gray-600" />
+                    <ChevronIcon up={isExpanded} className="w-4 h-4 text-white/35" />
                   </div>
                 </button>
 
                 {isExpanded && (
-                  <div className="border-t border-white/10 px-4 py-3 space-y-2">
+                  <div className="border-t border-line bg-canvas/40 px-4 py-3 space-y-1">
                     {entry.jobs
                       .slice()
                       .sort((a, b) => b.date.localeCompare(a.date))
@@ -156,10 +148,10 @@ export default function LeaderboardPage() {
                         <button
                           key={job.id}
                           onClick={() => router.push(`/jobs/${job.id}`)}
-                          className="w-full flex justify-between items-center text-sm py-1 hover:text-[#E8B44D] transition-colors text-left"
+                          className="group w-full flex justify-between items-center text-sm py-1.5 text-left"
                         >
-                          <span className="text-gray-300 truncate flex-1">{job.title}</span>
-                          <span className="text-gray-600 ml-3 shrink-0">
+                          <span className="text-white/80 group-hover:text-gold transition-colors truncate flex-1">{job.title}</span>
+                          <span className="text-white/40 text-xs ml-3 shrink-0 tabular">
                             {new Date(job.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                           </span>
                         </button>

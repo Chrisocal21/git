@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr, FldrStatus } from '@/types/fldr'
-import { PlusIcon, AirplaneIcon, HomeIcon } from '@/components/Icons'
+import { AirplaneIcon, HomeIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
@@ -412,23 +412,14 @@ export default function JobsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f1419]">
-        <div className="flex items-center justify-between mb-6 px-4 pt-4 max-w-2xl mx-auto">
+      <div className="min-h-page">
+        <div className="flex items-center justify-between px-4 pt-5 pb-5 max-w-2xl mx-auto">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <BurrowLogo className="w-10 h-10" />
-            <h1 className="text-2xl font-semibold text-white">Burrow</h1>
+            <BurrowLogo className="w-9 h-9" />
+            <h1 className="text-[22px] font-semibold text-white">Burrow</h1>
           </div>
-          <button
-            disabled
-            className="px-4 py-2 bg-gray-700 rounded-xl opacity-50 cursor-not-allowed text-sm font-semibold"
-            aria-label="Create new Job"
-          >
-            <div className="flex items-center gap-1.5">
-              <PlusIcon className="w-4 h-4" />
-              <span>New</span>
-            </div>
-          </button>
+          <div className="h-10 w-10 rounded-xl border border-line bg-surface" />
         </div>
         <div className="px-4 max-w-2xl mx-auto">
           <FldrListSkeleton />
@@ -440,7 +431,7 @@ export default function JobsPage() {
   return (
     <>
       <div
-        className="min-h-screen bg-[#0f1419]"
+        className="min-h-page"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -448,20 +439,20 @@ export default function JobsPage() {
       {/* Pull-to-refresh indicator */}
       {(isPulling || isRefreshing) && (
         <div 
-          className="fixed top-0 left-0 right-0 flex justify-center items-center transition-all"
+          className="fixed top-0 left-0 right-0 z-40 flex justify-center items-center transition-all"
           style={{
             height: isRefreshing ? '60px' : `${pullDistance}px`,
             opacity: isRefreshing ? 1 : pullDistance / 100,
           }}
         >
-          <div className="bg-gray-800 rounded-full p-3 shadow-lg">
+          <div className="bg-surface-raised border border-line-strong rounded-full p-3 shadow-pop">
             {isRefreshing ? (
-              <svg className="animate-spin h-5 w-5 text-[#3b82f6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-5 w-5 text-brand-light" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
             ) : (
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-white/55" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
             )}
@@ -470,15 +461,15 @@ export default function JobsPage() {
       )}
       
       {/* Clean header - minimal single row */}
-      <div className="flex items-center justify-between mb-6 px-4 pt-4 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between px-4 pt-5 pb-5 max-w-2xl mx-auto">
         <div
           className="flex items-center gap-3 cursor-pointer select-none hover:opacity-80 transition-opacity"
           onClick={() => window.location.reload()}
           title="Refresh"
         >
           {/* Logo */}
-          <BurrowLogo className="w-10 h-10" />
-          <h1 className="text-2xl font-semibold text-white">Burrow</h1>
+          <BurrowLogo className="w-9 h-9" />
+          <h1 className="text-[22px] font-semibold text-white">Burrow</h1>
         </div>
         
         {/* Right side: Minimal actions */}
@@ -488,7 +479,7 @@ export default function JobsPage() {
       </div>
 
       {/* Unified Filter Section */}
-      <div className="space-y-1.5 mb-3 px-4 max-w-2xl mx-auto">
+      <div className="space-y-3 mb-5 px-4 max-w-2xl mx-auto">
         {/* Job Stats Dashboard */}
         {fldrs.length > 0 && (() => {
           const today = new Date()
@@ -512,42 +503,42 @@ export default function JobsPage() {
           const inProgressCount = visibleFldrs.filter(f => f.job_status === 'in_progress').length
           
           return (
-            <div className="bg-[#1a2332] rounded-2xl p-4 border border-white/5">
-              <div className="grid grid-cols-3 gap-3">
+            <div className="card shadow-card px-4 py-5">
+              <div className="grid grid-cols-3">
                 {/* Upcoming This Week */}
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{upcomingThisWeek}</div>
-                  <div className="text-xs text-white/50 mt-1">This Week</div>
+                  <div className="font-display text-[28px] leading-none font-semibold text-white tabular">{upcomingThisWeek}</div>
+                  <div className="eyebrow mt-2">This Week</div>
                 </div>
-                
+
                 {/* Total Active Jobs */}
-                <div className="text-center border-x border-white/10">
-                  <div className="text-2xl font-bold text-white">{totalJobs}</div>
-                  <div className="text-xs text-white/50 mt-1">Total Jobs</div>
+                <div className="text-center border-x border-line">
+                  <div className="font-display text-[28px] leading-none font-semibold text-white tabular">{totalJobs}</div>
+                  <div className="eyebrow mt-2">Total Jobs</div>
                 </div>
-                
+
                 {/* Pending Confirmation */}
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{pendingCount}</div>
-                  <div className="text-xs text-white/50 mt-1">Pending</div>
+                  <div className="font-display text-[28px] leading-none font-semibold text-white tabular">{pendingCount}</div>
+                  <div className="eyebrow mt-2">Pending</div>
                 </div>
               </div>
               
               {/* Secondary row for other statuses */}
               {(confirmedCount > 0 || inProgressCount > 0) && (
-                <div className="flex gap-4 justify-center mt-3 pt-3 border-t border-white/10">
+                <div className="flex gap-5 justify-center mt-4 pt-4 border-t border-line">
                   {confirmedCount > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span className="text-sm font-medium text-white">{confirmedCount}</span>
-                      <span className="text-xs text-white/50">Confirmed</span>
+                      <span className="text-sm font-semibold text-white tabular">{confirmedCount}</span>
+                      <span className="text-xs text-white/55">Confirmed</span>
                     </div>
                   )}
                   {inProgressCount > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      <span className="text-sm font-medium text-white">{inProgressCount}</span>
-                      <span className="text-xs text-white/50">In Progress</span>
+                      <span className="text-sm font-semibold text-white tabular">{inProgressCount}</span>
+                      <span className="text-xs text-white/55">In Progress</span>
                     </div>
                   )}
                 </div>
@@ -557,25 +548,21 @@ export default function JobsPage() {
         })()}
         
         {/* Combined filters */}
-        <div className="bg-[#1a2332] rounded-2xl p-2 border border-white/5 space-y-2">
-          <div className="flex gap-2">
+        <div className="space-y-2">
+          <div className="segmented" role="tablist" aria-label="Job view">
             <button
               onClick={() => setViewMode('team')}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === 'team'
-                  ? 'bg-[#2a7b9b] text-white'
-                  : 'text-white/50 hover:text-white/70'
-              }`}
+              role="tab"
+              aria-selected={viewMode === 'team'}
+              className={`segment ${viewMode === 'team' ? 'segment-active' : ''}`}
             >
               All ({fldrs.filter(f => !f.archived && f.job_status !== 'complete').length})
             </button>
             <button
               onClick={() => setViewMode('my')}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === 'my'
-                  ? 'bg-[#2a7b9b] text-white'
-                  : 'text-white/50 hover:text-white/70'
-              }`}
+              role="tab"
+              aria-selected={viewMode === 'my'}
+              className={`segment ${viewMode === 'my' ? 'segment-active' : ''}`}
             >
               My Jobs
             </button>
@@ -584,7 +571,12 @@ export default function JobsPage() {
           {/* Archived toggle - compact */}
           <button
             onClick={() => setShowArchived(!showArchived)}
-            className="w-full px-3 py-1.5 rounded-lg text-xs text-white/50 hover:text-white/70 transition-all flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10"
+            aria-pressed={showArchived}
+            className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2 ${
+              showArchived
+                ? 'bg-gold/10 text-gold'
+                : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+            }`}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -596,19 +588,19 @@ export default function JobsPage() {
 
       {userFilteredFldrs.length === 0 ? (
         <div className="text-center py-16 px-4 max-w-2xl mx-auto">
-          <p className="text-white/40 mb-6 text-lg">
+          <p className="text-white/55 mb-6">
             {filter === 'all' ? 'No jobs yet' : 'No current jobs'}
           </p>
           {filter === 'all' && viewMode === 'team' && (
             <button
               onClick={() => router.push('/jobs/create')}
-              className="px-6 py-3 bg-[#2a7b9b] hover:bg-[#3a8bab] text-white rounded-lg transition-colors font-medium"
+              className="btn-primary px-6 py-3"
             >
               Create Your First Job
             </button>
           )}
           {viewMode === 'my' && (
-            <p className="text-white/30 text-sm mt-2">
+            <p className="text-white/45 text-sm mt-2">
               No jobs assigned to you yet. Switch to All view to see team jobs.
             </p>
           )}
@@ -621,17 +613,17 @@ export default function JobsPage() {
               <div key={fldr.id} className="relative">
                 <button
                   onClick={() => router.push(`/jobs/${fldr.id}`)}
-                  className={`w-full rounded-2xl text-left transition-all bg-[#1a2332] border ${
-                    isCurrent 
-                      ? 'border-[#2a7b9b] shadow-lg shadow-[#2a7b9b]/20' 
-                      : 'border-white/5 hover:border-white/10 hover:bg-[#1e2938]'
+                  className={`w-full rounded-2xl text-left transition-colors bg-surface border shadow-card ${
+                    isCurrent
+                      ? 'border-brand ring-1 ring-brand/40'
+                      : 'border-line hover:border-line-strong hover:bg-surface-raised'
                   }`}
                 >
                   <div className="p-5">
                     {/* Top Row: Location & Days Until */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-xl text-white leading-tight">{fldr.location || fldr.title}</h3>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-lg text-white leading-tight truncate">{fldr.location || fldr.title}</h3>
                         <div className="text-sm text-white/60 font-normal mt-1 truncate">
                           {fldr.title}
                           {fldr.job_info?.distributor_name && fldr.job_info.distributor_name !== fldr.title && (
@@ -646,11 +638,11 @@ export default function JobsPage() {
                         const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
 
                         if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob >= 0)) {
-                          const badgeColor = soonest <= 2 ? 'bg-red-500/20 text-red-400 border-red-500/30' : soonest <= 7 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          const badgeColor = soonest <= 2 ? 'bg-red-500/10 text-red-400 border-red-500/30' : soonest <= 7 ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                           return (
-                            <div className={`px-3 py-2 rounded-lg border ${badgeColor} flex items-baseline gap-1 flex-shrink-0`}>
-                              <div className="text-lg font-bold leading-none">{soonest}</div>
-                              <div className="text-xs uppercase tracking-wide opacity-80">{soonest === 1 ? 'day' : 'days'}</div>
+                            <div className={`px-2.5 py-1.5 rounded-lg border ${badgeColor} flex items-baseline gap-1 flex-shrink-0`}>
+                              <div className="font-display text-base font-semibold leading-none tabular">{soonest}</div>
+                              <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{soonest === 1 ? 'day' : 'days'}</div>
                             </div>
                           )
                         }
@@ -660,7 +652,7 @@ export default function JobsPage() {
 
                     {/* Middle Row: Dates & Weather */}
                     <div className="flex items-center justify-between mb-4">
-                      <div className="text-sm text-white/50 leading-snug flex-1">
+                      <div className="text-sm text-white/55 leading-snug flex-1 tabular">
                         {(() => {
                           const flights = fldr.flight_info || []
                           
@@ -682,17 +674,17 @@ export default function JobsPage() {
                             const tripEnd = latestArrival ? formatDate(latestArrival.arrival_time!) : (fldr.date_end ? formatDate(fldr.date_end) : tripStart)
                             
                             // Show the full travel duration
-                            return tripStart === tripEnd ? tripStart : `${tripStart} - ${tripEnd}`
+                            return tripStart === tripEnd ? tripStart : `${tripStart} – ${tripEnd}`
                           }
                           
                           // No flights - just show event dates
-                          return `${formatDate(fldr.date_start)}${fldr.date_end && formatDate(fldr.date_end) !== formatDate(fldr.date_start) ? ` - ${formatDate(fldr.date_end)}` : ''}`
+                          return `${formatDate(fldr.date_start)}${fldr.date_end && formatDate(fldr.date_end) !== formatDate(fldr.date_start) ? ` – ${formatDate(fldr.date_end)}` : ''}`
                         })()}
                       </div>
                       {jobTemps[fldr.id] && (
-                        <div className="flex items-center gap-1.5 text-white/50 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 text-white/55 flex-shrink-0">
                           <WeatherSVG condition={jobTemps[fldr.id].main} size="xs" />
-                          <span className="text-sm font-medium">{Math.round(jobTemps[fldr.id].temp)}°</span>
+                          <span className="text-sm font-medium tabular">{Math.round(jobTemps[fldr.id].temp)}°</span>
                         </div>
                       )}
                     </div>
@@ -716,19 +708,20 @@ export default function JobsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         {/* Job Status Badge */}
                         {fldr.job_status && (
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium uppercase tracking-wide ${
-                            fldr.job_status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
-                            fldr.job_status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-300' :
-                            fldr.job_status === 'in_progress' ? 'bg-blue-500/20 text-blue-300' :
-                            fldr.job_status === 'complete' ? 'bg-gray-500/20 text-gray-300' :
-                            'bg-gray-500/20 text-gray-300'
+                          <span className={`badge ${
+                            fldr.job_status === 'pending' ? 'bg-yellow-500/15 text-yellow-300' :
+                            fldr.job_status === 'confirmed' ? 'bg-emerald-500/15 text-emerald-300' :
+                            fldr.job_status === 'in_progress' ? 'bg-blue-500/15 text-blue-300' :
+                            fldr.job_status === 'complete' ? 'bg-white/10 text-white/60' :
+                            'bg-white/10 text-white/60'
                           }`}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
                             {fldr.job_status.replace('_', ' ')}
                           </span>
                         )}
                         {/* Show airplane if current user is on this job */}
                         {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) && (
-                          <AirplaneIcon className="w-4 h-4 text-[#2a7b9b] flex-shrink-0" />
+                          <AirplaneIcon className="w-4 h-4 text-brand-light flex-shrink-0" />
                         )}
                       </div>
                     </div>

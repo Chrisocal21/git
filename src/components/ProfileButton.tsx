@@ -47,7 +47,7 @@ export default function ProfileButton() {
       
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-lg z-50">
+        <div className="absolute right-0 mt-2 w-48 bg-surface border border-gray-700 rounded-lg shadow-lg z-50">
           <div className="p-3 border-b border-gray-700">
             <div className="text-sm font-medium text-white">{user.name}</div>
             <div className="text-xs text-gray-400 mt-0.5">{user.email}</div>
