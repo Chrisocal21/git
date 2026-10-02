@@ -3,8 +3,7 @@ import { Fldr, FlightSegment } from '@/types/fldr'
 const dayKey = (s: string | null | undefined) => (s ? s.split('T')[0] : null)
 
 const sharedPeople = (a: Fldr, b: Fldr) => {
-  const names = new Set((a.people || []).map(p => p.name.toLowerCase()))
-  return (b.people || []).some(p => names.has(p.name.toLowerCase()))
+  return (a.people || []).some(pa => (b.people || []).some(pb => sameName(pa.name, pb.name)))
 }
 
 /**
@@ -33,6 +32,12 @@ export function isOnwardFlight(seg: FlightSegment, fldr: Fldr, all: Fldr[]): boo
   })
 }
 
+/** "Taylor" matches "Taylor Elson" (and vice versa); compares on first name. */
+const sameName = (a: string, b: string) => {
+  const first = (s: string) => s.trim().toLowerCase().split(/\s+/)[0]
+  return first(a) === first(b)
+}
+
 /**
  * Returns arrival-trimmed copies: onward flights keep departure only.
  * With `person`, only segments that person is on are returned (segments with
@@ -43,7 +48,7 @@ export function getOwnFlights(fldr: Fldr, all: Fldr[], person?: string): FlightS
   const segs = person
     ? fldr.flight_info.filter(
         s => !s.travelers || s.travelers.length === 0 ||
-          s.travelers.some(t => t.toLowerCase() === person.toLowerCase())
+          s.travelers.some(t => sameName(t, person))
       )
     : fldr.flight_info
   return segs.map(seg =>

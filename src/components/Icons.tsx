@@ -201,6 +201,16 @@ export function BriefcaseIcon({ className }: { className?: string }) {
   )
 }
 
+/** Airplane + briefcase side by side: a day that is both travel and work. */
+export function TravelWorkIcon({ className }: { className?: string }) {
+  return (
+    <span className="inline-flex items-center gap-px flex-shrink-0">
+      <AirplaneIcon className={className} />
+      <BriefcaseIcon className={className} />
+    </span>
+  )
+}
+
 export function CloudIcon({ className }: { className?: string }) {
   return (
     <svg

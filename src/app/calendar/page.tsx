@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
 import { getTeamProfiles } from '@/lib/auth'
 import { getOwnFlights } from '@/lib/tripSpan'
-import { AirplaneIcon, BriefcaseIcon, MapPinIcon } from '@/components/Icons'
+import { AirplaneIcon, BriefcaseIcon, TravelWorkIcon, MapPinIcon } from '@/components/Icons'
 
 // Per-profile color palette (index matches TEAM_PROFILES order)
 const DOT_COLORS = [
@@ -31,13 +31,35 @@ const LEGEND_TEXT = [
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+type DayType = 'travel' | 'work' | 'off' | 'travel_work'
+
+/**
+ * Combine one person's entries for a day. Flight = plane; no flight = briefcase;
+ * flight while also inside a job's work window (their own or a second job's) = both.
+ */
+function mergeDay(entries: Absence[]): Absence | undefined {
+  if (entries.length === 0) return undefined
+  const off = entries.find(a => a.dayType === 'off')
+  if (off) return off
+  const hasFlight = entries.some(a => a.dayType === 'travel')
+  const hasWork = entries.some(a => a.dayType === 'work')
+  const jobsInRange = new Set(entries.filter(a => a.inJobRange).map(a => a.jobId)).size
+  const dayType: DayType = hasFlight && (hasWork || jobsInRange >= 2) ? 'travel_work' : hasFlight ? 'travel' : 'work'
+  return { ...entries[0], dayType, isPast: entries.every(a => a.isPast) }
+}
+
+function dayIcon(t: DayType | undefined) {
+  return t === 'travel' ? AirplaneIcon : t === 'travel_work' ? TravelWorkIcon : BriefcaseIcon
+}
+
 interface Absence {
   profileId: string
   personName: string
   jobTitle: string
   jobId: string
   isPast: boolean
-  dayType: 'travel' | 'work' | 'off'
+  dayType: DayType
+  inJobRange: boolean
 }
 
 function toDateKey(d: Date) {
@@ -141,6 +163,11 @@ export default function CalendarPage() {
         const { start, end } = range
         const isPast = end < today
         const flightDays = getFlightDays(fldr, fldrs, personName)
+        // Job's own date window (flights can extend a person's range beyond it)
+        const jobStart = parseDate(fldr.date_start)
+        const jobEnd = parseDate(fldr.date_end) ?? jobStart
+        const jobStartKey = jobStart ? toDateKey(jobStart) : ''
+        const jobEndKey = jobEnd ? toDateKey(jobEnd) : ''
 
         const profile = teamProfiles.find(
           p => p.name.toLowerCase() === personName.toLowerCase()
@@ -151,12 +178,13 @@ export default function CalendarPage() {
         while (cur <= end) {
           const key = toDateKey(cur)
           if (!map.has(key)) map.set(key, [])
-          const dayType: 'travel' | 'work' | 'off' = isTimeOff ? 'off' : flightDays.has(key) ? 'travel' : 'work'
+          const dayType: DayType = isTimeOff ? 'off' : flightDays.has(key) ? 'travel' : 'work'
 
           const list = map.get(key)!
           const dupe = list.some(a => a.profileId === profileId && a.jobId === fldr.id)
           if (!dupe) {
-            list.push({ personName, profileId, jobTitle: fldr.title, jobId: fldr.id, isPast, dayType })
+            const inJobRange = key >= jobStartKey && key <= jobEndKey
+            list.push({ personName, profileId, jobTitle: fldr.title, jobId: fldr.id, isPast, dayType, inJobRange })
           }
 
           cur.setDate(cur.getDate() + 1)
@@ -214,7 +242,7 @@ export default function CalendarPage() {
         jobTitle: string; 
         days: string[]; 
         isPast: boolean; 
-        dayType: 'travel' | 'work' | 'off';
+        dayType: DayType;
         location: string | null;
         jobId: string;
       }>
@@ -260,7 +288,7 @@ export default function CalendarPage() {
     const byJob = new Map<string, {
       jobId: string
       jobTitle: string
-      dayType: 'travel' | 'work'
+      dayType: DayType
       isPast: boolean
       location: string | null
       people: Set<string>
@@ -424,7 +452,7 @@ export default function CalendarPage() {
                       {/* ── Mobile: icons ── */}
                       <div className="flex flex-wrap gap-0.5 md:hidden">
                         {uniqueIds.map(pid => {
-                          const absence = absences.find(a => a.profileId === pid)
+                          const absence = mergeDay(absences.filter(a => a.profileId === pid))
                           const idx     = profileIndex(pid)
                           if (absence?.dayType === 'off') {
                             return (
@@ -433,14 +461,14 @@ export default function CalendarPage() {
                               </svg>
                             )
                           }
-                          const Icon = absence?.dayType === 'travel' ? AirplaneIcon : BriefcaseIcon
+                          const Icon = dayIcon(absence?.dayType)
                           return (
                             <Icon
                               key={pid}
                               className={`w-3 h-3 flex-shrink-0 ${
                                 absence?.isPast
                                   ? 'text-white/25'
-                                  : absence?.dayType === 'travel'
+                                  : (absence?.dayType === 'travel' || absence?.dayType === 'travel_work')
                                   ? 'text-sky-400'
                                   : CHIP_TEXT[idx % CHIP_TEXT.length]
                               }`}
@@ -454,7 +482,7 @@ export default function CalendarPage() {
                         {uniqueIds.map(pid => {
                           const profile = teamProfiles.find(p => p.id === pid)
                           const name    = profile?.name ?? absences.find(a => a.profileId === pid)?.personName ?? pid
-                          const absence = absences.find(a => a.profileId === pid)
+                          const absence = mergeDay(absences.filter(a => a.profileId === pid))
                           const idx     = profileIndex(pid)
 
                           if (absence?.dayType === 'off') {
@@ -474,7 +502,7 @@ export default function CalendarPage() {
                             )
                           }
 
-                          const Icon = absence?.dayType === 'travel' ? AirplaneIcon : BriefcaseIcon
+                          const Icon = dayIcon(absence?.dayType)
                           return (
                             <div
                               key={pid}
@@ -519,7 +547,7 @@ export default function CalendarPage() {
             {jobsThisMonthOpen && (
               <div className="space-y-2">
                 {monthJobs.map(job => {
-                  const Icon = job.dayType === 'travel' ? AirplaneIcon : BriefcaseIcon
+                  const Icon = dayIcon(job.dayType)
 
                   return (
                     <button
@@ -534,7 +562,7 @@ export default function CalendarPage() {
                       <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
                         job.isPast
                           ? 'text-white/20'
-                          : job.dayType === 'travel'
+                          : (job.dayType === 'travel' || job.dayType === 'travel_work')
                           ? 'text-sky-400'
                           : 'text-white/60'
                       }`} />
@@ -638,16 +666,14 @@ export default function CalendarPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                               )
-                            : job.dayType === 'travel' 
-                            ? AirplaneIcon 
-                            : BriefcaseIcon
+                            : dayIcon(job.dayType)
 
                           return (
                             <div key={`${job.jobId}-${jobIdx}`} className="flex items-start gap-2 pl-4">
                               <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${
                                 job.isPast 
                                   ? 'text-white/20' 
-                                  : job.dayType === 'travel'
+                                  : (job.dayType === 'travel' || job.dayType === 'travel_work')
                                   ? 'text-sky-400'
                                   : job.dayType === 'off'
                                   ? LEGEND_TEXT[idx % LEGEND_TEXT.length]
@@ -756,9 +782,7 @@ export default function CalendarPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       )
-                    : job.dayType === 'travel'
-                    ? AirplaneIcon
-                    : BriefcaseIcon
+                    : dayIcon(job.dayType)
 
                   const fldr = fldrs.find(f => f.id === job.jobId)
                   const location = fldr?.location || fldr?.venue_info?.name || fldr?.venue_info?.address || null
@@ -779,7 +803,7 @@ export default function CalendarPage() {
                       }`}
                     >
                       <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                        job.dayType === 'travel' ? 'text-sky-400' : job.dayType === 'off' ? 'text-purple-300' : 'text-white/60'
+                        (job.dayType === 'travel' || job.dayType === 'travel_work') ? 'text-sky-400' : job.dayType === 'off' ? 'text-purple-300' : 'text-white/60'
                       }`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-white/90">
