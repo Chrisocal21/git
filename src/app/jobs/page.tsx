@@ -654,30 +654,8 @@ export default function JobsPage() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="text-sm text-white/55 leading-snug flex-1 tabular">
                         {(() => {
-                          const flights = fldr.flight_info || []
-                          
-                          if (flights.length > 0 && flights.some(f => f.departure_time || f.arrival_time)) {
-                            // Find earliest departure (leaving home)
-                            const departureFlights = flights.filter(f => f.departure_time)
-                            const earliestDeparture = departureFlights.length > 0
-                              ? departureFlights.sort((a, b) => new Date(a.departure_time!).getTime() - new Date(b.departure_time!).getTime())[0]
-                              : null
-                            
-                            // Find latest arrival (returning home)
-                            const arrivalFlights = flights.filter(f => f.arrival_time)
-                            const latestArrival = arrivalFlights.length > 0
-                              ? arrivalFlights.sort((a, b) => new Date(b.arrival_time!).getTime() - new Date(a.arrival_time!).getTime())[0]
-                              : null
-                            
-                            // Determine the complete travel span
-                            const tripStart = earliestDeparture ? formatDate(earliestDeparture.departure_time!) : formatDate(fldr.date_start)
-                            const tripEnd = latestArrival ? formatDate(latestArrival.arrival_time!) : (fldr.date_end ? formatDate(fldr.date_end) : tripStart)
-                            
-                            // Show the full travel duration
-                            return tripStart === tripEnd ? tripStart : `${tripStart} – ${tripEnd}`
-                          }
-                          
-                          // No flights - just show event dates
+                          // Always show the job's own dates so the list matches the job page
+                          // (flights can belong to a neighboring job)
                           return `${formatDate(fldr.date_start)}${fldr.date_end && formatDate(fldr.date_end) !== formatDate(fldr.date_start) ? ` – ${formatDate(fldr.date_end)}` : ''}`
                         })()}
                       </div>

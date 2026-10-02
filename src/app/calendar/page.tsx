@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
 import { getTeamProfiles } from '@/lib/auth'
+import { getOwnFlights } from '@/lib/tripSpan'
 import { AirplaneIcon, BriefcaseIcon, MapPinIcon } from '@/components/Icons'
 
 // Per-profile color palette (index matches TEAM_PROFILES order)
@@ -50,16 +51,17 @@ function parseDate(str: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-function getJobDateRange(fldr: Fldr): { start: Date; end: Date } | null {
+function getJobDateRange(fldr: Fldr, all: Fldr[], person: string): { start: Date; end: Date } | null {
   let start: Date | null = null
   let end: Date | null = null
 
-  // Prefer flight times for precision
-  if (fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0) {
-    const deps = fldr.flight_info
+  // Prefer flight times for precision (onward flights to another job count departure only)
+  const flights = getOwnFlights(fldr, all, person)
+  if (flights.length > 0) {
+    const deps = flights
       .map(s => parseDate(s.departure_time))
       .filter(Boolean) as Date[]
-    const arrs = fldr.flight_info
+    const arrs = flights
       .map(s => parseDate(s.arrival_time))
       .filter(Boolean) as Date[]
 
@@ -81,10 +83,9 @@ function getJobDateRange(fldr: Fldr): { start: Date; end: Date } | null {
   return { start, end }
 }
 
-function getFlightDays(fldr: Fldr): Set<string> {
+function getFlightDays(fldr: Fldr, all: Fldr[], person: string): Set<string> {
   const days = new Set<string>()
-  if (!fldr.flight_info || !Array.isArray(fldr.flight_info)) return days
-  fldr.flight_info.forEach(seg => {
+  getOwnFlights(fldr, all, person).forEach(seg => {
     const dep = parseDate(seg.departure_time)
     const arr = parseDate(seg.arrival_time)
     if (dep) days.add(toDateKey(dep))
@@ -126,39 +127,41 @@ export default function CalendarPage() {
       // Skip archived jobs
       if ((fldr as any).archived) return
 
-      const range = getJobDateRange(fldr)
-      if (!range) return
-
-      const { start, end } = range
-      const isPast = end < today
-      const flightDays = getFlightDays(fldr)
       const isTimeOff = (fldr as any).fldr_type === 'time_off'
 
       // People on this job
       const people = (fldr.people || []).map(p => p.name).filter(Boolean)
       if (people.length === 0) return
 
-      const cur = new Date(start)
-      while (cur <= end) {
-        const key = toDateKey(cur)
-        if (!map.has(key)) map.set(key, [])
-        const dayType: 'travel' | 'work' | 'off' = isTimeOff ? 'off' : flightDays.has(key) ? 'travel' : 'work'
+      // Each person gets their own range, based only on flights they're on
+      people.forEach(personName => {
+        const range = getJobDateRange(fldr, fldrs, personName)
+        if (!range) return
 
-        people.forEach(personName => {
-          const profile = teamProfiles.find(
-            p => p.name.toLowerCase() === personName.toLowerCase()
-          )
-          const profileId = profile?.id ?? personName.toLowerCase().replace(/\s+/g, '-')
+        const { start, end } = range
+        const isPast = end < today
+        const flightDays = getFlightDays(fldr, fldrs, personName)
+
+        const profile = teamProfiles.find(
+          p => p.name.toLowerCase() === personName.toLowerCase()
+        )
+        const profileId = profile?.id ?? personName.toLowerCase().replace(/\s+/g, '-')
+
+        const cur = new Date(start)
+        while (cur <= end) {
+          const key = toDateKey(cur)
+          if (!map.has(key)) map.set(key, [])
+          const dayType: 'travel' | 'work' | 'off' = isTimeOff ? 'off' : flightDays.has(key) ? 'travel' : 'work'
 
           const list = map.get(key)!
           const dupe = list.some(a => a.profileId === profileId && a.jobId === fldr.id)
           if (!dupe) {
             list.push({ personName, profileId, jobTitle: fldr.title, jobId: fldr.id, isPast, dayType })
           }
-        })
 
-        cur.setDate(cur.getDate() + 1)
-      }
+          cur.setDate(cur.getDate() + 1)
+        }
+      })
     })
 
     return map
