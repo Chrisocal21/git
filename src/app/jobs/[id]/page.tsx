@@ -23,6 +23,8 @@ import {
 } from '@/lib/offlineStorage'
 import { logStorageInfo } from '@/lib/storageHealth'
 import { addOrUpdateProfile } from '@/lib/auth'
+import { useJobJigs } from '@/components/jigs/useJobJigs'
+import ProductJigs, { JigsProblem } from '@/components/jigs/ProductJigs'
 
 
 // Dynamic import for map (client-side only)
@@ -118,6 +120,9 @@ export default function FldrDetailPage() {
   useEffect(() => {
     fldrRef.current = fldr
   }, [fldr])
+
+  // Jigs on this job, shown under each product. Only loaded when the Products card is on.
+  const jobJigs = useJobJigs(fldr?.id, !!fldr && fldr.products !== null && fldr.fldr_type !== 'time_off')
 
   useEffect(() => {
     if (!showMapModal) return
@@ -5474,6 +5479,8 @@ export default function FldrDetailPage() {
                   </button>
                 </div>
 
+                <JigsProblem jigs={jobJigs} />
+
                 {(fldr.products || []).map((product, index) => (
                   <div key={product.id} className="p-3 bg-white/5 rounded-lg space-y-2 border border-line">
                     <div className="flex items-start gap-2">
@@ -5523,11 +5530,26 @@ export default function FldrDetailPage() {
                         placeholder="Notes (optional)"
                       />
                     </div>
+                    <ProductJigs
+                      jigs={jobJigs}
+                      job={{ id: fldr.id, start: fldr.date_start, end: fldr.date_end }}
+                      productId={product.id}
+                      productName={product.name}
+                    />
                   </div>
                 ))}
                 {(fldr.products || []).length === 0 && (
                   <p className="text-xs text-gray-500 py-2">No products yet</p>
                 )}
+                {/* Jigs whose product has since been removed stay on the job, so nothing that's out can vanish */}
+                <div className="empty:hidden">
+                  <ProductJigs
+                    jigs={jobJigs}
+                    job={{ id: fldr.id, start: fldr.date_start, end: fldr.date_end }}
+                    productId={null}
+                    knownProductIds={(fldr.products || []).map(p => p.id)}
+                  />
+                </div>
               </div>
             )}
           </div>

@@ -20,6 +20,11 @@ const MENU_ITEMS: { label: string; href: string; icon: string[] }[] = [
     icon: ['M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
   },
   {
+    label: 'Inventory',
+    href: '/inventory',
+    icon: ['M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4'],
+  },
+  {
     label: 'Weather',
     href: '/weather',
     icon: ['M3 15a4 4 0 004 4h9a5 5 0 001-9.9V9a5 5 0 00-9.9-1A4.002 4.002 0 003 12a4 4 0 000 3z'],
