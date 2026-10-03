@@ -384,7 +384,14 @@ export default function JobsPage() {
     })
 
   // Apply user-based filtering (prepared for auth - currently shows all)
-  const userFilteredFldrs = filterJobsByUser(filteredFldrs, viewMode)
+  // Jobs waiting on jigs sit at the bottom of the list, under their own heading
+  const userFilteredFldrs = (() => {
+    const list = filterJobsByUser(filteredFldrs, viewMode)
+    return [
+      ...list.filter(f => f.job_status !== 'awaiting_return'),
+      ...list.filter(f => f.job_status === 'awaiting_return'),
+    ]
+  })()
 
   const handleDelete = async (fldrId: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent navigation
@@ -609,8 +616,11 @@ export default function JobsPage() {
         <div className="space-y-4 px-4 max-w-2xl mx-auto">
           {userFilteredFldrs.map((fldr) => {
             const isCurrent = isCurrentEvent(fldr)
+            const firstAwaiting =
+              fldr.job_status === 'awaiting_return' && userFilteredFldrs.find(f => f.job_status === 'awaiting_return')?.id === fldr.id
             return (
               <div key={fldr.id} className="relative">
+                {firstAwaiting && <h2 className="eyebrow mb-2 px-1 pt-2">Awaiting return of items</h2>}
                 <button
                   onClick={() => router.push(`/jobs/${fldr.id}`)}
                   className={`w-full rounded-2xl text-left transition-colors bg-surface border shadow-card ${
@@ -690,11 +700,12 @@ export default function JobsPage() {
                             fldr.job_status === 'pending' ? 'bg-yellow-500/15 text-yellow-300' :
                             fldr.job_status === 'confirmed' ? 'bg-emerald-500/15 text-emerald-300' :
                             fldr.job_status === 'in_progress' ? 'bg-blue-500/15 text-blue-300' :
+                            fldr.job_status === 'awaiting_return' ? 'bg-amber-500/15 text-amber-300' :
                             fldr.job_status === 'complete' ? 'bg-white/10 text-white/60' :
                             'bg-white/10 text-white/60'
                           }`}>
                             <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-                            {fldr.job_status.replace('_', ' ')}
+                            {fldr.job_status === 'awaiting_return' ? 'waiting on return' : fldr.job_status.replace('_', ' ')}
                           </span>
                         )}
                         {/* Show airplane if current user is on this job */}

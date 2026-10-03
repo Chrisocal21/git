@@ -8,6 +8,8 @@ import type { JigAllocation, JobJigsResponse } from '@/types/jigs'
 export interface JobJigs {
   allocations: JigAllocation[]
   loading: boolean
+  /** True once the job's list has really been fetched, so an empty list can be trusted */
+  loaded: boolean
   /** Why jigs can't be used right now, or null when they can */
   problem: string | null
   online: boolean
@@ -22,6 +24,7 @@ export interface JobJigs {
 export function useJobJigs(jobId: string | undefined, enabled: boolean): JobJigs {
   const [allocations, setAllocations] = useState<JigAllocation[]>([])
   const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
   const [userName, setUserName] = useState<string | null>(null)
@@ -41,6 +44,7 @@ export function useJobJigs(jobId: string | undefined, enabled: boolean): JobJigs
         return
       }
       setAllocations(body.allocations)
+      setLoaded(true)
       setProblem(null)
     } catch (e) {
       const code = e instanceof JigApiError ? e.code : null
@@ -81,5 +85,5 @@ export function useJobJigs(jobId: string | undefined, enabled: boolean): JobJigs
     reload()
   }, [jobId, enabled, reload])
 
-  return { allocations, loading, problem, online, userName, reload, replace: setAllocations }
+  return { allocations, loading, loaded, problem, online, userName, reload, replace: setAllocations }
 }

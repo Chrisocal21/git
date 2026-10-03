@@ -123,6 +123,7 @@ export default function FldrDetailPage() {
 
   // Jigs on this job, shown under each product. Only loaded when the Products card is on.
   const jobJigs = useJobJigs(fldr?.id, !!fldr && fldr.products !== null && fldr.fldr_type !== 'time_off')
+  const jigsOut = jobJigs.allocations.filter(a => a.status === 'out').length
 
   useEffect(() => {
     if (!showMapModal) return
@@ -947,6 +948,14 @@ export default function FldrDetailPage() {
   }, [saveFldr])
 
   // Flush and save immediately - used before navigation/UI actions
+  // Waiting on return finishes by itself once the last jig is checked in
+  useEffect(() => {
+    if (fldr?.job_status !== 'awaiting_return') return
+    if (!jobJigs.loaded || jobJigs.loading || jobJigs.problem || jigsOut > 0) return
+    setFldr(prev => (prev ? { ...prev, job_status: 'complete' } : prev))
+    saveFldr({ job_status: 'complete' })
+  }, [fldr?.job_status, jobJigs.loaded, jobJigs.loading, jobJigs.problem, jigsOut, saveFldr])
+
   const flushAndSave = useCallback(async () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
@@ -2979,6 +2988,10 @@ export default function FldrDetailPage() {
                         if (!fldr) return
                         await flushAndSave()
                         const newArchiveStatus = !fldr.archived
+                        if (newArchiveStatus && jigsOut > 0) {
+                          alert('Some jigs from this job are still out. Check them in first, or set the status to Waiting on return.')
+                          return
+                        }
                         setSaving(true)
                         try {
                           setFldr({ ...fldr, archived: newArchiveStatus })
@@ -3195,7 +3208,9 @@ export default function FldrDetailPage() {
                 value={fldr.job_status || ''}
                 onChange={async (e) => {
                   if (!fldr) return
-                  const newStatus = (e.target.value || null) as JobStatus | null
+                  let newStatus = (e.target.value || null) as JobStatus | null
+                  // Complete waits until every jig is checked back in
+                  if (newStatus === 'complete' && jigsOut > 0) newStatus = 'awaiting_return'
                   setSaving(true)
                   try {
                     setFldr({ ...fldr, job_status: newStatus })
@@ -3210,8 +3225,14 @@ export default function FldrDetailPage() {
                 <option value="pending" className="bg-gray-800 text-white">Pending</option>
                 <option value="confirmed" className="bg-gray-800 text-white">Confirmed</option>
                 <option value="in_progress" className="bg-gray-800 text-white">In Progress</option>
+                <option value="awaiting_return" className="bg-gray-800 text-white">Waiting on return</option>
                 <option value="complete" className="bg-gray-800 text-white">Complete</option>
               </select>
+              {fldr.job_status === 'awaiting_return' && (
+                <p className="mt-2 text-xs text-amber-200/80">
+                  Waiting on {jigsOut} jig{jigsOut === 1 ? '' : 's'} to be checked in. This job completes itself once everything is back.
+                </p>
+              )}
             </div>
           </div>
         )}

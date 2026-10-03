@@ -1,5 +1,5 @@
 export type FldrStatus = 'incomplete' | 'ready' | 'active' | 'complete'
-export type JobStatus = 'pending' | 'confirmed' | 'in_progress' | 'complete'
+export type JobStatus = 'pending' | 'confirmed' | 'in_progress' | 'awaiting_return' | 'complete'
 export type JobType = 'caricatures' | 'personalization'
 
 export interface ReferenceLink {
