@@ -106,6 +106,10 @@ export interface TrackerStep {
 
 export type YesNo = 'yes' | 'no'
 
+// The short list on the Logistics card is PO Signed (po_received), Art Approved (mockups_approved),
+// Product Picked, Product Shipped, Travel Booked and the Input Form / Event Builder.
+// The other keys are from the longer list the card started with. Jobs can still hold them,
+// so they stay in the type; nothing reads them except to show what was already saved.
 export type TrackerStepKey =
   | 'po_received'
   | 'contract_sent'
@@ -115,6 +119,7 @@ export type TrackerStepKey =
   | 'travel_booked'
   | 'mockups_sent'
   | 'mockups_approved'
+  | 'product_picked'
   | 'product_shipped'
   | 'input_form_created'
   | 'signage_created'

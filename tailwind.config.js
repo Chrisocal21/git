@@ -47,8 +47,12 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
-        display: ['var(--font-display)', 'var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // The fallback inside var() matters. Without it, a page whose font variables have gone
+        // missing (a dev server out of step with its stylesheet does this) can't work out a
+        // font at all and drops to the browser's serif default. With it, the worst case is
+        // the phone's own clean sans-serif.
+        sans: ['var(--font-sans, ui-sans-serif)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        display: ['var(--font-sans, ui-sans-serif)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
         card: '0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px 0 rgb(0 0 0 / 0.3)',

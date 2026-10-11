@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Machine, Material, Setting } from '@/lib/fieldGuideD1'
 import PageHeader from '@/components/PageHeader'
+import { toast } from '@/components/Dialogs'
 
 interface FieldGuideData {
   machines: Machine[]
@@ -87,7 +88,7 @@ export default function FieldGuidePage() {
       setTimeout(() => window.location.reload(), 100)
     } catch (error: any) {
       console.error('Failed to create material:', error)
-      alert(error.message || 'Failed to create material')
+      toast("Couldn't add the material. Check the ID isn't already used, then try again.", 'error')
     } finally {
       setSaving(false)
     }
@@ -170,7 +171,7 @@ export default function FieldGuidePage() {
                     <p className="text-xs text-white/70 mt-0.5">{material.product_name}</p>
                   )}
                   {material.product_sku && (
-                    <p className="text-[11px] text-white/50 mt-0.5 font-mono">SKU: {material.product_sku}</p>
+                    <p className="text-xs text-white/50 mt-0.5">Item number <span className="font-mono">{material.product_sku}</span></p>
                   )}
                 </div>
 
@@ -228,7 +229,7 @@ export default function FieldGuidePage() {
               </div>
 
               <div>
-                <label className="label">SKU</label>
+                <label className="label">Item Number (SKU)</label>
                 <input
                   type="text"
                   value={productSku}

@@ -1,38 +1,40 @@
 import type { Fldr, JobTracker, TrackerStep, TrackerStepKey } from '@/types/fldr'
-import { dayKey, fmtClock, fmtTime, fmtTimeSpan, parseLocal } from '@/lib/jobFormat'
+import { dayKey, fmtClock, fmtDay, fmtDayRange, fmtTime, fmtTimeSpan, parseLocal } from '@/lib/jobFormat'
 import { todayKey } from '@/lib/jigsFormat'
 
 // ── The logistics list ──────────────────────────────────────────────────────
 
-export interface StepGroup {
-  key: string
-  label: string
-  steps: TrackerStepKey[]
-}
-
-// Same order as the columns on the event tracker sheet
-export const STEP_GROUPS: StepGroup[] = [
-  { key: 'paperwork', label: 'Paperwork', steps: ['po_received', 'contract_sent', 'contract_signed', 'invoice_sent', 'deposit_paid'] },
-  { key: 'travel', label: 'Travel', steps: ['travel_booked'] },
-  { key: 'product', label: 'Product', steps: ['mockups_sent', 'mockups_approved', 'product_shipped'] },
-  { key: 'builder', label: 'Event Builder', steps: ['input_form_created'] },
-  { key: 'signage', label: 'Signage', steps: ['signage_created'] },
-  { key: 'sms', label: 'Custom SMS', steps: ['custom_sms_created'] },
+// The short list: the few things that have to be true before the trip, for a quick look
+// in crunch time. The full paperwork trail (contracts, invoices, signage, SMS) lives in Asana.
+export const STEPS: TrackerStepKey[] = [
+  'po_received',
+  'mockups_approved',
+  'product_picked',
+  'product_shipped',
+  'travel_booked',
+  'input_form_created',
 ]
 
 export const STEP_LABELS: Record<TrackerStepKey, string> = {
-  po_received: 'PO Received',
+  po_received: 'PO Signed',
+  mockups_approved: 'Art Approved',
+  product_picked: 'Product Picked',
+  product_shipped: 'Product Shipped',
+  travel_booked: 'Travel Booked',
+  input_form_created: 'Input Form / Event Builder Ready',
+  // From the longer list the card started with. Only shown where a job already has something saved.
   contract_sent: 'Contract Sent',
   contract_signed: 'Contract Signed',
   invoice_sent: '50% Invoice Sent',
   deposit_paid: 'Deposit Paid',
-  travel_booked: 'Travel Booked',
   mockups_sent: 'Mockups Sent',
-  mockups_approved: 'Mockups Approved',
-  product_shipped: 'Product Shipped',
-  input_form_created: 'Input Form / Event Builder Created',
   signage_created: 'Signage Created',
   custom_sms_created: 'Custom SMS Created',
+}
+
+/** One plain line about a step, for someone who hasn't met the term yet */
+export const STEP_HINTS: Partial<Record<TrackerStepKey, string>> = {
+  input_form_created: 'What people fill out onsite: what they want engraved, or where they take their photo for the character.',
 }
 
 const UNTOUCHED: TrackerStep = { state: 'todo', date: null, note: null }
@@ -44,48 +46,61 @@ export function readStep(tracker: JobTracker | null | undefined, key: TrackerSte
   return { state: saved.state ?? 'todo', date: saved.date ?? null, note: saved.note ?? null }
 }
 
-/** A "No" on the question above takes its follow-up step off the list */
-export function stepApplies(tracker: JobTracker | null | undefined, key: TrackerStepKey): boolean {
-  if (key === 'signage_created') return tracker?.signage_required !== 'no'
-  if (key === 'custom_sms_created') return tracker?.custom_sms_needed !== 'no'
-  return true
-}
-
-export interface GroupProgress {
-  key: string
-  label: string
-  done: number
-  total: number
-}
-
 export interface TrackerProgress {
   done: number
   total: number
   /** Steps still to do, in list order */
   upNext: TrackerStepKey[]
-  groups: GroupProgress[]
 }
 
-/** Counts what's done. Steps marked N/A, or ruled out by a "No", don't count either way. */
+/** Counts what's done on the short list. Steps marked not needed don't count either way. */
 export function trackerProgress(tracker: JobTracker | null | undefined): TrackerProgress {
   const upNext: TrackerStepKey[] = []
   let done = 0
   let total = 0
-  const groups = STEP_GROUPS.map(group => {
-    let groupDone = 0
-    let groupTotal = 0
-    for (const key of group.steps) {
-      const { state } = readStep(tracker, key)
-      if (state === 'na' || !stepApplies(tracker, key)) continue
-      groupTotal++
-      if (state === 'done') groupDone++
-      else upNext.push(key)
-    }
-    done += groupDone
-    total += groupTotal
-    return { key: group.key, label: group.label, done: groupDone, total: groupTotal }
-  })
-  return { done, total, upNext, groups }
+  for (const key of STEPS) {
+    const { state } = readStep(tracker, key)
+    if (state === 'na') continue
+    total++
+    if (state === 'done') done++
+    else upNext.push(key)
+  }
+  return { done, total, upNext }
+}
+
+export interface EarlierEntry {
+  label: string
+  text: string
+}
+
+const yesNo = (value: string | null | undefined) => (value === 'yes' ? 'Yes' : value === 'no' ? 'No' : '')
+
+/**
+ * Anything a job already has saved under the longer list. The card no longer asks for
+ * these, but what was entered is never thrown away, so it's still there to read.
+ */
+export function earlierEntries(tracker: JobTracker | null | undefined): EarlierEntry[] {
+  if (!tracker) return []
+  const entries: EarlierEntry[] = []
+  const shown = new Set(STEPS)
+  for (const key of Object.keys(STEP_LABELS) as TrackerStepKey[]) {
+    if (shown.has(key)) continue
+    const step = tracker[key]
+    if (!step || (step.state === 'todo' && !step.date && !step.note)) continue
+    const state = step.state === 'done' ? `Done${step.date ? ` ${fmtDay(step.date)}` : ''}` : step.state === 'na' ? 'Not needed' : 'To do'
+    entries.push({ label: STEP_LABELS[key], text: [state, step.note].filter(Boolean).join(' · ') })
+  }
+  if (tracker.pre_decoration_needed) entries.push({ label: 'Pre-decoration Needed', text: yesNo(tracker.pre_decoration_needed) })
+  if (tracker.required_fields) entries.push({ label: 'Required Fields', text: tracker.required_fields })
+  if (tracker.signage_required) entries.push({ label: 'Signage Required', text: yesNo(tracker.signage_required) })
+  if (tracker.signage_specifics) entries.push({ label: 'Signage Specifics', text: tracker.signage_specifics })
+  if (tracker.custom_sms_needed) entries.push({ label: 'Custom SMS Needed', text: yesNo(tracker.custom_sms_needed) })
+  return entries
+}
+
+/** "Oct 13 – 15", for the days the product is due to land */
+export function arrivalText(tracker: JobTracker | null | undefined): string {
+  return fmtDayRange(tracker?.product_arrival_start, tracker?.product_arrival_end)
 }
 
 // ── The trip, start to end ──────────────────────────────────────────────────
@@ -128,7 +143,7 @@ export function buildTimeline(fldr: Fldr, now: Date = new Date()): TimelineItem[
   const tracker = fldr.tracker
 
   if (info?.kickoff_date) drafts.push({ id: 'kickoff', kind: 'date', title: 'Kick-off', detail: null, start: info.kickoff_date })
-  if (info?.prepro_date) drafts.push({ id: 'prepro', kind: 'date', title: 'Pre-pro', detail: null, start: info.prepro_date })
+  if (info?.prepro_date) drafts.push({ id: 'prepro', kind: 'date', title: 'Pre-Production', detail: null, start: info.prepro_date })
 
   const arrivalStart = tracker?.product_arrival_start || tracker?.product_arrival_end
   if (arrivalStart) {

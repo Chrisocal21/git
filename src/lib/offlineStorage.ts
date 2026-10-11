@@ -1,4 +1,5 @@
 import { Fldr } from '@/types/fldr'
+import { toast } from '@/components/Dialogs'
 
 const STORAGE_KEY = 'git_offline_fldrs'
 const SYNC_QUEUE_KEY = 'git_sync_queue'
@@ -7,7 +8,14 @@ export interface SyncQueueItem {
   fldrId: string
   updates: Partial<Fldr>
   timestamp: number
+  /** How many times the server has answered this change with an error */
+  refusals?: number
 }
+
+// A change the server has kept refusing for a whole day isn't going to go through
+// (too big for the database, most likely), so it's let go rather than retried forever
+const MAX_REFUSALS = 5
+const GIVE_UP_AFTER_MS = 24 * 60 * 60 * 1000
 
 // Get cached fldr data
 export const getCachedFldr = (fldrId: string): Fldr | null => {
@@ -97,8 +105,20 @@ export const isOnline = (): boolean => {
   return typeof navigator !== 'undefined' && navigator.onLine
 }
 
-// Sync all queued changes to server
-export const syncQueuedChanges = async (): Promise<boolean> => {
+// Only one sync runs at a time, so two pages asking at once can't send the same change twice
+let syncing: Promise<boolean> | null = null
+
+// Sync all queued changes to server. True when nothing is left waiting.
+export const syncQueuedChanges = (): Promise<boolean> => {
+  if (!syncing) {
+    syncing = runSync().finally(() => {
+      syncing = null
+    })
+  }
+  return syncing
+}
+
+const runSync = async (): Promise<boolean> => {
   if (!isOnline()) return false
   
   const queue = getSyncQueue()
@@ -106,26 +126,64 @@ export const syncQueuedChanges = async (): Promise<boolean> => {
   
   console.log(`[Sync] Syncing ${queue.length} queued changes...`)
   
-  try {
-    // Process each queued item
-    for (const item of queue) {
-      console.log(`[Sync] Syncing fldr ${item.fldrId}:`, Object.keys(item.updates))
-      if (item.updates.photos) {
-        console.log(`[Sync] Syncing ${item.updates.photos.length} photos for fldr ${item.fldrId}`)
-      }
-      await fetch(`/api/fldrs/${item.fldrId}`, {
+  // A change only leaves the queue once the server has taken it. One that fails stays for
+  // next time, and so does everything queued after it for the same job: sending those out
+  // of order would let an older change land on top of a newer one.
+  const kept: SyncQueueItem[] = []
+  const held = new Set<string>()
+  let letGo = 0
+
+  for (const item of queue) {
+    if (held.has(item.fldrId)) {
+      kept.push(item)
+      continue
+    }
+    console.log(`[Sync] Syncing fldr ${item.fldrId}:`, Object.keys(item.updates))
+    if (item.updates.photos) {
+      console.log(`[Sync] Syncing ${item.updates.photos.length} photos for fldr ${item.fldrId}`)
+    }
+    try {
+      const res = await fetch(`/api/fldrs/${item.fldrId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item.updates),
       })
+      // 404: the job has been deleted, so there is nothing left for the change to go to
+      if (!res.ok && res.status !== 404) {
+        console.error(`[Sync] Server refused a queued change for ${item.fldrId}:`, res.status)
+        const refusals = (item.refusals || 0) + 1
+        if (refusals >= MAX_REFUSALS && Date.now() - item.timestamp > GIVE_UP_AFTER_MS) {
+          letGo++
+        } else {
+          kept.push({ ...item, refusals })
+          held.add(item.fldrId)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to sync a queued change:', error)
+      kept.push(item)
+      held.add(item.fldrId)
     }
-    
-    // Clear queue after successful sync
-    clearSyncQueue()
-    console.log('[Sync] Sync queue cleared')
-    return true
+  }
+
+  if (letGo > 0) {
+    toast("A change the server kept refusing for a day was let go. Open the job and check nothing is missing.", 'error')
+  }
+
+  // Anything queued while this was running sits after the ones just handled; it stays too
+  try {
+    const addedMeanwhile = getSyncQueue().slice(queue.length)
+    const remaining = [...kept, ...addedMeanwhile]
+    if (remaining.length === 0) {
+      clearSyncQueue()
+      console.log('[Sync] Sync queue cleared')
+    } else {
+      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(remaining))
+      console.log(`[Sync] ${remaining.length} queued changes still waiting`)
+    }
+    return remaining.length === 0
   } catch (error) {
-    console.error('Failed to sync queued changes:', error)
+    console.error('Failed to update the sync queue:', error)
     return false
   }
 }

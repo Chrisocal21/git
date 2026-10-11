@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { WeatherSVG } from './WeatherIcon'
+import { fetchWeather } from '@/lib/weatherCache'
 
 interface WeatherData {
   location: { name: string; state: string | null; country: string }
@@ -52,9 +53,8 @@ export default function SanDiegoClock() {
   useEffect(() => {
     if (!isOpen || weatherData) return
     setWeatherLoading(true)
-    fetch('/api/weather?location=San%20Diego%2C%20CA')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.current) setWeatherData(d) })
+    fetchWeather('San Diego, CA')
+      .then(d => { if (d?.current) setWeatherData(d as unknown as WeatherData) })
       .catch(() => {})
       .finally(() => setWeatherLoading(false))
   }, [isOpen, weatherData])

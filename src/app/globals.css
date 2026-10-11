@@ -52,6 +52,16 @@
     accent-color: theme('colors.gold.DEFAULT');
   }
 
+  /* Taps answer at once and never wait to see if it was a double tap */
+  button,
+  a,
+  select,
+  label,
+  summary,
+  [role='tab'] {
+    touch-action: manipulation;
+  }
+
   /* Thin scrollbars that match the surfaces */
   * {
     scrollbar-width: thin;
@@ -78,12 +88,17 @@
 
   /* Small uppercase label that sits above a group */
   .eyebrow {
-    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45;
+    @apply text-xs font-semibold uppercase tracking-[0.12em] text-white/55;
+  }
+
+  /* The name of a section inside a card ("Client", "Contact", "Event Schedule"): big enough to steer by */
+  .section-title {
+    @apply font-display text-[17px] font-semibold leading-snug text-white;
   }
 
   /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[15px] font-semibold transition-[color,background-color,opacity,transform] active:scale-[0.98] active:opacity-85 disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   /* Gold at reduced opacity turns muddy on navy, so disabled goes neutral instead */
@@ -104,16 +119,16 @@
   }
 
   .icon-btn {
-    @apply inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white;
+    @apply inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15;
   }
 
   /* Form controls */
   .input {
-    @apply w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2.5 text-sm text-white transition-colors placeholder:text-white/30 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40;
+    @apply w-full rounded-xl border border-line-strong bg-canvas px-3.5 py-2.5 text-base text-white transition-colors placeholder:text-white/35 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40;
   }
 
   .label {
-    @apply mb-1.5 block text-xs font-medium text-white/60;
+    @apply mb-1.5 block text-sm font-medium text-white/70;
   }
 
   /* Segmented control: a track with one active segment */
@@ -122,7 +137,7 @@
   }
 
   .segment {
-    @apply flex-1 rounded-lg px-3 py-2 text-sm font-medium text-white/55 transition-colors hover:text-white;
+    @apply flex-1 rounded-lg px-3 py-2 text-[15px] font-medium text-white/60 transition-colors hover:text-white;
   }
 
   .segment-active {
@@ -131,7 +146,7 @@
 
   /* Status pill */
   .badge {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase leading-none tracking-wide;
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold uppercase leading-none tracking-wide;
   }
 }
 

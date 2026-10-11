@@ -168,7 +168,7 @@ export default function AddressAutocomplete({
       />
 
       {isLoading && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/55">
           ...
         </div>
       )}
@@ -180,11 +180,11 @@ export default function AddressAutocomplete({
               key={suggestion.id}
               type="button"
               onClick={() => void handleSuggestionSelect(suggestion)}
-              className="block w-full border-b border-line px-3 py-2.5 text-left last:border-b-0 hover:bg-white/5 transition-colors"
+              className="block w-full min-h-[2.75rem] border-b border-line px-3.5 py-2.5 text-left last:border-b-0 hover:bg-white/5 transition-colors"
             >
               <div className="text-sm text-white">{suggestion.primaryText}</div>
               {suggestion.secondaryText && (
-                <div className="text-xs text-gray-400">{suggestion.secondaryText}</div>
+                <div className="text-xs text-white/55">{suggestion.secondaryText}</div>
               )}
             </button>
           ))}

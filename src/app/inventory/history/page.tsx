@@ -294,7 +294,7 @@ export default function JigHistoryPage() {
             )}
 
             {asOf && (
-              <p className="mb-3 text-right text-[11px] text-white/35 tabular">
+              <p className="mb-3 text-right text-xs text-white/40 tabular">
                 Updated {new Date(asOf).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
               </p>
             )}

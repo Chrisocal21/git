@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Fldr, FlightSegment, Person } from '@/types/fldr'
 import { AirplaneIcon } from '@/components/Icons'
 import { filterJobsByUser, getCurrentUser } from '@/lib/auth'
+import { fetchWeather } from '@/lib/weatherCache'
 
 // FlightRoute interface (must match FlightMap component props)
 interface FlightRoute {
@@ -67,6 +69,9 @@ export default function MapPage() {
   const [showPersonPicker, setShowPersonPicker] = useState(false)
   const [homeWeather, setHomeWeather] = useState<{ temp: number; condition: string } | null>(null)
   const user = getCurrentUser()
+  const router = useRouter()
+  // "My Trips" only means something once a profile is picked; without one the map shows everyone
+  const showingMine = viewMode === 'my' && !!user
 
   useEffect(() => {
     // Load fldrs from cache or API
@@ -74,9 +79,12 @@ export default function MapPage() {
     if (cached) {
       try {
         const data = JSON.parse(cached)
-        setFldrs(data)
-        extractPeople(data)
-        processRoutes(data)
+        // Anything but a list here is a damaged copy; wait for the server's instead
+        if (Array.isArray(data)) {
+          setFldrs(data)
+          extractPeople(data)
+          processRoutes(data)
+        }
       } catch (e) {
         console.error('Failed to parse cached fldrs:', e)
       }
@@ -86,9 +94,12 @@ export default function MapPage() {
     fetch('/api/fldrs')
       .then(res => res.json())
       .then(data => {
-        setFldrs(data)
-        extractPeople(data)
-        processRoutes(data)
+        // With no signal an empty list can come back in place of the real one
+        if (Array.isArray(data) && (data.length > 0 || !cached)) {
+          setFldrs(data)
+          extractPeople(data)
+          processRoutes(data)
+        }
         setLoading(false)
       })
       .catch(err => {
@@ -106,8 +117,7 @@ export default function MapPage() {
 
   // Fetch homebase weather (San Diego)
   useEffect(() => {
-    fetch('/api/weather?location=San%20Diego%2C%20CA')
-      .then(res => res.ok ? res.json() : null)
+    fetchWeather('San Diego, CA')
       .then(data => {
         if (data?.current && typeof data.current.temp === 'number') {
           setHomeWeather({ temp: Math.round(data.current.temp), condition: data.current.main || data.current.description })
@@ -393,17 +403,28 @@ export default function MapPage() {
 
       {/* Top header bar */}
       <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/90 via-black/60 to-transparent p-4 sm:p-6 z-[1000] pointer-events-none">
-        <div className="flex items-center justify-between max-w-7xl mx-auto pointer-events-auto">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-white drop-shadow-lg">
-              {selectedPerson ? `${selectedPerson}'s Flight Map` : viewMode === 'my' ? `${user?.name}'s Flight Map` : 'Team Flight Map'}
-            </h1>
-            <p className="text-xs sm:text-sm text-white/75 drop-shadow mt-1 tabular">
-              {selectedPerson 
-                ? `Filtered by ${selectedPerson}` 
-                : viewMode === 'team' ? 'All People' : 'My Trips'
-              } • {routes.length + locations.length} {routes.length + locations.length === 1 ? 'trip' : 'trips'} • {routes.reduce((sum, r) => sum + r.segments.length, 0)} flight segments
-            </p>
+        <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto pointer-events-auto">
+          <div className="flex min-w-0 items-center gap-1">
+            <button
+              onClick={() => router.back()}
+              aria-label="Back"
+              className="-ml-2 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl sm:text-2xl font-semibold text-white drop-shadow-lg">
+                {selectedPerson ? `${selectedPerson}'s Flight Map` : showingMine ? `${user?.name}'s Flight Map` : 'Team Flight Map'}
+              </h1>
+              <p className="text-xs sm:text-sm text-white/75 drop-shadow mt-1 tabular">
+                {selectedPerson 
+                  ? `Filtered by ${selectedPerson}` 
+                  : showingMine ? 'My Trips' : 'All People'
+                } • {routes.length + locations.length} {routes.length + locations.length === 1 ? 'trip' : 'trips'} • {routes.reduce((sum, r) => sum + r.segments.length, 0)} flights
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Person Picker */}
@@ -413,13 +434,15 @@ export default function MapPage() {
                   onClick={() => {
                     setShowPersonPicker(!showPersonPicker)
                   }}
-                  className="flex items-center gap-2 h-10 px-3 bg-surface/85 backdrop-blur-md border border-line-strong hover:bg-surface-raised text-white rounded-xl shadow-pop transition-colors"
+                  aria-label="Choose whose trips to show"
+                  aria-expanded={showPersonPicker}
+                  className="flex items-center gap-2 h-11 px-3 bg-surface/85 backdrop-blur-md border border-line-strong hover:bg-surface-raised text-white rounded-xl shadow-pop transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   <span className="text-sm font-medium hidden sm:inline">
-                    {selectedPerson || (viewMode === 'my' ? 'My Trips' : 'All People')}
+                    {selectedPerson || (showingMine ? 'My Trips' : 'All People')}
                   </span>
                   <svg className={`w-3 h-3 transition-transform ${showPersonPicker ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -439,14 +462,16 @@ export default function MapPage() {
                           setViewMode('my') // Show current user's trips
                           setShowPersonPicker(false)
                         }}
-                        className={`w-full px-4 py-2 text-left text-sm transition-colors ${
-                          selectedPerson === null && viewMode === 'my'
+                        // "My" needs to know who's asking
+                        disabled={!user}
+                        className={`w-full min-h-[2.75rem] px-4 py-2 text-left text-sm transition-colors disabled:opacity-60 ${
+                          selectedPerson === null && showingMine
                             ? 'bg-brand text-white'
                             : 'text-white/80 hover:bg-white/5'
                         }`}
                       >
                         <div className="font-medium">My Trips</div>
-                        <div className="text-xs opacity-70">Show only my jobs</div>
+                        <div className="text-xs opacity-70">{user ? 'Show only my jobs' : 'Pick your profile first (menu on the Jobs page)'}</div>
                       </button>
                       <button
                         onClick={() => {
@@ -454,8 +479,8 @@ export default function MapPage() {
                           setViewMode('team') // Show all people's trips
                           setShowPersonPicker(false)
                         }}
-                        className={`w-full px-4 py-2 text-left text-sm transition-colors ${
-                          selectedPerson === null && viewMode === 'team'
+                        className={`w-full min-h-[2.75rem] px-4 py-2 text-left text-sm transition-colors ${
+                          selectedPerson === null && !showingMine
                             ? 'bg-brand text-white'
                             : 'text-white/80 hover:bg-white/5'
                         }`}
@@ -472,7 +497,7 @@ export default function MapPage() {
                               setSelectedPerson(person.name)
                               setShowPersonPicker(false)
                             }}
-                            className={`w-full px-4 py-2 text-left text-sm transition-colors ${
+                            className={`w-full min-h-[2.75rem] px-4 py-2 text-left text-sm transition-colors ${
                               selectedPerson === person.name
                                 ? 'bg-brand text-white'
                                 : 'text-white/80 hover:bg-white/5'
@@ -490,12 +515,12 @@ export default function MapPage() {
             )}
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="hidden sm:flex h-10 px-4 bg-brand hover:bg-brand-hover text-white rounded-xl shadow-pop transition-colors items-center gap-2"
+              className="hidden sm:flex h-11 px-4 bg-brand hover:bg-brand-hover text-white rounded-xl shadow-pop transition-colors items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              <span className="text-sm font-semibold">Jobs</span>
+              <span className="text-sm font-semibold">Trips</span>
             </button>
           </div>
         </div>
@@ -505,12 +530,12 @@ export default function MapPage() {
       {!showSidebar && (
         <button
           onClick={() => setShowSidebar(true)}
-          aria-label="Show routes"
-          className="sm:hidden fixed bottom-28 right-4 w-14 h-14 bg-gold hover:bg-gold-hover text-black rounded-full shadow-pop z-[1000] flex items-center justify-center transition-colors active:scale-95"
+          className="sm:hidden fixed bottom-28 right-4 h-12 pl-3.5 pr-4 bg-gold hover:bg-gold-hover text-black rounded-full shadow-pop z-[1000] flex items-center justify-center gap-2 text-sm font-semibold transition-colors active:scale-95"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
+          Trips
         </button>
       )}
 
@@ -531,12 +556,12 @@ export default function MapPage() {
           {/* Sidebar header */}
           <div className="p-4 border-b border-line flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-white">Your Routes</h2>
-              <p className="text-xs text-white/50 mt-0.5 tabular">{routes.length} trips tracked</p>
+              <h2 className="text-base font-semibold text-white">Trips on the Map</h2>
+              <p className="text-xs text-white/50 mt-0.5 tabular">{routes.length} {routes.length === 1 ? 'trip' : 'trips'} with flights</p>
             </div>
             <button
               onClick={() => setShowSidebar(false)}
-              className="icon-btn"
+              className="icon-btn h-11 w-11"
               aria-label="Close"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -553,19 +578,19 @@ export default function MapPage() {
             <div className="mb-3 grid grid-cols-3 gap-2 text-center">
               <div className="bg-surface border border-line rounded-xl py-2.5">
                 <div className="font-display text-xl font-semibold text-white tabular">{routes.length}</div>
-                <div className="eyebrow text-[10px] mt-0.5">Jobs</div>
+                <div className="eyebrow mt-0.5">Jobs</div>
               </div>
               <div className="bg-surface border border-line rounded-xl py-2.5">
                 <div className="font-display text-xl font-semibold text-white tabular">
                   {routes.reduce((sum, r) => sum + r.segments.length, 0)}
                 </div>
-                <div className="eyebrow text-[10px] mt-0.5">Flights</div>
+                <div className="eyebrow mt-0.5">Flights</div>
               </div>
               <div className="bg-surface border border-line rounded-xl py-2.5">
                 <div className="font-display text-xl font-semibold text-white tabular">
                   {new Set(routes.flatMap(r => r.segments.flatMap((s: FlightSegment) => [s.departure_code, s.arrival_code]))).size}
                 </div>
-                <div className="eyebrow text-[10px] mt-0.5">Airports</div>
+                <div className="eyebrow mt-0.5">Airports</div>
               </div>
             </div>
 
@@ -574,11 +599,12 @@ export default function MapPage() {
               <>
                 <button
                   onClick={() => setShowRoutesList(!showRoutesList)}
-                  className="w-full mb-2 px-3 py-2.5 bg-surface border border-line hover:bg-surface-raised rounded-xl transition-colors flex items-center justify-between text-sm"
+                  aria-expanded={showRoutesList}
+                  className="w-full min-h-[2.75rem] mb-2 px-3 py-2.5 bg-surface border border-line hover:bg-surface-raised rounded-xl transition-colors flex items-center justify-between text-sm"
                 >
-                  <span className="text-white font-medium">Show All Routes</span>
+                  <span className="text-white font-medium">{showRoutesList ? 'Hide the Trips' : 'Show All Trips'}</span>
                   <svg
-                    className={`w-4 h-4 text-gray-400 transition-transform ${showRoutesList ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 text-white/50 transition-transform ${showRoutesList ? 'rotate-180' : ''}`}
                     fill="none" stroke="currentColor" viewBox="0 0 24 24"
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -594,7 +620,7 @@ export default function MapPage() {
                           setSelectedRoute(selectedRoute === route.fldrId ? null : route.fldrId)
                           setShowSidebar(false)
                         }}
-                        className={`w-full p-2.5 rounded-xl text-left transition-colors border ${
+                        className={`w-full min-h-[2.75rem] p-2.5 rounded-xl text-left transition-colors border ${
                           selectedRoute === route.fldrId
                             ? 'bg-brand/15 border-brand'
                             : 'bg-surface border-line hover:border-line-strong'
@@ -606,9 +632,9 @@ export default function MapPage() {
                             style={{ backgroundColor: route.color }}
                           />
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-xs truncate text-white">{route.fldrTitle}</div>
-                            <div className="text-xs text-gray-400">{formatDate(route.dateStart)}</div>
-                            <div className="text-xs text-gray-500">{getRouteDescription(route.segments)}</div>
+                            <div className="font-semibold text-sm truncate text-white">{route.fldrTitle}</div>
+                            <div className="text-xs text-white/55">{formatDate(route.dateStart)}</div>
+                            <div className="text-xs text-white/45">{getRouteDescription(route.segments)}</div>
                           </div>
                         </div>
                       </button>
@@ -623,11 +649,12 @@ export default function MapPage() {
               <>
                 <button
                   onClick={() => setShowAirportStats(!showAirportStats)}
-                  className="w-full mb-2 px-3 py-2.5 bg-surface border border-line hover:bg-surface-raised rounded-xl transition-colors flex items-center justify-between text-sm"
+                  aria-expanded={showAirportStats}
+                  className="w-full min-h-[2.75rem] mb-2 px-3 py-2.5 bg-surface border border-line hover:bg-surface-raised rounded-xl transition-colors flex items-center justify-between text-sm"
                 >
                   <span className="text-white font-medium">Airport Visits</span>
                   <svg
-                    className={`w-4 h-4 text-gray-400 transition-transform ${showAirportStats ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 text-white/50 transition-transform ${showAirportStats ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -645,7 +672,7 @@ export default function MapPage() {
                       >
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold text-white">{airport.code}</div>
-                          <div className="text-xs text-gray-400 truncate">{airport.name}</div>
+                          <div className="text-xs text-white/55 truncate">{airport.name}</div>
                         </div>
                         <div className="ml-2 px-2 py-1 bg-brand/20 rounded-md text-xs font-semibold text-brand-light tabular">
                           {airport.count}
@@ -659,7 +686,7 @@ export default function MapPage() {
             
             <Link
               href="/leaderboard"
-              className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-surface border border-line hover:bg-surface-raised rounded-xl transition-colors text-sm text-gold font-medium"
+              className="mt-3 w-full min-h-[2.75rem] flex items-center justify-center gap-2 px-3 py-2.5 bg-surface border border-line hover:bg-surface-raised rounded-xl transition-colors text-sm text-gold font-medium"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -667,10 +694,10 @@ export default function MapPage() {
               Leaderboard
             </Link>
             <div className="text-xs text-white/45 text-center mt-3">
-              {viewMode === 'team' ? 'Showing all team travel' : `Showing ${user?.name}'s flights`}
+              {selectedPerson ? `Showing ${selectedPerson}'s flights` : showingMine ? `Showing ${user?.name}'s flights` : 'Showing all team travel'}
             </div>
-            <div className="text-xs text-white/35 text-center mt-0.5">
-              Click jobs to focus • Tap markers for details
+            <div className="text-xs text-white/40 text-center mt-0.5">
+              Tap a trip to find it on the map • Tap a marker for details
             </div>
           </div>
         </div>

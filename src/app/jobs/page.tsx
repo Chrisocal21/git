@@ -2,24 +2,56 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Fldr, FldrStatus } from '@/types/fldr'
-import { AirplaneIcon, HomeIcon } from '@/components/Icons'
+import { Fldr } from '@/types/fldr'
+import { AlertIcon, ArchiveIcon } from '@/components/Icons'
 import { FldrListSkeleton } from '@/components/SkeletonLoader'
 import { checkStorageHealth, logStorageInfo } from '@/lib/storageHealth'
 import { isOnline, hasUnsyncedChanges, syncQueuedChanges } from '@/lib/offlineStorage'
-import { getCurrentUser, canEditJob, filterJobsByUser, autoMarkInactiveProfiles } from '@/lib/auth'
+import { getCurrentUser, filterJobsByUser, autoMarkInactiveProfiles } from '@/lib/auth'
+import { fetchWeather, readCachedWeather } from '@/lib/weatherCache'
+import { applyJobsChange, onJobsChanged } from '@/lib/jobsChanged'
 import MenuButton from '@/components/MenuButton'
 import { BurrowLogo } from '@/components/BurrowLogo'
-import { WeatherSVG } from '@/components/WeatherIcon'
+import JobCard from '@/components/JobCard'
+import { tripPhase } from '@/lib/tripDays'
+import { toast } from '@/components/Dialogs'
 
 type FilterOption = 'all' | 'upcoming'
+type Temp = { temp: number; main: string }
+
+/**
+ * Works out each job's temperature. What the phone has saved is handed over at once; only cities
+ * with nothing recent are asked about (all of them when `force` is set, for pull to refresh).
+ */
+function loadTemps(list: Fldr[], force: boolean, apply: (found: Record<string, Temp>) => void) {
+  const instant: Record<string, Temp> = {}
+  const toAsk = new Map<string, string[]>()
+  for (const job of list) {
+    if (job.archived || job.fldr_type === 'time_off') continue
+    const city = job.location || job.venue_info?.address
+    if (!city) continue
+    const saved = readCachedWeather(city)
+    if (saved?.data.current) instant[job.id] = { temp: saved.data.current.temp, main: saved.data.current.main }
+    if (force || !saved?.fresh) toAsk.set(city, [...(toAsk.get(city) || []), job.id])
+  }
+  if (Object.keys(instant).length > 0) apply(instant)
+  toAsk.forEach((ids, city) => {
+    fetchWeather(city, { force }).then(reply => {
+      if (!reply?.current) return
+      const found: Record<string, Temp> = {}
+      for (const id of ids) found[id] = { temp: reply.current.temp, main: reply.current.main }
+      apply(found)
+    })
+  })
+}
 
 export default function JobsPage() {
   const router = useRouter()
   const [fldrs, setFldrs] = useState<Fldr[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterOption>('all')
-  const [showDeleteButtons, setShowDeleteButtons] = useState(false)
+  // The server couldn't be reached and this phone has no jobs saved to fall back on
+  const [loadFailed, setLoadFailed] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
   const [isPulling, setIsPulling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -27,7 +59,7 @@ export default function JobsPage() {
   const [online, setOnline] = useState(true)
   const [viewMode, setViewMode] = useState<'team' | 'my'>('team') // team = all jobs, my = assigned to me
   const [showArchived, setShowArchived] = useState(false) // Show/hide archived jobs
-  const [jobTemps, setJobTemps] = useState<Record<string, { temp: number; main: string }>>({})
+  const [jobTemps, setJobTemps] = useState<Record<string, Temp>>({})
 
   // Get current user for permission checks
   const currentUser = getCurrentUser()
@@ -102,7 +134,10 @@ export default function JobsPage() {
     
     if (cached) {
       try {
-        cachedData = JSON.parse(cached)
+        const parsed = JSON.parse(cached)
+        // Anything but a list here is a damaged copy; the server's list replaces it
+        if (!Array.isArray(parsed)) throw new Error('saved jobs list is not a list')
+        cachedData = parsed
         console.log(`[Cache] Loaded ${cachedData.length} fldrs from cache`)
         setFldrs(cachedData)
         setLoading(false)
@@ -111,6 +146,7 @@ export default function JobsPage() {
         autoMarkInactiveProfiles()
       } catch (e) {
         console.error('[Cache] Failed to parse cached fldrs:', e)
+        localStorage.removeItem('git-fldrs')
       }
     } else {
       console.log('[Cache] No cached data found in localStorage')
@@ -120,8 +156,15 @@ export default function JobsPage() {
     fetch('/api/fldrs')
       .then(res => res.json())
       .then(data => {
+        // Not a list: the server said no (signed out, or something went wrong on its side)
+        if (!Array.isArray(data)) {
+          if (cachedData.length === 0) setLoadFailed(true)
+          setLoading(false)
+          return
+        }
         console.log(`Server returned ${data.length} fldrs`)
         
+        setLoadFailed(false)
         // CRITICAL: Never overwrite existing cache with empty data
         if (data.length === 0 && cachedData.length > 0) {
           console.log('[Cache] Server returned empty, keeping cached data')
@@ -150,7 +193,7 @@ export default function JobsPage() {
           autoMarkInactiveProfiles()
         } else {
           // Both empty - this is fine for first-time users
-          console.log('🆕 No data from cache or server (new user)')
+          console.log('[Cache] No data from cache or server (new user)')
           setFldrs([])
         }
         
@@ -159,30 +202,32 @@ export default function JobsPage() {
       .catch(err => {
         console.error('Failed to fetch fldrs:', err)
         // On error, keep whatever we have in state (from cache)
+        if (cachedData.length === 0) setLoadFailed(true)
         setLoading(false)
       })
   }, [])
 
-  // Fetch current temp for each job's location (once, when the list first has data)
+  // Something was added or changed from the dock (a new job, time off): load the list again
   useEffect(() => {
-    if (fldrs.length === 0) return
-
-    const jobs = fldrs.filter(f => !f.archived && f.fldr_type !== 'time_off' && (f.location || f.venue_info?.address))
-    const toFetch = jobs.filter(f => !(f.id in jobTemps))
-    if (toFetch.length === 0) return
-
-    toFetch.forEach(f => {
-      const location = f.location || f.venue_info?.address
-      if (!location) return
-      fetch(`/api/weather?location=${encodeURIComponent(location)}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          if (d?.current && typeof d.current.temp === 'number') {
-            setJobTemps(prev => ({ ...prev, [f.id]: { temp: d.current.temp, main: d.current.main } }))
-          }
+    return onJobsChanged(change => {
+      setFldrs(current => applyJobsChange(current, change))
+      fetch('/api/fldrs', { cache: 'no-store' })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          // Same rule as the first load: an empty answer never replaces the jobs already here
+          if (!Array.isArray(data) || data.length === 0) return
+          setFldrs(data)
+          localStorage.setItem('git-fldrs', JSON.stringify(data))
         })
         .catch(() => {})
     })
+  }, [])
+
+  // Each job's current temperature. A saved answer is used as it is (weather is only asked for
+  // again once it is three hours old), and jobs in the same city share one request.
+  useEffect(() => {
+    if (fldrs.length === 0) return
+    loadTemps(fldrs, false, found => setJobTemps(prev => ({ ...prev, ...found })))
   }, [fldrs])
 
   // Pull-to-refresh handlers
@@ -236,12 +281,20 @@ export default function JobsPage() {
     // Fetch fresh data
     try {
       const res = await fetch('/api/fldrs', { cache: 'no-store' })
+      if (!res.ok) throw new Error(`refresh failed: ${res.status}`)
       const data = await res.json()
+      if (!Array.isArray(data)) throw new Error('refresh returned something that is not a list')
+      // With no signal an empty list can come back in place of the real one
+      if (data.length === 0 && fldrs.length > 0) throw new Error('refresh returned an empty list')
       setFldrs(data)
+      setLoadFailed(false)
       localStorage.setItem('git-fldrs', JSON.stringify(data))
+      // Asking for a refresh is asking for the weather again too
+      loadTemps(data, true, found => setJobTemps(prev => ({ ...prev, ...found })))
       console.log('[Refresh] Data refreshed')
     } catch (error) {
       console.error('[Refresh] Refresh failed:', error)
+      toast("Couldn't refresh. Check your connection and try again.", 'error')
     }
     
     setIsRefreshing(false)
@@ -277,46 +330,6 @@ export default function JobsPage() {
     }
     
     return today.getTime() === startDate.getTime()
-  }
-
-  const getStatusColor = (status: FldrStatus) => {
-    switch (status) {
-      case 'incomplete': return 'bg-yellow-900/30 text-yellow-400 border-yellow-500'
-      case 'ready': return 'bg-blue-900/30 text-blue-400 border-blue-500'
-      case 'active': return 'bg-green-900/30 text-green-400 border-green-500'
-      case 'complete': return 'bg-gray-700/30 text-gray-400 border-gray-600'
-    }
-  }
-
-  // Helper function to calculate days until job starts
-  const getDaysUntilJob = (dateStart: string) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const [year, month, day] = dateStart.split('-').map(Number)
-    const jobDate = new Date(year, month - 1, day)
-    const diffTime = jobDate.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-
-  // Helper function to calculate days until first flight
-  const getDaysUntilFlight = (fldr: Fldr) => {
-    if (!fldr.flight_info || fldr.flight_info.length === 0) return null
-    // Find the earliest departure
-    const departures = fldr.flight_info
-      .filter(f => f.departure_time)
-      .map(f => new Date(f.departure_time!))
-    if (departures.length === 0) return null
-    
-    const earliestFlight = new Date(Math.min(...departures.map(d => d.getTime())))
-    earliestFlight.setHours(0, 0, 0, 0)
-    
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const diffTime = earliestFlight.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
   }
 
   const filteredFldrs = fldrs
@@ -393,29 +406,10 @@ export default function JobsPage() {
     ]
   })()
 
-  const handleDelete = async (fldrId: string, e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent navigation
-    
-    if (!confirm('Delete this fldr? This cannot be undone.')) {
-      return
-    }
-
-    try {
-      const res = await fetch(`/api/fldrs/${fldrId}`, { method: 'DELETE' })
-      if (res.ok) {
-        // Update local state
-        const updated = fldrs.filter(f => f.id !== fldrId)
-        setFldrs(updated)
-        localStorage.setItem('git-fldrs', JSON.stringify(updated))
-        console.log('[API] Fldr deleted:', fldrId)
-      } else {
-        alert('Failed to delete fldr')
-      }
-    } catch (err) {
-      console.error('Delete error:', err)
-      alert('Failed to delete fldr')
-    }
-  }
+  // The jobs still on the go and the ones put away, counted the way the list shows them (time off is never a job)
+  const realJobs = fldrs.filter(f => f.fldr_type !== 'time_off')
+  const openCount = realJobs.filter(f => !f.archived && f.job_status !== 'complete').length
+  const archivedCount = realJobs.filter(f => f.archived || f.job_status === 'complete').length
 
   if (loading) {
     return (
@@ -423,8 +417,8 @@ export default function JobsPage() {
         <div className="flex items-center justify-between px-4 pt-5 pb-5 max-w-2xl mx-auto">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <BurrowLogo className="w-9 h-9" />
-            <h1 className="text-[22px] font-semibold text-white">Burrow</h1>
+            <BurrowLogo className="w-12 h-12" />
+            <h1 className="text-[30px] font-semibold leading-none tracking-tight text-white">Burrow</h1>
           </div>
           <div className="h-10 w-10 rounded-xl border border-line bg-surface" />
         </div>
@@ -475,14 +469,12 @@ export default function JobsPage() {
           title="Refresh"
         >
           {/* Logo */}
-          <BurrowLogo className="w-9 h-9" />
-          <h1 className="text-[22px] font-semibold text-white">Burrow</h1>
+          <BurrowLogo className="w-12 h-12" />
+          <h1 className="text-[30px] font-semibold leading-none tracking-tight text-white">Burrow</h1>
         </div>
         
-        {/* Right side: Minimal actions */}
-        <div className="flex items-center gap-3">
-          <MenuButton />
-        </div>
+        {/* New jobs are started from the dock's New button, on every screen */}
+        <MenuButton />
       </div>
 
       {/* Unified Filter Section */}
@@ -510,42 +502,35 @@ export default function JobsPage() {
           const inProgressCount = visibleFldrs.filter(f => f.job_status === 'in_progress').length
           
           return (
-            <div className="card shadow-card px-4 py-5">
-              <div className="grid grid-cols-3">
-                {/* Upcoming This Week */}
-                <div className="text-center">
-                  <div className="font-display text-[28px] leading-none font-semibold text-white tabular">{upcomingThisWeek}</div>
-                  <div className="eyebrow mt-2">This Week</div>
-                </div>
-
-                {/* Total Active Jobs */}
-                <div className="text-center border-x border-line">
-                  <div className="font-display text-[28px] leading-none font-semibold text-white tabular">{totalJobs}</div>
-                  <div className="eyebrow mt-2">Total Jobs</div>
-                </div>
-
-                {/* Pending Confirmation */}
-                <div className="text-center">
-                  <div className="font-display text-[28px] leading-none font-semibold text-white tabular">{pendingCount}</div>
-                  <div className="eyebrow mt-2">Pending</div>
-                </div>
+            <div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: upcomingThisWeek, label: 'This Week' },
+                  { value: totalJobs, label: 'Total Jobs' },
+                  { value: pendingCount, label: 'Pending' },
+                ].map(tile => (
+                  <div key={tile.label} className="card shadow-card px-2 py-4 text-center">
+                    <div className="text-[30px] font-semibold leading-none text-white tabular">{tile.value}</div>
+                    <div className="eyebrow mt-2">{tile.label}</div>
+                  </div>
+                ))}
               </div>
-              
-              {/* Secondary row for other statuses */}
+
+              {/* The other statuses, as a quiet line under the tiles */}
               {(confirmedCount > 0 || inProgressCount > 0) && (
-                <div className="flex gap-5 justify-center mt-4 pt-4 border-t border-line">
+                <div className="mt-3 flex justify-center gap-5">
                   {confirmedCount > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <div className="h-2 w-2 rounded-full bg-emerald-400" />
                       <span className="text-sm font-semibold text-white tabular">{confirmedCount}</span>
-                      <span className="text-xs text-white/55">Confirmed</span>
+                      <span className="text-sm text-white/55">Confirmed</span>
                     </div>
                   )}
                   {inProgressCount > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <div className="h-2 w-2 rounded-full bg-blue-400" />
                       <span className="text-sm font-semibold text-white tabular">{inProgressCount}</span>
-                      <span className="text-xs text-white/55">In Progress</span>
+                      <span className="text-sm text-white/55">In Progress</span>
                     </div>
                   )}
                 </div>
@@ -561,15 +546,15 @@ export default function JobsPage() {
               onClick={() => setViewMode('team')}
               role="tab"
               aria-selected={viewMode === 'team'}
-              className={`segment ${viewMode === 'team' ? 'segment-active' : ''}`}
+              className={`segment min-h-[2.75rem] ${viewMode === 'team' ? 'segment-active' : ''}`}
             >
-              All ({fldrs.filter(f => !f.archived && f.job_status !== 'complete').length})
+              All ({openCount})
             </button>
             <button
               onClick={() => setViewMode('my')}
               role="tab"
               aria-selected={viewMode === 'my'}
-              className={`segment ${viewMode === 'my' ? 'segment-active' : ''}`}
+              className={`segment min-h-[2.75rem] ${viewMode === 'my' ? 'segment-active' : ''}`}
             >
               My Jobs
             </button>
@@ -579,143 +564,69 @@ export default function JobsPage() {
           <button
             onClick={() => setShowArchived(!showArchived)}
             aria-pressed={showArchived}
-            className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2 ${
+            className={`w-full min-h-[2.75rem] px-3 rounded-lg text-[13px] font-medium transition-colors flex items-center justify-center gap-2 ${
               showArchived
                 ? 'bg-gold/10 text-gold'
                 : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
-            Completed Archive ({fldrs.filter(f => f.archived || f.job_status === 'complete').length})
+            <ArchiveIcon className="w-4 h-4" />
+            {showArchived ? 'Hide' : 'Show'} Completed Archive ({archivedCount})
           </button>
         </div>
       </div>
 
-      {userFilteredFldrs.length === 0 ? (
-        <div className="text-center py-16 px-4 max-w-2xl mx-auto">
-          <p className="text-white/55 mb-6">
-            {filter === 'all' ? 'No jobs yet' : 'No current jobs'}
-          </p>
-          {filter === 'all' && viewMode === 'team' && (
-            <button
-              onClick={() => router.push('/jobs/create')}
-              className="btn-primary px-6 py-3"
-            >
-              Create Your First Job
-            </button>
-          )}
-          {viewMode === 'my' && (
-            <p className="text-white/45 text-sm mt-2">
-              No jobs assigned to you yet. Switch to All view to see team jobs.
-            </p>
+      {loadFailed && fldrs.length === 0 ? (
+        <div className="text-center py-16 px-6 max-w-2xl mx-auto">
+          <AlertIcon className="w-7 h-7 text-amber-300 mx-auto mb-3" />
+          <p className="text-white font-semibold">Couldn&apos;t load your jobs</p>
+          <p className="text-white/55 text-sm mt-1.5 mb-6 leading-relaxed">Check your connection, then try again.</p>
+          <button onClick={() => window.location.reload()} className="btn-brand min-h-[2.75rem] px-6">
+            Try Again
+          </button>
+        </div>
+      ) : userFilteredFldrs.length === 0 ? (
+        <div className="text-center py-16 px-6 max-w-2xl mx-auto">
+          {viewMode === 'my' && openCount > 0 ? (
+            <>
+              <p className="text-white/70">You&apos;re not on any jobs right now.</p>
+              <p className="text-white/45 text-sm mt-2 mb-6 leading-relaxed">
+                Jobs show up here once you&apos;re added to their Staff. Tap All to see the whole team&apos;s jobs.
+              </p>
+              <button onClick={() => setViewMode('team')} className="btn-secondary min-h-[2.75rem] px-6">
+                Show All Jobs
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-white/70 mb-1">{showArchived ? 'Nothing here yet' : 'No jobs yet'}</p>
+              <p className="text-white/45 text-sm mb-6 leading-relaxed">
+                A job holds everything for one trip: the client, the venue, flights, hotel and who&apos;s going.
+              </p>
+              <button
+                onClick={() => router.push('/jobs/create')}
+                className="btn-primary px-6 py-3"
+              >
+                Create Your First Job
+              </button>
+            </>
           )}
         </div>
       ) : (
         <div className="space-y-4 px-4 max-w-2xl mx-auto">
           {userFilteredFldrs.map((fldr) => {
-            const isCurrent = isCurrentEvent(fldr)
             const firstAwaiting =
               fldr.job_status === 'awaiting_return' && userFilteredFldrs.find(f => f.job_status === 'awaiting_return')?.id === fldr.id
             return (
               <div key={fldr.id} className="relative">
                 {firstAwaiting && <h2 className="eyebrow mb-2 px-1 pt-2">Awaiting return of items</h2>}
-                <button
-                  onClick={() => router.push(`/jobs/${fldr.id}`)}
-                  className={`w-full rounded-2xl text-left transition-colors bg-surface border shadow-card ${
-                    isCurrent
-                      ? 'border-brand ring-1 ring-brand/40'
-                      : 'border-line hover:border-line-strong hover:bg-surface-raised'
-                  }`}
-                >
-                  <div className="p-5">
-                    {/* Top Row: Location & Days Until */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-lg text-white leading-tight truncate">{fldr.location || fldr.title}</h3>
-                        <div className="text-sm text-white/60 font-normal mt-1 truncate">
-                          {fldr.title}
-                          {fldr.job_info?.distributor_name && fldr.job_info.distributor_name !== fldr.title && (
-                            <span className="text-white/40 ml-1.5">· {fldr.job_info.distributor_name}</span>
-                          )}
-                        </div>
-                      </div>
-                      {/* Countdown with Border */}
-                      {(() => {
-                        const daysUntilFlight = getDaysUntilFlight(fldr)
-                        const daysUntilJob = getDaysUntilJob(fldr.date_start)
-                        const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
-
-                        if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob >= 0)) {
-                          const badgeColor = soonest <= 2 ? 'bg-red-500/10 text-red-400 border-red-500/30' : soonest <= 7 ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                          return (
-                            <div className={`px-2.5 py-1.5 rounded-lg border ${badgeColor} flex items-baseline gap-1 flex-shrink-0`}>
-                              <div className="font-display text-base font-semibold leading-none tabular">{soonest}</div>
-                              <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{soonest === 1 ? 'day' : 'days'}</div>
-                            </div>
-                          )
-                        }
-                        return null
-                      })()}
-                    </div>
-
-                    {/* Middle Row: Dates & Weather */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-sm text-white/55 leading-snug flex-1 tabular">
-                        {(() => {
-                          // Always show the job's own dates so the list matches the job page
-                          // (flights can belong to a neighboring job)
-                          return `${formatDate(fldr.date_start)}${fldr.date_end && formatDate(fldr.date_end) !== formatDate(fldr.date_start) ? ` – ${formatDate(fldr.date_end)}` : ''}`
-                        })()}
-                      </div>
-                      {jobTemps[fldr.id] && (
-                        <div className="flex items-center gap-1.5 text-white/55 flex-shrink-0">
-                          <WeatherSVG condition={jobTemps[fldr.id].main} size="xs" />
-                          <span className="text-sm font-medium tabular">{Math.round(jobTemps[fldr.id].temp)}°</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bottom: Team/Type on their own line, Status/Attending on a separate row */}
-                    <div className="space-y-2">
-                      {(fldr.people && fldr.people.length > 0) || fldr.job_info?.job_type ? (
-                        <div className="text-sm text-white/70 leading-snug">
-                          {fldr.people && fldr.people.length > 0 && (
-                            <span>{fldr.people.map(p => p.name).join(', ')}</span>
-                          )}
-                          {fldr.job_info?.job_type && (
-                            <span className="text-white/40 text-xs">
-                              {fldr.people && fldr.people.length > 0 ? ' · ' : ''}
-                              {fldr.job_info.job_type === 'caricatures' ? 'Caricatures' : fldr.job_info.job_type === 'personalization' ? 'Personalization' : fldr.job_info.job_type === 'names_monograms' ? 'Personalization' : ''}
-                            </span>
-                          )}
-                        </div>
-                      ) : null}
-
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Job Status Badge */}
-                        {fldr.job_status && (
-                          <span className={`badge ${
-                            fldr.job_status === 'pending' ? 'bg-yellow-500/15 text-yellow-300' :
-                            fldr.job_status === 'confirmed' ? 'bg-emerald-500/15 text-emerald-300' :
-                            fldr.job_status === 'in_progress' ? 'bg-blue-500/15 text-blue-300' :
-                            fldr.job_status === 'awaiting_return' ? 'bg-amber-500/15 text-amber-300' :
-                            fldr.job_status === 'complete' ? 'bg-white/10 text-white/60' :
-                            'bg-white/10 text-white/60'
-                          }`}>
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-                            {fldr.job_status === 'awaiting_return' ? 'waiting on return' : fldr.job_status.replace('_', ' ')}
-                          </span>
-                        )}
-                        {/* Show airplane if current user is on this job */}
-                        {(fldr.people && fldr.people.some(p => p.name.toLowerCase() === currentUser?.name.toLowerCase())) && (
-                          <AirplaneIcon className="w-4 h-4 text-brand-light flex-shrink-0" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
+                <JobCard
+                  job={fldr}
+                  phase={tripPhase(fldr)}
+                  temp={jobTemps[fldr.id]}
+                  me={currentUser?.name}
+                  onOpen={() => router.push(`/jobs/${fldr.id}`)}
+                />
               </div>
             )
           })}

@@ -167,12 +167,12 @@ export default function WeatherPage() {
                   {job.location}
                 </div>
                 <div className="text-xs text-white/55 mt-1.5 tabular">
-                  <span className="text-white/35 uppercase tracking-wider text-[10px] font-semibold mr-1.5">Trip</span>
+                  <span className="text-white/45 uppercase tracking-wider text-[11px] font-semibold mr-1.5">Trip</span>
                   {formatDate(job.dateStart)}{job.dateEnd && job.dateEnd !== job.dateStart ? ` – ${formatDate(job.dateEnd)}` : ''}
                 </div>
                 {job.timezone && (
                   <div className="text-xs text-white/55 mt-0.5 tabular">
-                    <span className="text-white/35 uppercase tracking-wider text-[10px] font-semibold mr-1.5">Local</span>
+                    <span className="text-white/45 uppercase tracking-wider text-[11px] font-semibold mr-1.5">Local time</span>
                     {getLocalTime(job.timezone)}
                   </div>
                 )}
@@ -211,12 +211,12 @@ export default function WeatherPage() {
               <div className="grid grid-cols-5 divide-x divide-line border-t border-line bg-canvas/50">
                 {job.daily.map(day => (
                   <div key={day.date} className="py-3 flex flex-col items-center gap-1 tabular">
-                    <div className="text-[10px] font-medium text-white/50">{formatDay(day.date)}</div>
+                    <div className="text-xs font-medium text-white/55">{formatDay(day.date)}</div>
                     <WeatherSVG condition={day.main} size="xs" />
-                    <div className="text-xs font-semibold text-white">{day.high}°</div>
-                    <div className="text-[10px] text-white/45">{day.low}°</div>
+                    <div className="text-sm font-semibold text-white">{day.high}°</div>
+                    <div className="text-xs text-white/50">{day.low}°</div>
                     {day.pop > 20 && (
-                      <div className="text-[9px] text-blue-300">{day.pop}%</div>
+                      <div className="text-[11px] text-blue-300" title="Chance of rain">{day.pop}% rain</div>
                     )}
                   </div>
                 ))}
@@ -225,13 +225,13 @@ export default function WeatherPage() {
 
             {job.loading && (
               <div className="h-24 flex items-center justify-center">
-                <div className="text-xs text-white/45">Loading weather…</div>
+                <div className="text-[13px] text-white/50">Loading weather…</div>
               </div>
             )}
 
             {!job.loading && job.error && (
               <div className="h-16 flex items-center justify-center">
-                <div className="text-xs text-white/40">Weather unavailable</div>
+                <div className="text-[13px] text-white/50">Couldn&apos;t get the weather for this city</div>
               </div>
             )}
           </button>

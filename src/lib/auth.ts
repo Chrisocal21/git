@@ -31,7 +31,8 @@ const DEFAULT_TEAM_PROFILES: User[] = [
 ]
 
 /**
- * Auto-mark profiles as inactive if they're not in any jobs
+ * Keeps the profiles in step with the jobs: anyone on a current job is a profile (added if they
+ * are new to this phone, however they got onto the job), and anyone who is on none is marked inactive.
  */
 export function autoMarkInactiveProfiles(): void {
   if (typeof window === 'undefined') return
@@ -45,12 +46,14 @@ export function autoMarkInactiveProfiles(): void {
     // Extract all unique people names from CURRENT/UPCOMING jobs only
     // Skip: archived, completed, OR past jobs
     const peopleInJobs = new Set<string>()
+    // Their names as written, for anyone who turns out not to have a profile yet
+    const writtenAs = new Map<string, string>()
     const today = new Date()
     today.setHours(0, 0, 0, 0) // Start of today
     
     jobs.forEach((job: any) => {
-      // Skip archived or completed jobs
-      if (job.archived === true || job.status === 'complete') {
+      // Skip archived or completed jobs (Job Status is what marks a job complete)
+      if (job.archived === true || job.status === 'complete' || job.job_status === 'complete') {
         return
       }
       
@@ -66,11 +69,25 @@ export function autoMarkInactiveProfiles(): void {
         job.people.forEach((person: any) => {
           if (person.name && person.name.trim()) {
             peopleInJobs.add(person.name.toLowerCase().trim())
+            // Time off and luggage tags are not staff on a job
+            const isStaff = job.fldr_type !== 'time_off' && !String(person.role || '').toLowerCase().includes('luggage')
+            if (isStaff && !writtenAs.has(person.name.toLowerCase().trim())) writtenAs.set(person.name.toLowerCase().trim(), person.name.trim())
           }
         })
       }
     })
     
+    // Someone on a job who has no profile (added on another phone, or by a route that never made one)
+    const known = new Set(getTeamProfiles().map(profile => profile.name.toLowerCase()))
+    writtenAs.forEach((name, key) => {
+      if (known.has(key)) return
+      try {
+        addOrUpdateProfile(name)
+      } catch {
+        // Too short to be a whole name: left until it is
+      }
+    })
+
     // Update profiles
     const profiles = getTeamProfiles()
     let updated = false

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Machine, Material, Setting } from '@/lib/fieldGuideD1'
 import PageHeader from '@/components/PageHeader'
+import { askConfirm, toast } from '@/components/Dialogs'
+import { getCurrentUser } from '@/lib/auth'
 
 interface FieldGuideData {
   machines: Machine[]
@@ -74,8 +76,10 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
         setFocusNotes(existingSetting.focus_notes || '')
         setDimensions(existingSetting.dimensions || '')
         setNotes(existingSetting.notes || '')
-        setUpdatedBy(existingSetting.updated_by || '')
       }
+      // Whoever is saving is whoever picked their profile; the name can still be changed in the form.
+      // (It used to start as the last person's name, so their name went on the next person's change.)
+      setUpdatedBy(getCurrentUser()?.name || existingSetting?.updated_by || '')
     } catch (error) {
       console.error('Failed to load Field Guide data:', error)
     } finally {
@@ -115,16 +119,20 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
       setTimeout(() => window.location.reload(), 100)
     } catch (error) {
       console.error('Failed to save setting:', error)
-      alert('Failed to save setting')
+      toast("Couldn't save the setting. Check your connection and try again.", 'error')
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete "${data?.materials.find(m => m.id === materialId)?.label}"? This will also delete all associated settings.`)) {
-      return
-    }
+    const confirmed = await askConfirm({
+      title: `Delete ${data?.materials.find(m => m.id === materialId)?.label || 'this material'}?`,
+      body: 'Every machine setting saved for it is deleted too. This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/field-guide/materials/${materialId}`, {
@@ -137,7 +145,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
       window.location.href = '/field-guide'
     } catch (error) {
       console.error('Failed to delete material:', error)
-      alert('Failed to delete material')
+      toast("Couldn't delete the material. Check your connection and try again.", 'error')
     }
   }
 
@@ -164,14 +172,15 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
       setTimeout(() => window.location.reload(), 100)
     } catch (error: any) {
       console.error('Failed to upload photo:', error)
-      alert(error.message || 'Failed to upload photo')
+      toast("Couldn't add the photo. Try a smaller picture, or try again.", 'error')
     } finally {
       setUploadingPhoto(false)
     }
   }
 
   async function handlePhotoDelete() {
-    if (!confirm('Remove photo?')) return
+    const confirmed = await askConfirm({ title: 'Remove this photo?', confirmLabel: 'Remove', tone: 'danger' })
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/field-guide/materials/${materialId}/photo`, {
@@ -184,7 +193,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
       setTimeout(() => window.location.reload(), 100)
     } catch (error) {
       console.error('Failed to delete photo:', error)
-      alert('Failed to delete photo')
+      toast("Couldn't remove the photo. Check your connection and try again.", 'error')
     }
   }
 
@@ -214,7 +223,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
       setTimeout(() => window.location.reload(), 100)
     } catch (error: any) {
       console.error('Failed to update material:', error)
-      alert(error.message || 'Failed to update material')
+      toast("Couldn't save the material. Check your connection and try again.", 'error')
     } finally {
       setSaving(false)
     }
@@ -364,7 +373,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
               )}
               {material.product_sku && (
                 <div>
-                  <div className="eyebrow mb-1.5">SKU</div>
+                  <div className="eyebrow mb-1.5">Item Number (SKU)</div>
                   <div className="text-white">{material.product_sku}</div>
                 </div>
               )}
@@ -401,7 +410,7 @@ export default function SettingsCardPage({ params }: { params: { materialId: str
               </div>
 
               <div>
-                <label className="label">SKU</label>
+                <label className="label">Item Number (SKU)</label>
                 <input
                   type="text"
                   value={editProductSku}

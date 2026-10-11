@@ -148,7 +148,7 @@ export default function LeaderboardPage() {
                         <button
                           key={job.id}
                           onClick={() => router.push(`/jobs/${job.id}`)}
-                          className="group w-full flex justify-between items-center text-sm py-1.5 text-left"
+                          className="group w-full min-h-[2.75rem] flex justify-between items-center text-sm py-1.5 text-left"
                         >
                           <span className="text-white/80 group-hover:text-gold transition-colors truncate flex-1">{job.title}</span>
                           <span className="text-white/40 text-xs ml-3 shrink-0 tabular">

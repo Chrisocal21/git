@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import type { ChecklistItem } from '@/types/fldr'
-import { SectionCard, TextAction } from './parts'
+import { ClockIcon } from '@/components/Icons'
+import { RemoveButton, SectionCard, TextAction } from './parts'
 
 interface ChecklistCardProps {
   items: ChecklistItem[]
@@ -47,10 +48,10 @@ export default function ChecklistCard({
     daysUntil === null || daysUntil < 0
       ? null
       : daysUntil <= 2
-      ? 'border-red-500/20 bg-red-500/10 text-red-400'
+      ? 'border-red-500/20 bg-red-500/10 text-red-300'
       : daysUntil <= 7
-      ? 'border-yellow-500/20 bg-yellow-500/10 text-yellow-400'
-      : 'border-green-500/20 bg-green-500/10 text-green-400'
+      ? 'border-yellow-500/20 bg-yellow-500/10 text-yellow-300'
+      : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
 
   return (
     <SectionCard
@@ -59,10 +60,11 @@ export default function ChecklistCard({
       open={open}
       onToggle={onToggle}
       progress={items.length > 0 ? done / items.length : undefined}
+      summary={items.length === 0 ? 'Things to pack or do before the job' : undefined}
       meta={
         items.length > 0 && (
-          <span className={`text-xs font-semibold tabular ${done === items.length ? 'text-emerald-300' : 'text-white/55'}`}>
-            {done}/{items.length}
+          <span className={`text-sm font-semibold tabular ${done === items.length ? 'text-emerald-300' : 'text-white/55'}`}>
+            {done} of {items.length}
           </span>
         )
       }
@@ -70,10 +72,8 @@ export default function ChecklistCard({
       <div className="space-y-3">
         {urgency && daysUntil !== null && (
           <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${urgency}`}>
-            <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-xs font-medium">
+            <ClockIcon className="h-4 w-4 flex-shrink-0" />
+            <p className="text-sm font-medium">
               {daysUntil === 0 ? 'Job is today!' : daysUntil === 1 ? '1 day until job' : `${daysUntil} days until job`}
             </p>
           </div>
@@ -81,38 +81,37 @@ export default function ChecklistCard({
 
         <div ref={listRef} className="divide-y divide-line">
           {items.map((item, index) => (
-            <div key={index} className="flex items-center gap-3 py-1">
-              <input
-                type="checkbox"
-                checked={item.completed}
-                onChange={() => onCheck(index)}
-                aria-label={item.item || 'Checklist item'}
-                className="h-[18px] w-[18px] flex-shrink-0 rounded"
-              />
+            <div key={index} className="flex items-center">
+              {/* The label makes the whole 44px square tick the box */}
+              <label className="-ml-2.5 flex h-11 w-11 flex-shrink-0 cursor-pointer items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={item.completed}
+                  onChange={() => onCheck(index)}
+                  aria-label={item.item || 'Checklist item'}
+                  className="h-5 w-5 rounded"
+                />
+              </label>
               <input
                 type="text"
                 value={item.item}
                 onChange={e => onText(index, e.target.value)}
                 onBlur={onCommit}
-                className={`-mx-2 min-w-0 flex-1 rounded-lg bg-transparent px-2 py-2 text-sm transition-colors placeholder:text-white/30 focus:bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/40 ${
+                aria-label="Checklist item text"
+                className={`min-h-[2.75rem] min-w-0 flex-1 rounded-lg bg-transparent px-2 text-base transition-colors placeholder:text-white/30 focus:bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/40 ${
                   item.completed ? 'text-white/40 line-through' : 'text-white/90'
                 }`}
-                placeholder="Item"
+                placeholder="e.g. Pack the spare laser lens"
               />
-              <button
-                type="button"
-                onClick={() => onRemove(index)}
-                aria-label={`Remove ${item.item || 'item'}`}
-                className="-mr-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-base leading-none text-white/30 transition-colors hover:bg-red-500/10 hover:text-red-300"
-              >
-                ×
-              </button>
+              <div className="-mr-2.5">
+                <RemoveButton label={`Remove ${item.item || 'item'}`} onClick={() => onRemove(index)} />
+              </div>
             </div>
           ))}
         </div>
-        {items.length === 0 && <p className="text-xs text-white/40">No items yet</p>}
+        {items.length === 0 && <p className="text-sm text-white/40">Nothing on the list yet.</p>}
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3">
           <TextAction
             onClick={() => {
               focusNewRef.current = true

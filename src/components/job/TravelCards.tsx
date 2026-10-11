@@ -7,21 +7,36 @@ import AddressAutocomplete from '@/components/AddressAutocomplete'
 import FlightConnections from '@/components/FlightConnections'
 import { AirplaneIcon, CheckIcon, MailIcon } from '@/components/Icons'
 import {
+  AddSectionButton,
   CallLink,
   CopyAction,
+  DateTimeField,
+  DirectionsLinks,
   EditButton,
   Field,
   FieldRow,
   InfoList,
   InfoRow,
   MapLink,
+  Offer,
   SectionCard,
+  SuggestInput,
   TextAction,
   useEditMode,
 } from './parts'
-import { fmtDateTime, fmtDay, fmtDayRange, fmtTime } from '@/lib/jobFormat'
+import { dayKey, fmtDateTime, fmtDay, fmtDayRange, fmtTime } from '@/lib/jobFormat'
+import { hotelNamed } from '@/lib/jobSuggestions'
+import type { JobSuggestions } from '@/lib/jobSuggestions'
 
 type Airport = { name: string; code: string; address: string }
+
+/** The days a trip runs between, used to start date pickers in the right place */
+export interface TripDays {
+  /** The day people travel out: the travel dates if they're set, else the job's first day */
+  out: string | null
+  /** The day people travel home */
+  back: string | null
+}
 
 const SEGMENT_LABELS: Record<string, string> = {
   outbound: 'Outbound',
@@ -30,11 +45,11 @@ const SEGMENT_LABELS: Record<string, string> = {
   other: 'Flight',
 }
 
-function ParseEmailAction({ onClick }: { onClick: () => void }) {
+function FillFromEmailAction({ onClick }: { onClick: () => void }) {
   return (
     <TextAction onClick={onClick} tone="green">
-      <MailIcon className="h-3.5 w-3.5" />
-      Parse Email
+      <MailIcon className="h-4 w-4" />
+      Fill from Email
     </TextAction>
   )
 }
@@ -48,25 +63,33 @@ interface TravelDatesRowProps {
   flightDates: { start: string; end: string } | null
   /** The "Travel Booked" line of the logistics list; left out where there is no list (time off) */
   booked: TrackerStep | null
+  /** Flights and a hotel are both in, so it's probably time to tick Travel Booked */
+  readyToBook: boolean
   onDates: (start: string | null, end: string | null) => void
   onToggleBooked: () => void
 }
 
 /** The travel dates and whether travel is booked, always in view above the flights */
-export function TravelDatesRow({ start, end, flightDates, booked, onDates, onToggleBooked }: TravelDatesRowProps) {
+export function TravelDatesRow({ start, end, flightDates, booked, readyToBook, onDates, onToggleBooked }: TravelDatesRowProps) {
   const [editing, setEditing] = useState(false)
   const typed = fmtDayRange(start, end)
   const fromFlights = !typed && flightDates ? fmtDayRange(flightDates.start, flightDates.end) : ''
   const isBooked = booked?.state === 'done'
+  const nudge = !!booked && booked.state === 'todo' && readyToBook
 
   return (
-    <div className="card shadow-card px-4 py-3">
+    <div className="card shadow-card px-4 py-2">
       <div className="flex items-center gap-3">
-        <button type="button" onClick={() => setEditing(!editing)} aria-expanded={editing} className="min-w-0 flex-1 text-left">
-          <div className="text-xs text-white/45">Travel Dates</div>
-          <div className={`mt-0.5 truncate text-sm ${typed || fromFlights ? 'text-white/90' : 'text-white/40'}`}>
-            {typed || fromFlights || 'Not set'}
-            {fromFlights && <span className="text-xs text-white/40"> · from flights</span>}
+        <button
+          type="button"
+          onClick={() => setEditing(!editing)}
+          aria-expanded={editing}
+          className="min-h-[2.75rem] min-w-0 flex-1 text-left"
+        >
+          <div className="text-[13px] text-white/45">Travel Dates</div>
+          <div className={`mt-0.5 truncate text-base ${typed || fromFlights ? 'text-white/90' : 'text-brand-light'}`}>
+            {typed || fromFlights || 'Add dates'}
+            {fromFlights && <span className="text-[13px] text-white/40"> · from flights</span>}
           </div>
         </button>
         {booked && booked.state !== 'na' && (
@@ -74,32 +97,42 @@ export function TravelDatesRow({ start, end, flightDates, booked, onDates, onTog
             type="button"
             onClick={onToggleBooked}
             aria-pressed={isBooked}
-            className={`inline-flex flex-shrink-0 items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold transition-colors ${
+            className={`inline-flex min-h-[2.75rem] flex-shrink-0 items-center gap-2 rounded-full border py-1 pl-2 pr-3.5 text-[15px] font-semibold transition-colors ${
               isBooked
                 ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                : nudge
+                ? 'border-gold/60 text-gold hover:bg-gold/10'
                 : 'border-line-strong text-white/60 hover:border-white/40 hover:text-white'
             }`}
           >
             <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-                isBooked ? 'border-emerald-400/50 bg-emerald-500/20' : 'border-white/25'
+              className={`flex h-6 w-6 items-center justify-center rounded-full border ${
+                isBooked ? 'border-emerald-400/50 bg-emerald-500/20' : nudge ? 'border-gold/60' : 'border-white/25'
               }`}
             >
-              {isBooked && <CheckIcon className="h-3 w-3" />}
+              {isBooked && <CheckIcon className="h-3.5 w-3.5" />}
             </span>
             Travel Booked
           </button>
         )}
       </div>
+      {nudge && <p className="pb-1.5 pt-0.5 text-[13px] text-white/50">Flights and a hotel are in. Tap Travel Booked once it&apos;s all confirmed.</p>}
       {editing && (
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 pb-2 pt-2">
           <div>
-            <label className="label">From</label>
-            <input type="date" value={start || ''} onChange={e => onDates(e.target.value || null, end)} className="input" />
+            <label className="label">Leaving</label>
+            <input type="date" aria-label="Travel dates: leaving" value={start || ''} onChange={e => onDates(e.target.value || null, end)} className="input" />
           </div>
           <div>
-            <label className="label">To</label>
-            <input type="date" value={end || ''} min={start || undefined} onChange={e => onDates(start, e.target.value || null)} className="input" />
+            <label className="label">Coming back</label>
+            <input
+              type="date"
+              aria-label="Travel dates: coming back"
+              value={end || ''}
+              min={start || undefined}
+              onChange={e => onDates(start, e.target.value || null)}
+              className="input"
+            />
           </div>
         </div>
       )}
@@ -113,6 +146,7 @@ interface FlightsCardProps {
   segments: FlightSegment[]
   /** Who's on the job, offered when adding travelers */
   staffNames: string[]
+  trip: TripDays
   open: boolean
   onToggle: () => void
   onField: (index: number, field: keyof FlightSegment, value: string) => void
@@ -156,6 +190,8 @@ function segmentHasData(segment: FlightSegment): boolean {
   return !!(segment.departure_airport || segment.arrival_airport || segment.airline || segment.flight_number || segment.departure_time)
 }
 
+const flightCount = (n: number) => `${n} ${n === 1 ? 'flight' : 'flights'}`
+
 function flightsSummary(segments: FlightSegment[]): string | undefined {
   if (segments.length === 0) return undefined
   const route: string[] = []
@@ -167,8 +203,7 @@ function flightsSummary(segments: FlightSegment[]): string | undefined {
   }
   const days = segments.map(s => s.departure_time || s.arrival_time).filter(Boolean).sort() as string[]
   const dates = days.length > 0 ? fmtDayRange(days[0], days[days.length - 1]) : ''
-  const count = `${segments.length} ${segments.length === 1 ? 'segment' : 'segments'}`
-  return [route.length > 1 ? route.join(' → ') : count, dates].filter(Boolean).join(' · ')
+  return [route.length > 1 ? route.join(' → ') : flightCount(segments.length), dates].filter(Boolean).join(' · ')
 }
 
 /** One end of a flight on the ticket: the code big, the time under it */
@@ -176,14 +211,14 @@ function TicketEnd({ code, airport, time, align }: { code: string | null; airpor
   return (
     <div className={`min-w-0 ${align === 'right' ? 'text-right' : ''}`}>
       <div className="font-display text-xl font-semibold leading-tight text-white">{code || '—'}</div>
-      {!code && airport && <div className="truncate text-xs text-white/55">{airport}</div>}
+      {!code && airport && <div className="truncate text-[13px] text-white/55">{airport}</div>}
       {time ? (
         <>
-          <div className="mt-0.5 text-sm tabular text-white/85">{fmtTime(time)}</div>
-          <div className="text-xs text-white/45">{fmtDay(time, true)}</div>
+          <div className="mt-0.5 text-base tabular text-white/85">{fmtTime(time)}</div>
+          <div className="text-[13px] text-white/45">{fmtDay(time, true)}</div>
         </>
       ) : (
-        <div className="mt-0.5 text-xs text-white/35">No time yet</div>
+        <div className="mt-0.5 text-[13px] text-white/35">No time yet</div>
       )}
     </div>
   )
@@ -192,6 +227,7 @@ function TicketEnd({ code, airport, time, align }: { code: string | null; airpor
 export function FlightsCard({
   segments,
   staffNames,
+  trip,
   open,
   onToggle,
   onField,
@@ -210,6 +246,7 @@ export function FlightsCard({
   const hasData = segments.some(segmentHasData)
   const { editing, toggle, startEditing } = useEditMode(hasData, open, onDone)
   const [travelerDrafts, setTravelerDrafts] = useState<Record<string, string>>({})
+  const [notesOpen, setNotesOpen] = useState<Record<string, boolean>>({})
 
   const commitTraveler = (index: number, segmentId: string) => {
     const draft = travelerDrafts[segmentId]
@@ -218,13 +255,26 @@ export function FlightsCard({
     setTravelerDrafts(prev => ({ ...prev, [segmentId]: '' }))
   }
 
+  const addFlight = () => {
+    onAddSegment()
+    startEditing()
+  }
+
+  /** The day a flight most likely leaves: after the one before it, or on the trip's own dates */
+  const departureDay = (index: number): string | null => {
+    const segment = segments[index]
+    if (segment.segment_type === 'return') return trip.back || trip.out
+    const before = segments[index - 1]
+    return dayKey(before?.arrival_time) || dayKey(before?.departure_time) || trip.out
+  }
+
   return (
     <SectionCard
       id="flight"
       title="Flights"
       open={open}
       onToggle={onToggle}
-      summary={flightsSummary(segments)}
+      summary={flightsSummary(segments) || 'No flights yet'}
       actions={
         <>
           {!editing && hasData && <CopyAction text={flightsCopyText(segments)} label="Copy all flight details" />}
@@ -233,100 +283,111 @@ export function FlightsCard({
       }
     >
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-white/45">
-            {segments.length} {segments.length === 1 ? 'segment' : 'segments'}
-          </span>
-          <div className="flex items-center gap-4">
-            <ParseEmailAction onClick={onParseEmail} />
-            <TextAction
-              onClick={() => {
-                onAddSegment()
-                startEditing()
-              }}
-            >
-              + Add Flight Segment
-            </TextAction>
+        {segments.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-line-strong p-4 text-center">
+            <p className="mb-3 text-[15px] text-white/55">No flights yet. Paste the confirmation email and Burrow fills them in, or add one by hand.</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button type="button" onClick={onParseEmail} className="btn-brand min-h-[2.75rem]">
+                <MailIcon className="h-4 w-4" />
+                Fill from Email
+              </button>
+              <button type="button" onClick={addFlight} className="btn-secondary min-h-[2.75rem]">
+                Add a Flight
+              </button>
+            </div>
           </div>
-        </div>
-
-        {segments.length > 0 && <FlightConnections segments={segments} />}
-
-        {segments.length === 0 && (
-          <div className="rounded-xl border border-dashed border-line-strong p-5 text-center">
-            <p className="mb-2 text-sm text-white/50">No flight segments yet</p>
-            <TextAction
-              onClick={() => {
-                onAddSegment()
-                startEditing()
-              }}
-            >
-              Add First Segment
-            </TextAction>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-white/45">{flightCount(segments.length)}</span>
+            <div className="flex items-center gap-4">
+              <FillFromEmailAction onClick={onParseEmail} />
+              <TextAction onClick={addFlight}>+ Add Flight</TextAction>
+            </div>
           </div>
         )}
+
+        {segments.length > 0 && <FlightConnections segments={segments} />}
 
         {editing ? (
           <>
             {segments.length > 0 && (
-              <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-white/5 p-3">
+              <label className="flex min-h-[2.75rem] cursor-pointer items-center gap-3 rounded-xl border border-line bg-white/5 px-3.5 py-2.5">
                 <input
                   type="checkbox"
                   checked={roundTrip || segments.some(seg => seg.segment_type === 'return')}
                   onChange={e => onRoundTrip(e.target.checked)}
-                  className="h-4 w-4 flex-shrink-0 rounded"
+                  className="h-5 w-5 flex-shrink-0 rounded"
                 />
-                <span className="whitespace-nowrap text-sm text-white">Round Trip</span>
-                <span className="ml-auto text-right text-xs text-white/45">Auto-creates return flight with reversed airports</span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] text-white">Round Trip</span>
+                  <span className="block text-[13px] text-white/45">Adds the return flight with the airports swapped</span>
+                </span>
               </label>
             )}
 
-            {staffNames.length > 0 && (
-              <datalist id="flight-traveler-names">
-                {staffNames.map(name => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-            )}
-
-            {segments.map((segment, index) => (
-              <div key={segment.id} className="space-y-3 rounded-xl border border-line bg-white/5 p-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="whitespace-nowrap text-sm font-semibold text-brand-light">Segment {index + 1}</span>
-                    <select
-                      value={segment.segment_type || 'other'}
-                      onChange={e => onField(index, 'segment_type', e.target.value)}
-                      aria-label={`Segment ${index + 1} type`}
-                      className="min-w-0 rounded-lg border border-line-strong bg-canvas px-2 py-1.5 text-xs focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
-                    >
-                      <option value="outbound">Outbound</option>
-                      <option value="return">Return</option>
-                      <option value="connection">Connection/Layover</option>
-                      <option value="other">Other</option>
-                    </select>
+            {segments.map((segment, index) => {
+              const travelers = segment.travelers || []
+              const onFlight = new Set(travelers.map(name => name.trim().toLowerCase()))
+              const notOn = staffNames.filter(name => !onFlight.has(name.toLowerCase()))
+              const leaves = departureDay(index)
+              const showNotes = notesOpen[segment.id] || !!segment.notes
+              return (
+                <div key={segment.id} className="space-y-3 rounded-xl border border-line bg-white/5 p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="section-title whitespace-nowrap">Flight {index + 1}</span>
+                      <select
+                        value={segment.segment_type || 'other'}
+                        onChange={e => onField(index, 'segment_type', e.target.value)}
+                        aria-label={`Flight ${index + 1} type`}
+                        className="h-10 min-w-0 rounded-lg border border-line-strong bg-canvas px-2.5 text-[15px] focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                      >
+                        <option value="outbound">Outbound</option>
+                        <option value="return">Return</option>
+                        <option value="connection">Connection / Layover</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    {segments.length > 1 && (
+                      <TextAction onClick={() => onRemoveSegment(index)} tone="danger">
+                        Remove
+                      </TextAction>
+                    )}
                   </div>
-                  {segments.length > 1 && (
-                    <TextAction onClick={() => onRemoveSegment(index)} tone="danger">
-                      Remove
-                    </TextAction>
-                  )}
-                </div>
 
-                <div>
-                  <label className="label">Travelers</label>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {(segment.travelers || []).map((traveler, tIdx) => (
-                      <span key={tIdx} className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/15 px-2 py-1 text-xs text-brand-light">
-                        {traveler}
-                        <button type="button" onClick={() => onRemoveTraveler(index, tIdx)} className="hover:text-red-400" title="Remove traveler" aria-label={`Remove ${traveler}`}>
-                          ×
+                  <div>
+                    <label className="label">Who&apos;s on this flight</label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {travelers.map((traveler, tIdx) => (
+                        <span key={tIdx} className="inline-flex min-h-[2.5rem] items-center rounded-full border border-brand/30 bg-brand/15 pl-3.5 pr-0.5 text-[15px] text-brand-light">
+                          {traveler}
+                          <button
+                            type="button"
+                            onClick={() => onRemoveTraveler(index, tIdx)}
+                            className="flex h-10 w-10 items-center justify-center rounded-full text-base leading-none hover:text-red-400"
+                            title="Remove traveler"
+                            aria-label={`Remove ${traveler}`}
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                      {/* Everyone on the job who isn't on this flight yet is one tap away */}
+                      {notOn.map(name => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => onAddTraveler(index, name)}
+                          className="inline-flex min-h-[2.5rem] items-center rounded-full border border-dashed border-line-strong px-3.5 text-[15px] font-medium text-white/60 transition-colors hover:border-brand/60 hover:text-white"
+                        >
+                          + {name}
                         </button>
-                      </span>
-                    ))}
+                      ))}
+                    </div>
                     <input
                       type="text"
-                      list="flight-traveler-names"
                       value={travelerDrafts[segment.id] || ''}
                       onChange={e => setTravelerDrafts(prev => ({ ...prev, [segment.id]: e.target.value }))}
                       onKeyDown={e => {
@@ -336,116 +397,129 @@ export function FlightsCard({
                         }
                       }}
                       onBlur={() => commitTraveler(index, segment.id)}
-                      placeholder="Add name, press Enter"
-                      className="min-w-[140px] flex-1 rounded-full border border-line-strong bg-canvas px-3 py-1.5 text-xs placeholder:text-white/30 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                      aria-label={`Add someone else to flight ${index + 1}`}
+                      placeholder={staffNames.length > 0 ? 'Someone else? Type a name' : 'Type a name'}
+                      className="input mt-2"
                     />
                   </div>
-                </div>
 
-                <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-3">
-                      <Field label="Departure Airport">
-                        <AirportAutocomplete
-                          type="name"
-                          value={segment.departure_airport || ''}
-                          onChange={value => onField(index, 'departure_airport', value)}
-                          onAirportSelect={airport => onDepartureAirport(index, airport)}
-                          className="input"
-                          placeholder="Type airport name or code..."
-                        />
-                      </Field>
-                      <Field label="Code">
-                        <AirportAutocomplete
-                          type="code"
-                          value={segment.departure_code || ''}
-                          onChange={value => onField(index, 'departure_code', value)}
-                          onAirportSelect={airport => onDepartureAirport(index, airport)}
-                          className="input"
-                          placeholder="LAX"
-                        />
-                      </Field>
+                  <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-3">
+                        <Field label="Leaving From">
+                          <AirportAutocomplete
+                            type="name"
+                            value={segment.departure_airport || ''}
+                            onChange={value => onField(index, 'departure_airport', value)}
+                            onAirportSelect={airport => onDepartureAirport(index, airport)}
+                            className="input"
+                            placeholder="Airport or city"
+                          />
+                        </Field>
+                        <Field label="Code">
+                          <AirportAutocomplete
+                            type="code"
+                            value={segment.departure_code || ''}
+                            onChange={value => onField(index, 'departure_code', value)}
+                            onAirportSelect={airport => onDepartureAirport(index, airport)}
+                            className="input"
+                            placeholder="LAX"
+                          />
+                        </Field>
+                      </div>
+                      <DateTimeField
+                        label="Departure Time"
+                        value={segment.departure_time}
+                        defaultDay={leaves}
+                        onChange={value => onField(index, 'departure_time', value || '')}
+                      />
                     </div>
-                    <Field label="Departure Time">
-                      <input type="datetime-local" value={segment.departure_time || ''} onChange={e => onField(index, 'departure_time', e.target.value)} className="input" />
-                    </Field>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-3">
-                      <Field label="Arrival Airport">
-                        <AirportAutocomplete
-                          type="name"
-                          value={segment.arrival_airport || ''}
-                          onChange={value => onField(index, 'arrival_airport', value)}
-                          onAirportSelect={airport => onArrivalAirport(index, airport)}
-                          className="input"
-                          placeholder="Type airport name or code..."
-                        />
-                      </Field>
-                      <Field label="Code">
-                        <AirportAutocomplete
-                          type="code"
-                          value={segment.arrival_code || ''}
-                          onChange={value => onField(index, 'arrival_code', value)}
-                          onAirportSelect={airport => onArrivalAirport(index, airport)}
-                          className="input"
-                          placeholder="JFK"
-                        />
-                      </Field>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-3">
+                        <Field label="Landing At">
+                          <AirportAutocomplete
+                            type="name"
+                            value={segment.arrival_airport || ''}
+                            onChange={value => onField(index, 'arrival_airport', value)}
+                            onAirportSelect={airport => onArrivalAirport(index, airport)}
+                            className="input"
+                            placeholder="Airport or city"
+                          />
+                        </Field>
+                        <Field label="Code">
+                          <AirportAutocomplete
+                            type="code"
+                            value={segment.arrival_code || ''}
+                            onChange={value => onField(index, 'arrival_code', value)}
+                            onAirportSelect={airport => onArrivalAirport(index, airport)}
+                            className="input"
+                            placeholder="JFK"
+                          />
+                        </Field>
+                      </div>
+                      <DateTimeField
+                        label="Arrival Time"
+                        value={segment.arrival_time}
+                        defaultDay={dayKey(segment.departure_time) || leaves}
+                        onChange={value => onField(index, 'arrival_time', value || '')}
+                      />
                     </div>
-                    <Field label="Arrival Time">
-                      <input type="datetime-local" value={segment.arrival_time || ''} onChange={e => onField(index, 'arrival_time', e.target.value)} className="input" />
-                    </Field>
                   </div>
-                </div>
 
-                {(segment.departure_address || segment.arrival_address) && (
-                  <div className="divide-y divide-line rounded-lg border border-line bg-canvas/40 px-3">
-                    {segment.departure_address && (
-                      <div className="flex items-center gap-2 py-1.5">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] text-white/40">Departure Airport Address</div>
-                          <div className="break-words text-xs text-white/70">{segment.departure_address}</div>
-                        </div>
-                        <div className="-mr-2 flex flex-shrink-0">
+                  {(segment.departure_address || segment.arrival_address) && (
+                    <div className="divide-y divide-line rounded-lg border border-line bg-canvas/40 pl-3 pr-1">
+                      {segment.departure_address && (
+                        <div className="flex items-center gap-2 py-1">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] text-white/40">Departure Airport Address</div>
+                            <div className="break-words text-sm text-white/70">{segment.departure_address}</div>
+                          </div>
                           <CopyAction text={segment.departure_address} label="Copy address" />
                         </div>
-                      </div>
-                    )}
-                    {segment.arrival_address && (
-                      <div className="flex items-center gap-2 py-1.5">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] text-white/40">Arrival Airport Address</div>
-                          <div className="break-words text-xs text-white/70">{segment.arrival_address}</div>
-                        </div>
-                        <div className="-mr-2 flex flex-shrink-0">
+                      )}
+                      {segment.arrival_address && (
+                        <div className="flex items-center gap-2 py-1">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] text-white/40">Arrival Airport Address</div>
+                            <div className="break-words text-sm text-white/70">{segment.arrival_address}</div>
+                          </div>
                           <CopyAction text={segment.arrival_address} label="Copy address" />
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
 
-                <FieldRow always>
-                  <Field label="Airline">
-                    <input type="text" value={segment.airline || ''} onChange={e => onField(index, 'airline', e.target.value)} className="input" placeholder="Airline name" />
+                  <FieldRow always>
+                    <Field label="Airline">
+                      <input type="text" value={segment.airline || ''} onChange={e => onField(index, 'airline', e.target.value)} className="input" placeholder="e.g. Southwest" />
+                    </Field>
+                    <Field label="Flight Number">
+                      <input type="text" value={segment.flight_number || ''} onChange={e => onField(index, 'flight_number', e.target.value)} className="input" placeholder="e.g. WN 1423" />
+                    </Field>
+                  </FieldRow>
+
+                  <Field label="Confirmation Number">
+                    <input type="text" value={segment.confirmation || ''} onChange={e => onField(index, 'confirmation', e.target.value)} className="input" placeholder="e.g. ABC123" />
                   </Field>
-                  <Field label="Flight Number">
-                    <input type="text" value={segment.flight_number || ''} onChange={e => onField(index, 'flight_number', e.target.value)} className="input" placeholder="e.g. AA123" />
-                  </Field>
-                </FieldRow>
 
-                <Field label="Confirmation Number">
-                  <input type="text" value={segment.confirmation || ''} onChange={e => onField(index, 'confirmation', e.target.value)} className="input" placeholder="Confirmation code" />
-                </Field>
+                  {showNotes ? (
+                    <Field label="Flight Notes">
+                      <textarea
+                        value={segment.notes || ''}
+                        onChange={e => onField(index, 'notes', e.target.value)}
+                        className="input resize-none"
+                        rows={2}
+                        placeholder="e.g. Seats 14A and 14B, one checked bag each"
+                      />
+                    </Field>
+                  ) : (
+                    <AddSectionButton label="Flight Notes" onClick={() => setNotesOpen(prev => ({ ...prev, [segment.id]: true }))} />
+                  )}
+                </div>
+              )
+            })}
 
-                <Field label="Notes">
-                  <textarea value={segment.notes || ''} onChange={e => onField(index, 'notes', e.target.value)} className="input resize-none" rows={2} placeholder="Additional flight notes..." />
-                </Field>
-              </div>
-            ))}
-
-            <div className="pt-1">
+            <div>
               <TextAction onClick={onRemoveSection} tone="danger">
                 Remove Flights from this job
               </TextAction>
@@ -455,9 +529,9 @@ export function FlightsCard({
           segments.map(segment => (
             <div key={segment.id} className="rounded-xl border border-line bg-canvas/40 p-3.5">
               <div className="flex items-center justify-between gap-3">
-                <span className="eyebrow">{SEGMENT_LABELS[segment.segment_type || 'other'] || 'Flight'}</span>
+                <span className="section-title">{SEGMENT_LABELS[segment.segment_type || 'other'] || 'Flight'}</span>
                 {segment.travelers && segment.travelers.length > 0 && (
-                  <span className="min-w-0 truncate text-xs text-brand-light">{segment.travelers.join(', ')}</span>
+                  <span className="min-w-0 truncate text-sm text-brand-light">{segment.travelers.join(', ')}</span>
                 )}
               </div>
               <div className="mt-2.5 flex items-start gap-3">
@@ -470,8 +544,8 @@ export function FlightsCard({
                 <TicketEnd code={segment.arrival_code} airport={segment.arrival_airport} time={segment.arrival_time} align="right" />
               </div>
               {(segment.airline || segment.flight_number || segment.confirmation) && (
-                <div className="mt-3 flex items-center gap-2 border-t border-line pt-2">
-                  <div className="min-w-0 flex-1 text-xs leading-relaxed text-white/60">
+                <div className="mt-2.5 flex min-h-[2.75rem] items-center gap-2 border-t border-line pt-1">
+                  <div className="min-w-0 flex-1 text-sm leading-relaxed text-white/60">
                     {[segment.airline, segment.flight_number].filter(Boolean).join(' ')}
                     {(segment.airline || segment.flight_number) && segment.confirmation && <span className="text-white/25"> · </span>}
                     {segment.confirmation && (
@@ -481,13 +555,13 @@ export function FlightsCard({
                     )}
                   </div>
                   {segment.confirmation && (
-                    <div className="-my-1.5 -mr-2 flex flex-shrink-0">
+                    <div className="-mr-2.5 flex flex-shrink-0">
                       <CopyAction text={segment.confirmation} label="Copy confirmation" />
                     </div>
                   )}
                 </div>
               )}
-              {segment.notes && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-white/50">{segment.notes}</p>}
+              {segment.notes && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-white/50">{segment.notes}</p>}
             </div>
           ))
         )}
@@ -500,9 +574,16 @@ export function FlightsCard({
 
 interface HotelCardProps {
   hotel: HotelInfo
+  suggestions: JobSuggestions
+  trip: TripDays
+  /** Where the trip lands and where the event is, for directions */
+  airportAddress: string | null
+  venueAddress: string | null
   open: boolean
   onToggle: () => void
   onField: (field: keyof HotelInfo, value: string) => void
+  /** Several hotel fields in one go */
+  onPatch: (patch: Partial<HotelInfo>) => void
   onParseEmail: () => void
   onRemoveSection: () => void
   onDone: () => void
@@ -525,9 +606,33 @@ function hotelCopyText(hotel: HotelInfo): string {
     .join('\n')
 }
 
-export function HotelCard({ hotel, open, onToggle, onField, onParseEmail, onRemoveSection, onDone }: HotelCardProps) {
+export function HotelCard({
+  hotel,
+  suggestions,
+  trip,
+  airportAddress,
+  venueAddress,
+  open,
+  onToggle,
+  onField,
+  onPatch,
+  onParseEmail,
+  onRemoveSection,
+  onDone,
+}: HotelCardProps) {
   const hasData = !!(hotel.name || hotel.address || hotel.phone || hotel.confirmation || hotel.check_in || hotel.check_out || hotel.notes)
   const { editing, toggle } = useEditMode(hasData, open, onDone)
+  const [showNotes, setShowNotes] = useState(false)
+  const notesShown = showNotes || !!hotel.notes
+
+  // A hotel stayed at on an earlier job brings its address and phone with it
+  const known = hotelNamed(suggestions, hotel.name)
+  const knownFill: Partial<HotelInfo> = known
+    ? {
+        ...(!hotel.address && known.address ? { address: known.address } : {}),
+        ...(!hotel.phone && known.phone ? { phone: known.phone } : {}),
+      }
+    : {}
 
   return (
     <SectionCard
@@ -535,7 +640,7 @@ export function HotelCard({ hotel, open, onToggle, onField, onParseEmail, onRemo
       title="Hotel"
       open={open}
       onToggle={onToggle}
-      summary={[hotel.name || hotel.address, fmtDayRange(hotel.check_in, hotel.check_out)].filter(Boolean).join(' · ') || undefined}
+      summary={[hotel.name || hotel.address, fmtDayRange(hotel.check_in, hotel.check_out)].filter(Boolean).join(' · ') || 'No hotel details yet'}
       actions={
         <>
           {!editing && <CopyAction text={hotelCopyText(hotel)} label="Copy hotel details" />}
@@ -545,35 +650,52 @@ export function HotelCard({ hotel, open, onToggle, onField, onParseEmail, onRemo
     >
       {editing ? (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <ParseEmailAction onClick={onParseEmail} />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-white/45">Have the confirmation email? Paste it in.</span>
+            <FillFromEmailAction onClick={onParseEmail} />
           </div>
           <Field label="Hotel Name">
-            <input type="text" value={hotel.name || ''} onChange={e => onField('name', e.target.value)} className="input" placeholder="Hotel name" />
+            <SuggestInput
+              value={hotel.name || ''}
+              onChange={value => onField('name', value)}
+              suggestions={suggestions.hotels.map(h => ({ value: h.name, detail: h.address || undefined }))}
+              placeholder="e.g. Hilton Austin Downtown"
+            />
           </Field>
-          <Field label="Address">
-            <AddressAutocomplete value={hotel.address || ''} onChange={value => onField('address', value)} className="input" placeholder="Start typing hotel address..." />
+          {known && Object.keys(knownFill).length > 0 && (
+            <Offer action="Fill in" onUse={() => onPatch(knownFill)}>
+              {known.name} was on an earlier job: {[known.address, known.phone].filter(Boolean).join(' · ')}
+            </Offer>
+          )}
+          <Field label="Hotel Address">
+            <AddressAutocomplete value={hotel.address || ''} onChange={value => onField('address', value)} className="input" placeholder="Start typing the address" />
           </Field>
           <FieldRow>
-            <Field label="Phone">
-              <input type="tel" value={hotel.phone || ''} onChange={e => onField('phone', e.target.value)} className="input" placeholder="Hotel phone number" />
+            <Field label="Hotel Phone">
+              <input type="tel" value={hotel.phone || ''} onChange={e => onField('phone', e.target.value)} className="input" placeholder="e.g. 555 123 4567" />
             </Field>
             <Field label="Confirmation Number">
-              <input type="text" value={hotel.confirmation || ''} onChange={e => onField('confirmation', e.target.value)} className="input" placeholder="Confirmation code" />
+              <input type="text" value={hotel.confirmation || ''} onChange={e => onField('confirmation', e.target.value)} className="input" placeholder="e.g. 84213377" />
             </Field>
           </FieldRow>
           <FieldRow>
-            <Field label="Check-in">
-              <input type="datetime-local" value={hotel.check_in || ''} onChange={e => onField('check_in', e.target.value)} className="input" />
-            </Field>
-            <Field label="Check-out">
-              <input type="datetime-local" value={hotel.check_out || ''} onChange={e => onField('check_out', e.target.value)} className="input" />
-            </Field>
+            <DateTimeField label="Check-in" value={hotel.check_in} defaultDay={trip.out} onChange={value => onField('check_in', value || '')} />
+            <DateTimeField label="Check-out" value={hotel.check_out} defaultDay={trip.back} onChange={value => onField('check_out', value || '')} />
           </FieldRow>
-          <Field label="Notes">
-            <textarea value={hotel.notes || ''} onChange={e => onField('notes', e.target.value)} className="input resize-none" rows={2} placeholder="Additional hotel notes..." />
-          </Field>
-          <div className="pt-1">
+          {notesShown ? (
+            <Field label="Hotel Notes">
+              <textarea
+                value={hotel.notes || ''}
+                onChange={e => onField('notes', e.target.value)}
+                className="input resize-none"
+                rows={2}
+                placeholder="e.g. 2 rooms, breakfast included, parking $30 a night"
+              />
+            </Field>
+          ) : (
+            <AddSectionButton label="Hotel Notes" onClick={() => setShowNotes(true)} />
+          )}
+          <div>
             <TextAction onClick={onRemoveSection} tone="danger">
               Remove Hotel from this job
             </TextAction>
@@ -584,7 +706,7 @@ export function HotelCard({ hotel, open, onToggle, onField, onParseEmail, onRemo
           {hotel.name && <InfoRow label="Hotel">{hotel.name}</InfoRow>}
           {hotel.address && (
             <InfoRow
-              label="Address"
+              label="Hotel Address"
               actions={
                 <>
                   <CopyAction text={hotel.address} label="Copy address" />
@@ -593,22 +715,29 @@ export function HotelCard({ hotel, open, onToggle, onField, onParseEmail, onRemo
               }
             >
               {hotel.address}
+              <DirectionsLinks
+                to={hotel.address}
+                from={[
+                  { label: 'From airport', address: airportAddress },
+                  { label: 'From venue', address: venueAddress },
+                ]}
+              />
             </InfoRow>
           )}
           {hotel.phone && (
-            <InfoRow label="Phone" actions={<CallLink phone={hotel.phone} />}>
+            <InfoRow label="Hotel Phone" actions={<CallLink phone={hotel.phone} />}>
               {hotel.phone}
             </InfoRow>
           )}
           {hotel.check_in && <InfoRow label="Check-in">{fmtDateTime(hotel.check_in)}</InfoRow>}
           {hotel.check_out && <InfoRow label="Check-out">{fmtDateTime(hotel.check_out)}</InfoRow>}
           {hotel.confirmation && (
-            <InfoRow label="Confirmation" actions={<CopyAction text={hotel.confirmation} label="Copy confirmation" />}>
+            <InfoRow label="Confirmation Number" actions={<CopyAction text={hotel.confirmation} label="Copy confirmation" />}>
               <span className="font-semibold tabular">{hotel.confirmation}</span>
             </InfoRow>
           )}
           {hotel.notes && (
-            <InfoRow label="Notes">
+            <InfoRow label="Hotel Notes">
               <span className="whitespace-pre-wrap">{hotel.notes}</span>
             </InfoRow>
           )}
@@ -622,6 +751,10 @@ export function HotelCard({ hotel, open, onToggle, onField, onParseEmail, onRemo
 
 interface RentalCarCardProps {
   car: RentalCarInfo
+  trip: TripDays
+  /** The airport the trip lands at and the one it leaves from, offered as pickup and dropoff */
+  arrival: { code: string | null; address: string; time: string | null } | null
+  departure: { code: string | null; address: string; time: string | null } | null
   open: boolean
   onToggle: () => void
   onField: (field: keyof RentalCarInfo, value: string) => void
@@ -630,7 +763,7 @@ interface RentalCarCardProps {
   onDone: () => void
 }
 
-export function RentalCarCard({ car, open, onToggle, onField, onParseEmail, onRemoveSection, onDone }: RentalCarCardProps) {
+export function RentalCarCard({ car, trip, arrival, departure, open, onToggle, onField, onParseEmail, onRemoveSection, onDone }: RentalCarCardProps) {
   const hasData = !!(
     car.company ||
     car.vehicle_type ||
@@ -644,6 +777,8 @@ export function RentalCarCard({ car, open, onToggle, onField, onParseEmail, onRe
     car.notes
   )
   const { editing, toggle } = useEditMode(hasData, open, onDone)
+  const [showMore, setShowMore] = useState(false)
+  const moreShown = showMore || !!(car.insurance_policy_number || car.travel_reservation || car.notes)
 
   return (
     <SectionCard
@@ -651,55 +786,84 @@ export function RentalCarCard({ car, open, onToggle, onField, onParseEmail, onRe
       title="Rental Car"
       open={open}
       onToggle={onToggle}
-      summary={[car.company, car.vehicle_type, fmtDayRange(car.pickup_time, car.dropoff_time)].filter(Boolean).join(' · ') || undefined}
+      summary={[car.company, car.vehicle_type, fmtDayRange(car.pickup_time, car.dropoff_time)].filter(Boolean).join(' · ') || 'No rental car details yet'}
       actions={<EditButton editing={editing} onClick={toggle} />}
     >
       {editing ? (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <ParseEmailAction onClick={onParseEmail} />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-white/45">Have the confirmation email? Paste it in.</span>
+            <FillFromEmailAction onClick={onParseEmail} />
           </div>
           <FieldRow always>
-            <Field label="Company">
+            <Field label="Rental Company">
               <input type="text" value={car.company || ''} onChange={e => onField('company', e.target.value)} className="input" placeholder="e.g. Hertz" />
             </Field>
             <Field label="Vehicle Type">
               <input type="text" value={car.vehicle_type || ''} onChange={e => onField('vehicle_type', e.target.value)} className="input" placeholder="e.g. SUV" />
             </Field>
           </FieldRow>
+          {arrival && !car.pickup_location && (
+            <Offer action="Use" onUse={() => onField('pickup_location', arrival.address)}>
+              Pick up at the airport you land at{arrival.code ? ` (${arrival.code})` : ''}?
+            </Offer>
+          )}
           <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
             <div className="space-y-3">
               <Field label="Pickup Location">
-                <AddressAutocomplete value={car.pickup_location || ''} onChange={value => onField('pickup_location', value)} className="input" placeholder="Start typing pickup location..." />
+                <AddressAutocomplete value={car.pickup_location || ''} onChange={value => onField('pickup_location', value)} className="input" placeholder="Start typing the address" />
               </Field>
-              <Field label="Pickup Time">
-                <input type="datetime-local" value={car.pickup_time || ''} onChange={e => onField('pickup_time', e.target.value)} className="input" />
-              </Field>
+              <DateTimeField
+                label="Pickup Time"
+                value={car.pickup_time}
+                defaultDay={dayKey(arrival?.time) || trip.out}
+                onChange={value => onField('pickup_time', value || '')}
+              />
             </div>
             <div className="space-y-3">
+              {departure && !car.dropoff_location && (
+                <Offer action="Use" onUse={() => onField('dropoff_location', departure.address)}>
+                  Drop off at the airport you fly home from{departure.code ? ` (${departure.code})` : ''}?
+                </Offer>
+              )}
               <Field label="Dropoff Location">
-                <AddressAutocomplete value={car.dropoff_location || ''} onChange={value => onField('dropoff_location', value)} className="input" placeholder="Start typing dropoff location..." />
+                <AddressAutocomplete value={car.dropoff_location || ''} onChange={value => onField('dropoff_location', value)} className="input" placeholder="Start typing the address" />
               </Field>
-              <Field label="Dropoff Time">
-                <input type="datetime-local" value={car.dropoff_time || ''} onChange={e => onField('dropoff_time', e.target.value)} className="input" />
-              </Field>
+              <DateTimeField
+                label="Dropoff Time"
+                value={car.dropoff_time}
+                defaultDay={dayKey(departure?.time) || trip.back}
+                onChange={value => onField('dropoff_time', value || '')}
+              />
             </div>
           </div>
           <Field label="Confirmation Number">
-            <input type="text" value={car.confirmation || ''} onChange={e => onField('confirmation', e.target.value)} className="input" placeholder="Confirmation code" />
+            <input type="text" value={car.confirmation || ''} onChange={e => onField('confirmation', e.target.value)} className="input" placeholder="e.g. K4471902" />
           </Field>
-          <FieldRow>
-            <Field label="Insurance Policy Number">
-              <input type="text" value={car.insurance_policy_number || ''} onChange={e => onField('insurance_policy_number', e.target.value)} className="input" placeholder="Insurance policy number" />
-            </Field>
-            <Field label="Travel Reservation">
-              <input type="text" value={car.travel_reservation || ''} onChange={e => onField('travel_reservation', e.target.value)} className="input" placeholder="Travel reservation number" />
-            </Field>
-          </FieldRow>
-          <Field label="Notes">
-            <textarea value={car.notes || ''} onChange={e => onField('notes', e.target.value)} className="input resize-none" rows={2} placeholder="Additional rental car notes..." />
-          </Field>
-          <div className="pt-1">
+          {moreShown ? (
+            <>
+              <FieldRow>
+                <Field label="Insurance Policy Number">
+                  <input type="text" value={car.insurance_policy_number || ''} onChange={e => onField('insurance_policy_number', e.target.value)} className="input" placeholder="If the rental has its own policy" />
+                </Field>
+                <Field label="Travel Reservation">
+                  <input type="text" value={car.travel_reservation || ''} onChange={e => onField('travel_reservation', e.target.value)} className="input" placeholder="Reservation number from the travel booking" />
+                </Field>
+              </FieldRow>
+              <Field label="Rental Car Notes">
+                <textarea
+                  value={car.notes || ''}
+                  onChange={e => onField('notes', e.target.value)}
+                  className="input resize-none"
+                  rows={2}
+                  placeholder="e.g. Return with a full tank, Chris is the driver"
+                />
+              </Field>
+            </>
+          ) : (
+            <AddSectionButton label="Insurance, Reservation and Notes" onClick={() => setShowMore(true)} />
+          )}
+          <div>
             <TextAction onClick={onRemoveSection} tone="danger">
               Remove Rental Car from this job
             </TextAction>
@@ -707,7 +871,7 @@ export function RentalCarCard({ car, open, onToggle, onField, onParseEmail, onRe
         </div>
       ) : (
         <InfoList>
-          {(car.company || car.vehicle_type) && <InfoRow label="Car">{[car.company, car.vehicle_type].filter(Boolean).join(' · ')}</InfoRow>}
+          {(car.company || car.vehicle_type) && <InfoRow label="Rental Car">{[car.company, car.vehicle_type].filter(Boolean).join(' · ')}</InfoRow>}
           {(car.pickup_time || car.pickup_location) && (
             <InfoRow
               label="Pickup"
@@ -721,7 +885,7 @@ export function RentalCarCard({ car, open, onToggle, onField, onParseEmail, onRe
               }
             >
               {car.pickup_time && <div>{fmtDateTime(car.pickup_time)}</div>}
-              {car.pickup_location && <div className={car.pickup_time ? 'text-xs text-white/55' : ''}>{car.pickup_location}</div>}
+              {car.pickup_location && <div className={car.pickup_time ? 'text-sm text-white/55' : ''}>{car.pickup_location}</div>}
             </InfoRow>
           )}
           {(car.dropoff_time || car.dropoff_location) && (
@@ -737,26 +901,26 @@ export function RentalCarCard({ car, open, onToggle, onField, onParseEmail, onRe
               }
             >
               {car.dropoff_time && <div>{fmtDateTime(car.dropoff_time)}</div>}
-              {car.dropoff_location && <div className={car.dropoff_time ? 'text-xs text-white/55' : ''}>{car.dropoff_location}</div>}
+              {car.dropoff_location && <div className={car.dropoff_time ? 'text-sm text-white/55' : ''}>{car.dropoff_location}</div>}
             </InfoRow>
           )}
           {car.confirmation && (
-            <InfoRow label="Confirmation" actions={<CopyAction text={car.confirmation} label="Copy confirmation" />}>
+            <InfoRow label="Confirmation Number" actions={<CopyAction text={car.confirmation} label="Copy confirmation" />}>
               <span className="font-semibold tabular">{car.confirmation}</span>
             </InfoRow>
           )}
           {car.insurance_policy_number && (
-            <InfoRow label="Insurance" actions={<CopyAction text={car.insurance_policy_number} label="Copy policy number" />}>
+            <InfoRow label="Insurance Policy Number" actions={<CopyAction text={car.insurance_policy_number} label="Copy policy number" />}>
               <span className="tabular">{car.insurance_policy_number}</span>
             </InfoRow>
           )}
           {car.travel_reservation && (
-            <InfoRow label="Reservation" actions={<CopyAction text={car.travel_reservation} label="Copy reservation" />}>
+            <InfoRow label="Travel Reservation" actions={<CopyAction text={car.travel_reservation} label="Copy reservation" />}>
               <span className="tabular">{car.travel_reservation}</span>
             </InfoRow>
           )}
           {car.notes && (
-            <InfoRow label="Notes">
+            <InfoRow label="Rental Car Notes">
               <span className="whitespace-pre-wrap">{car.notes}</span>
             </InfoRow>
           )}

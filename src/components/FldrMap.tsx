@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, memo } from 'react'
 import { googleMapsLoader } from '@/lib/googleMapsLoader'
+import { toast } from '@/components/Dialogs'
 
 interface Location {
   label: string
@@ -296,7 +297,7 @@ function FldrMap({
 
   const getCurrentLocation = async () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser')
+      toast("This browser can't share your location.", 'error')
       return
     }
 
@@ -313,7 +314,7 @@ function FldrMap({
        setGettingCurrentLocation(false)
       },
       () => {
-        alert('Unable to get your location')
+        toast("Couldn't get your location. Check that location is allowed for this site.", 'error')
         setGettingCurrentLocation(false)
       }
     )

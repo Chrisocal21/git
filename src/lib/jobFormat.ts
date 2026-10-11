@@ -91,8 +91,49 @@ export function jobTypeLabel(type: string | null | undefined): string | null {
   return null
 }
 
+/**
+ * The one Job Type a job shows. It can sit in two places: the choice that's picked
+ * (job_type) and anything typed for a type that isn't on the list (event_type).
+ */
+export function jobTypeText(info: { job_type?: string | null; event_type?: string | null } | null | undefined): string | null {
+  const picked = jobTypeLabel(info?.job_type)
+  const typed = info?.event_type?.trim() || ''
+  if (picked && typed && typed.toLowerCase() !== picked.toLowerCase()) return `${picked} · ${typed}`
+  return picked || typed || null
+}
+
 export function mapsUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+}
+
+/** Driving directions to an address: from `origin`, or from wherever the phone is when there isn't one */
+export function directionsUrl(destination: string, origin?: string | null): string {
+  const from = origin ? `&origin=${encodeURIComponent(origin)}` : ''
+  return `https://www.google.com/maps/dir/?api=1${from}&destination=${encodeURIComponent(destination)}`
+}
+
+/** The day and the clock time out of a stored time, as date and time inputs want them */
+export function splitDateTime(value: string | null | undefined): { day: string; time: string } {
+  const m = value ? WALL_CLOCK.exec(value) : null
+  if (!m) return { day: '', time: '' }
+  return { day: `${m[1]}-${m[2]}-${m[3]}`, time: m[4] ? `${m[4]}:${m[5]}` : '' }
+}
+
+const STATE_AND_ZIP = /^([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$/
+
+/** "Austin, TX" out of "500 E Cesar Chavez St, Austin, TX 78701, USA". Null when it can't tell. */
+export function cityFromAddress(address: string | null | undefined): string | null {
+  if (!address) return null
+  const parts = address.split(',').map(part => part.trim()).filter(Boolean)
+  if (/^(usa|us|united states)$/i.test(parts[parts.length - 1] || '')) parts.pop()
+  // The state sits at the end, with or without its ZIP; the city is the part before it
+  const stateIndex = parts.length - 1
+  const state = STATE_AND_ZIP.exec(parts[stateIndex] || '')
+  if (!state || stateIndex < 1) return null
+  const city = parts[stateIndex - 1]
+  // A street line here means the address had no city in it
+  if (!city || /\d/.test(city)) return null
+  return `${city}, ${state[1]}`
 }
 
 /** A pasted link as something a browser will open ("asana.com/..." gets its https://) */

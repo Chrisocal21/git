@@ -52,7 +52,7 @@ function groupNeeded(rows: JigAllocation[]): NeedGroup[] {
 export function JigsProblem({ jigs }: { jigs: JobJigs }) {
   if (!jigs.problem) return null
   return (
-    <p className="rounded-lg border border-line bg-white/5 px-3 py-2 text-xs text-white/55">
+    <p className="rounded-lg border border-line bg-white/5 px-3 py-2 text-[13px] text-white/55">
       Jigs aren’t available right now. {jigs.problem}
     </p>
   )
@@ -72,13 +72,13 @@ function Stepper({
   label: string
 }) {
   const button =
-    'h-8 w-8 rounded-lg border border-line-strong text-base leading-none text-white/70 transition-colors hover:bg-white/10 disabled:opacity-40'
+    'h-11 w-11 rounded-lg border border-line-strong text-lg leading-none text-white/70 transition-colors hover:bg-white/10 disabled:opacity-40'
   return (
     <div className="flex items-center gap-2" role="group" aria-label={label}>
       <button type="button" onClick={onMinus} disabled={disabled} aria-label={`One fewer ${label}`} className={button}>
         −
       </button>
-      <span className="w-6 text-center text-sm font-semibold tabular text-white" aria-live="polite">
+      <span className="w-6 text-center text-[15px] font-semibold tabular text-white" aria-live="polite">
         {value}
       </span>
       <button type="button" onClick={onPlus} disabled={disabled} aria-label={`One more ${label}`} className={button}>
@@ -88,7 +88,7 @@ function Stepper({
   )
 }
 
-const LINK = 'text-xs font-semibold transition-colors disabled:opacity-40'
+const LINK = 'inline-flex min-h-[2.75rem] items-center text-[15px] font-semibold transition-colors disabled:opacity-40'
 
 export default function ProductJigs({ jigs, job, productId, productName, knownProductIds }: ProductJigsProps) {
   const [sheet, setSheet] = useState<SheetState | null>(null)
@@ -174,7 +174,7 @@ export default function ProductJigs({ jigs, job, productId, productName, knownPr
     <div className="mt-3 border-t border-line pt-3">
       <div className="flex items-center justify-between gap-3">
         <span className="eyebrow">{productId === null ? 'Other jigs on this job' : 'Jigs'}</span>
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center justify-end gap-x-4">
           {needed.length > 1 && (
             <button
               type="button"
@@ -210,19 +210,19 @@ export default function ProductJigs({ jigs, job, productId, productName, knownPr
       </div>
 
       {!jigs.userName && (needed.length > 0 || out.length > 0) && (
-        <p className="mt-2 text-xs text-amber-200/90">
+        <p className="mt-2 text-sm leading-relaxed text-amber-200/90">
           Pick your profile (menu on the Jobs page) to check jigs out or in.
         </p>
       )}
 
       {total === 0 ? (
-        <p className="mt-2 text-xs text-white/40">{jigs.loading ? 'Loading jigs...' : 'No jigs yet.'}</p>
+        <p className="text-sm text-white/40">{jigs.loading ? 'Loading jigs...' : 'No jigs yet.'}</p>
       ) : (
         <div className="mt-2.5 space-y-2">
           {needed.map(group => (
             <div key={group.typeId} className="rounded-lg border border-line bg-canvas/40 px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-sm font-medium text-white">{group.name}</span>
+                <span className="min-w-0 truncate text-[15px] font-medium text-white">{group.name}</span>
                 <JigPill tone="gray">Needed</JigPill>
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
@@ -237,7 +237,7 @@ export default function ProductJigs({ jigs, job, productId, productName, knownPr
                   type="button"
                   onClick={() => setSheet({ kind: 'checkout', typeIds: [group.typeId] })}
                   disabled={!jigs.online || busyKey !== null}
-                  className="btn-primary px-3.5 py-1.5 text-xs"
+                  className="btn-primary min-h-[2.75rem] px-4"
                 >
                   Check out
                 </button>
@@ -254,11 +254,11 @@ export default function ProductJigs({ jigs, job, productId, productName, knownPr
           {out.map(row => (
             <div key={row.id} className="rounded-lg border border-line bg-canvas/40 px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-sm font-medium text-white">{lineName(row)}</span>
+                <span className="min-w-0 truncate text-[15px] font-medium text-white">{lineName(row)}</span>
                 <JigPill tone={late ? 'amber' : 'blue'}>{late ? 'Awaiting return' : 'Out'}</JigPill>
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="min-w-0 text-xs text-white/50">
+                <span className="min-w-0 text-[13px] text-white/50">
                   {row.checked_out_by ?? 'Someone'}
                   {row.checked_out_at ? ` · since ${shortDate(row.checked_out_at)}` : ''}
                 </span>
@@ -266,7 +266,7 @@ export default function ProductJigs({ jigs, job, productId, productName, knownPr
                   type="button"
                   onClick={() => setSheet({ kind: 'checkin', ids: [row.id] })}
                   disabled={!jigs.online}
-                  className="btn-secondary px-3.5 py-1.5 text-xs"
+                  className="btn-secondary min-h-[2.75rem] px-4"
                 >
                   Check in
                 </button>
@@ -275,7 +275,7 @@ export default function ProductJigs({ jigs, job, productId, productName, knownPr
           ))}
 
           {done.map(row => (
-            <div key={row.id} className="flex items-baseline justify-between gap-3 px-1 text-xs text-white/40">
+            <div key={row.id} className="flex items-baseline justify-between gap-3 px-1 text-[13px] text-white/40">
               <span className="min-w-0 truncate">{lineName(row)}</span>
               <span
                 className={`flex-shrink-0 ${

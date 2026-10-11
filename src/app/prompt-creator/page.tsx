@@ -1,8 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
 import PageHeader from '@/components/PageHeader'
+import { askConfirm, toast } from '@/components/Dialogs'
+import { CloseIcon } from '@/components/Icons'
+import { rememberJob } from '@/lib/jobsChanged'
+
+// The saved sets as this phone last saw them. The server answers "none" when it can't read
+// them, and saving sends the whole list, so without this one bad moment would wipe the library.
+const SETS_KEY = 'burrow-prompt-sets'
 
 interface BasePromptSet {
   id: string
@@ -23,6 +31,9 @@ function stripQuotes(s: string) {
 }
 
 export default function PromptCreatorPage() {
+  const router = useRouter()
+  // The job this page was opened from (its Prompts card), if any
+  const [fromJobId, setFromJobId] = useState<string>('')
 
   const [promptSets, setPromptSets] = useState<BasePromptSet[]>([])
   const [loadingPrompts, setLoadingPrompts] = useState(true)
@@ -57,6 +68,7 @@ export default function PromptCreatorPage() {
   const [saveTargetJobId, setSaveTargetJobId] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
+  const [saveFailed, setSaveFailed] = useState(false)
 
   // Refine after testing
   const [guidance, setGuidance] = useState('')
@@ -64,21 +76,47 @@ export default function PromptCreatorPage() {
   const [refineError, setRefineError] = useState('')
 
   useEffect(() => {
+    const jobId = new URLSearchParams(window.location.search).get('job') || ''
+    if (jobId) {
+      setFromJobId(jobId)
+      setSaveTargetJobId(jobId)
+    }
+
+    let remembered: BasePromptSet[] = []
+    try {
+      const stored = JSON.parse(localStorage.getItem(SETS_KEY) || '[]')
+      if (Array.isArray(stored)) remembered = stored
+    } catch {}
+
+    const show = (sets: BasePromptSet[]) => {
+      setPromptSets(sets)
+      if (sets.length > 0) setSelectedSetId(sets[0].id)
+      setLoadingPrompts(false)
+    }
+
     fetch('/api/prompts')
       .then(r => r.ok ? r.json() : { prompts: [] })
       .then(d => {
         const sets: BasePromptSet[] = d.prompts || []
-        setPromptSets(sets)
-        if (sets.length > 0) setSelectedSetId(sets[0].id)
-        setLoadingPrompts(false)
+        // An empty answer when this phone knows of sets is more likely a failed read than a cleared library
+        if (sets.length === 0 && remembered.length > 0) return show(remembered)
+        try { localStorage.setItem(SETS_KEY, JSON.stringify(sets)) } catch {}
+        show(sets)
       })
-      .catch(() => setLoadingPrompts(false))
+      .catch(() => show(remembered))
 
     fetch('/api/fldrs')
       .then(r => r.ok ? r.json() : [])
       .then(d => {
-        setJobs(Array.isArray(d) ? d : [])
+        const list: Fldr[] = Array.isArray(d) ? d : []
+        setJobs(list)
         setLoadingJobs(false)
+        // Opened from a job that already has prompts: start from those
+        const from = list.find(job => job.id === jobId)
+        if (from && (from.job_info?.prompt_1 || from.job_info?.prompt_2)) {
+          setBaseTab('jobs')
+          setSelectedJobBaseId(from.id)
+        }
       })
       .catch(() => setLoadingJobs(false))
   }, [])
@@ -99,11 +137,17 @@ export default function PromptCreatorPage() {
 
   const savePromptSets = async (updated: BasePromptSet[]) => {
     setPromptSets(updated)
-    await fetch('/api/prompts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompts: updated }),
-    }).catch(() => {})
+    try { localStorage.setItem(SETS_KEY, JSON.stringify(updated)) } catch {}
+    try {
+      const res = await fetch('/api/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompts: updated }),
+      })
+      if (!res.ok) throw new Error(`save failed: ${res.status}`)
+    } catch {
+      toast("Couldn't save your sets to the cloud. They're kept on this phone for now.", 'error')
+    }
   }
 
   const addPromptSet = () => {
@@ -125,7 +169,15 @@ export default function PromptCreatorPage() {
     setShowAddForm(false)
   }
 
-  const deletePromptSet = (id: string) => {
+  const deletePromptSet = async (id: string) => {
+    const target = promptSets.find(p => p.id === id)
+    const confirmed = await askConfirm({
+      title: 'Delete this saved set?',
+      body: `\u201c${target?.label || 'This set'}\u201d and its two prompts will be gone for the whole team.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })
+    if (!confirmed) return
     const updated = promptSets.filter(p => p.id !== id)
     savePromptSets(updated)
     if (selectedSetId === id) setSelectedSetId(updated[0]?.id || '')
@@ -236,6 +288,7 @@ export default function PromptCreatorPage() {
     if (!generated || !saveTargetJobId) return
     setSaving(true)
     setSaveMessage('')
+    setSaveFailed(false)
     try {
       const res = await fetch(`/api/fldrs/${saveTargetJobId}`, {
         method: 'PATCH',
@@ -250,10 +303,14 @@ export default function PromptCreatorPage() {
       if (!res.ok) throw new Error('Failed to save to job')
       const updatedFldr = await res.json()
       setJobs(prev => prev.map(j => j.id === updatedFldr.id ? updatedFldr : j))
+      // So the job's own page shows them straight away
+      rememberJob(updatedFldr)
       const job = jobs.find(j => j.id === saveTargetJobId)
       setSaveMessage(`Saved to ${job?.title || 'job'} — it's now in that job's prompt log for reuse later.`)
+      toast(`Prompts saved to ${job?.title || 'the job'}`)
     } catch (e) {
-      setSaveMessage('Failed to save to job. Try again.')
+      setSaveFailed(true)
+      setSaveMessage("Couldn't save to the job. Check your connection and try again.")
     } finally {
       setSaving(false)
     }
@@ -268,13 +325,19 @@ export default function PromptCreatorPage() {
           Take Prompt 1 &amp; Prompt 2 from a saved set or a past job, swap in a new theme and character, and save the result to the next job.
         </p>
 
+        {fromJobId && (
+          <div className="rounded-xl border border-gold/35 bg-gold/[0.06] px-3.5 py-3 text-sm leading-relaxed text-white/80">
+            Working on <span className="font-semibold text-white">{jobs.find(job => job.id === fromJobId)?.title || 'this job'}</span>. What you make here saves back to it.
+          </div>
+        )}
+
         {/* Base Prompt Library */}
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold text-white">Base Prompt</h2>
             <button
               onClick={() => setShowAddForm(o => !o)}
-              className="btn-secondary px-3 py-1.5 text-xs font-medium"
+              className="btn-secondary min-h-[2.75rem] px-3.5 font-medium"
             >
               {showAddForm ? 'Cancel' : '+ Add Set'}
             </button>
@@ -286,7 +349,7 @@ export default function PromptCreatorPage() {
               onClick={() => setBaseTab('sets')}
               role="tab"
               aria-selected={baseTab === 'sets'}
-              className={`segment text-xs py-2 ${baseTab === 'sets' ? 'segment-active' : ''}`}
+              className={`segment min-h-[2.75rem] ${baseTab === 'sets' ? 'segment-active' : ''}`}
             >
               Saved Sets ({promptSets.length})
             </button>
@@ -294,7 +357,7 @@ export default function PromptCreatorPage() {
               onClick={() => setBaseTab('jobs')}
               role="tab"
               aria-selected={baseTab === 'jobs'}
-              className={`segment text-xs py-2 ${baseTab === 'jobs' ? 'segment-active' : ''}`}
+              className={`segment min-h-[2.75rem] ${baseTab === 'jobs' ? 'segment-active' : ''}`}
             >
               Past Jobs ({jobsWithPrompts.length})
             </button>
@@ -305,8 +368,9 @@ export default function PromptCreatorPage() {
               <input
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
-                placeholder="Label (e.g. San Diego Beach Engraving)"
-                className="input"
+                aria-label="Name for this set"
+                placeholder="Name it, e.g. San Diego Beach Engraving"
+                className="input min-h-[2.75rem]"
               />
               <div>
                 <label className="label">Prompt 1</label>
@@ -331,7 +395,7 @@ export default function PromptCreatorPage() {
               <button
                 onClick={addPromptSet}
                 disabled={!newLabel.trim() || (!newPrompt1.trim() && !newPrompt2.trim())}
-                className="btn-primary w-full"
+                className="btn-primary w-full min-h-[2.75rem]"
               >
                 Save Prompt Set
               </button>
@@ -348,38 +412,34 @@ export default function PromptCreatorPage() {
             ) : (
               <div className="space-y-2">
                 {promptSets.map(p => (
-                  <button
+                  <div
                     key={p.id}
-                    onClick={() => setSelectedSetId(p.id)}
-                    aria-pressed={selectedSetId === p.id}
-                    className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                    className={`flex items-stretch rounded-xl border transition-colors ${
                       selectedSetId === p.id
                         ? 'bg-gold/10 border-gold/40'
                         : 'bg-surface border-line hover:bg-surface-raised hover:border-line-strong'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-medium ${selectedSetId === p.id ? 'text-gold' : 'text-white'}`}>
+                    <button
+                      onClick={() => setSelectedSetId(p.id)}
+                      aria-pressed={selectedSetId === p.id}
+                      className="min-w-0 flex-1 p-3 text-left"
+                    >
+                      <span className={`block text-sm font-medium ${selectedSetId === p.id ? 'text-gold' : 'text-white'}`}>
                         {p.label}
                       </span>
-                      <span
-                        role="button"
-                        onClick={(e) => { e.stopPropagation(); deletePromptSet(p.id) }}
-                        className="text-white/30 hover:text-red-400 transition-colors p-1"
-                        title="Delete"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </span>
-                    </div>
-                    <p className="text-xs text-white/45 mt-1 line-clamp-1">
-                      {p.prompt1 ? `P1: ${p.prompt1}` : ''}
-                    </p>
-                    {p.prompt2 && (
-                      <p className="text-xs text-white/45 mt-0.5 line-clamp-1">P2: {p.prompt2}</p>
-                    )}
-                  </button>
+                      {p.prompt1 && <span className="block text-xs text-white/45 mt-1 line-clamp-1">Prompt 1: {p.prompt1}</span>}
+                      {p.prompt2 && <span className="block text-xs text-white/45 mt-0.5 line-clamp-1">Prompt 2: {p.prompt2}</span>}
+                    </button>
+                    <button
+                      onClick={() => deletePromptSet(p.id)}
+                      className="flex w-11 flex-shrink-0 items-center justify-center rounded-r-xl text-white/35 transition-colors hover:bg-red-500/10 hover:text-red-300"
+                      title="Delete this set"
+                      aria-label={`Delete ${p.label}`}
+                    >
+                      <CloseIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )
@@ -399,7 +459,7 @@ export default function PromptCreatorPage() {
                     key={job.id}
                     onClick={() => setSelectedJobBaseId(job.id)}
                     aria-pressed={selectedJobBaseId === job.id}
-                    className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                    className={`w-full min-h-[2.75rem] text-left p-3 rounded-xl border transition-colors ${
                       selectedJobBaseId === job.id
                         ? 'bg-gold/10 border-gold/40'
                         : 'bg-surface border-line hover:bg-surface-raised hover:border-line-strong'
@@ -414,10 +474,10 @@ export default function PromptCreatorPage() {
                       </span>
                     </div>
                     {job.job_info?.prompt_1 && (
-                      <p className="text-xs text-white/45 mt-1 line-clamp-1">P1: {job.job_info.prompt_1}</p>
+                      <p className="text-xs text-white/45 mt-1 line-clamp-1">Prompt 1: {job.job_info.prompt_1}</p>
                     )}
                     {job.job_info?.prompt_2 && (
-                      <p className="text-xs text-white/45 mt-0.5 line-clamp-1">P2: {job.job_info.prompt_2}</p>
+                      <p className="text-xs text-white/45 mt-0.5 line-clamp-1">Prompt 2: {job.job_info.prompt_2}</p>
                     )}
                   </button>
                 ))}
@@ -480,11 +540,12 @@ export default function PromptCreatorPage() {
           <section className="space-y-4">
             {generated.prompt1 && (
               <div>
-                <button
-                  onClick={() => setExpanded1(e => !e)}
-                  className="w-full flex items-center justify-between mb-2"
-                >
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <button
+                    onClick={() => setExpanded1(e => !e)}
+                    aria-expanded={expanded1}
+                    className="flex min-h-[2.75rem] flex-1 items-center gap-2 text-left"
+                  >
                     <h2 className="text-base font-semibold text-white">Prompt 1</h2>
                     <svg
                       className={`w-4 h-4 text-white/40 transition-transform ${expanded1 ? 'rotate-180' : ''}`}
@@ -492,15 +553,15 @@ export default function PromptCreatorPage() {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
-                  </div>
-                  <span
-                    role="button"
-                    onClick={(e) => { e.stopPropagation(); copyToClipboard(generated.prompt1, 1) }}
-                    className="btn-secondary px-3 py-1.5 text-xs font-medium"
+                    <span className="text-xs text-white/40">{expanded1 ? 'Show less' : 'Show all'}</span>
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(generated.prompt1, 1)}
+                    className="btn-secondary min-h-[2.75rem] px-4 font-medium"
                   >
                     {copied1 ? 'Copied!' : 'Copy'}
-                  </span>
-                </button>
+                  </button>
+                </div>
                 <div className="card p-4">
                   <p className={`text-sm text-white/90 whitespace-pre-wrap font-mono ${expanded1 ? '' : 'line-clamp-2'}`}>
                     {generated.prompt1}
@@ -511,11 +572,12 @@ export default function PromptCreatorPage() {
 
             {generated.prompt2 && (
               <div>
-                <button
-                  onClick={() => setExpanded2(e => !e)}
-                  className="w-full flex items-center justify-between mb-2"
-                >
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <button
+                    onClick={() => setExpanded2(e => !e)}
+                    aria-expanded={expanded2}
+                    className="flex min-h-[2.75rem] flex-1 items-center gap-2 text-left"
+                  >
                     <h2 className="text-base font-semibold text-white">Prompt 2</h2>
                     <svg
                       className={`w-4 h-4 text-white/40 transition-transform ${expanded2 ? 'rotate-180' : ''}`}
@@ -523,15 +585,15 @@ export default function PromptCreatorPage() {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
-                  </div>
-                  <span
-                    role="button"
-                    onClick={(e) => { e.stopPropagation(); copyToClipboard(generated.prompt2, 2) }}
-                    className="btn-secondary px-3 py-1.5 text-xs font-medium"
+                    <span className="text-xs text-white/40">{expanded2 ? 'Show less' : 'Show all'}</span>
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(generated.prompt2, 2)}
+                    className="btn-secondary min-h-[2.75rem] px-4 font-medium"
                   >
                     {copied2 ? 'Copied!' : 'Copy'}
-                  </span>
-                </button>
+                  </button>
+                </div>
                 <div className="card p-4">
                   <p className={`text-sm text-white/90 whitespace-pre-wrap font-mono ${expanded2 ? '' : 'line-clamp-2'}`}>
                     {generated.prompt2}
@@ -561,7 +623,7 @@ export default function PromptCreatorPage() {
               <button
                 onClick={refine}
                 disabled={refining || !guidance.trim()}
-                className="btn-primary w-full"
+                className="btn-primary w-full min-h-[2.75rem]"
               >
                 {refining ? 'Refining...' : 'Refine with Guidance'}
               </button>
@@ -576,7 +638,8 @@ export default function PromptCreatorPage() {
               <select
                 value={saveTargetJobId}
                 onChange={e => setSaveTargetJobId(e.target.value)}
-                className="input"
+                aria-label="Job to save the prompts to"
+                className="input min-h-[2.75rem]"
               >
                 <option value="">Select a job...</option>
                 {savableJobs.map(job => (
@@ -588,12 +651,19 @@ export default function PromptCreatorPage() {
               <button
                 onClick={saveToJob}
                 disabled={!saveTargetJobId || saving}
-                className="btn-brand w-full"
+                className="btn-brand w-full min-h-[2.75rem]"
               >
                 {saving ? 'Saving...' : 'Save to Job'}
               </button>
               {saveMessage && (
-                <p className="text-xs text-emerald-400">{saveMessage}</p>
+                <p role={saveFailed ? 'alert' : 'status'} className={`text-[13px] leading-relaxed ${saveFailed ? 'text-red-300' : 'text-emerald-400'}`}>
+                  {saveMessage}
+                </p>
+              )}
+              {saveMessage && !saveFailed && (
+                <button onClick={() => router.push(`/jobs/${saveTargetJobId}`)} className="btn-secondary w-full min-h-[2.75rem] font-medium">
+                  Open the Job
+                </button>
               )}
             </div>
           </section>

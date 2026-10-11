@@ -1,21 +1,16 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Sora } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import PinAuthWrapper from '@/components/PinAuthWrapper'
+import DialogHost from '@/components/Dialogs'
 
 // Self-hosted at build time: no runtime request to Google, works offline
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-sans',
-})
-
-const sora = Sora({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-display',
 })
 
 export const viewport: Viewport = {
@@ -46,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${sora.variable}`} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* PWA capability tags */}
         <meta name="mobile-web-app-capable" content="yes" />
@@ -63,6 +58,7 @@ export default function RootLayout({
           </div>
           <BottomNav />
         </PinAuthWrapper>
+        <DialogHost />
       </body>
     </html>
   )

@@ -103,7 +103,7 @@ export default function HowToPage() {
             <Step
               title="Menu"
               action="Top right on the Jobs page → profile, homebase time, and the rest"
-              detail="Scan QR, Team Calendar, Weather, Prompt Creator, Tools, Flight Map, Quick Notes."
+              detail="Share App, Team Calendar, Inventory, Weather, Prompt Creator, Tools, Flight Map, Quick Notes."
             />
             <Step
               title="Getting Back"
@@ -119,8 +119,8 @@ export default function HowToPage() {
           <div className="space-y-3">
             <Step
               title="Create a Job"
-              action={'Badger → "New" → New Job → Title, dates, location → Create Job'}
-              detail="Job type (Caricatures or Personalization), client info, and everything else go in on the job page. Time Off lives under New too."
+              action={'New Job at the top of the Jobs page → name, dates, city → Create Job'}
+              detail="Job type (Caricatures or Personalization), client info, and everything else go in on the job page. Time Off lives under the badger's New, or tap a day on the calendar."
             />
             <Step
               title="Filter Jobs"
@@ -130,7 +130,7 @@ export default function HowToPage() {
             <Step
               title="View & Edit"
               action="Tap any job card → Make changes → Auto-saves"
-              detail="Save stays at the top if you want to be sure. A gold dot means unsaved changes. Weather, timezone, and map info update automatically."
+              detail="The button at the top reads Saved once it has. Tap it any time to save right away. Weather, timezone, and map info update automatically."
             />
             <Step
               title="Read the Colors"
@@ -165,9 +165,9 @@ export default function HowToPage() {
           <h2 className="eyebrow text-gold mb-3">Pro Tips</h2>
           <div className="card p-5">
             <ul className="space-y-3 text-sm">
-              <Tip lead="Use address autocomplete"> when creating jobs for accurate locations and automatic weather</Tip>
+              <Tip lead="Use address autocomplete"> on the venue and hotel for accurate locations and one-tap directions</Tip>
               <Tip lead="Add checklists"> for equipment, materials, or setup steps—check off as you go</Tip>
-              <Tip lead="Add airport codes"> for travel jobs—keeps flight info organized</Tip>
+              <Tip lead="Paste the confirmation email"> into Flights, Hotel or Rental Car and Burrow fills in the details</Tip>
               <Tip lead="Use notes freely">—client preferences, venue details, anything you need to remember</Tip>
               <Tip lead="Check Map view"> when planning travel—see where all your jobs are in relation to each other</Tip>
             </ul>

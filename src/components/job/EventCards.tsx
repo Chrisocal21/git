@@ -4,8 +4,12 @@ import { useEffect, useState } from 'react'
 import type { Fldr, JobInfo, VenueInfo } from '@/types/fldr'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import {
+  AddSectionButton,
   CallLink,
+  ChoiceChips,
   CopyAction,
+  DateTimeField,
+  DirectionsLinks,
   EditButton,
   EmailLink,
   Field,
@@ -14,18 +18,25 @@ import {
   InfoList,
   InfoRow,
   MapLink,
+  Offer,
   SectionCard,
+  SuggestInput,
   useEditMode,
 } from './parts'
-import { fmtClock, fmtDateTime, fmtDay, fmtTimeSpan, jobTypeLabel } from '@/lib/jobFormat'
+import { cityFromAddress, dayKey, fmtClock, fmtDateTime, fmtDay, fmtTimeSpan, jobTypeText } from '@/lib/jobFormat'
+import { contactFor, venueNamed } from '@/lib/jobSuggestions'
+import type { JobSuggestions } from '@/lib/jobSuggestions'
 
 // ── Client & Event ──────────────────────────────────────────────────────────
 
 interface ClientEventCardProps {
   fldr: Fldr
+  suggestions: JobSuggestions
   open: boolean
   onToggle: () => void
   onJobInfo: (field: keyof JobInfo, value: any) => void
+  /** Several job info fields in one go */
+  onJobInfoPatch: (patch: Partial<JobInfo>) => void
   onLocation: (value: string) => void
   /** Saves what's been typed when the form is closed */
   onDone: () => void
@@ -72,15 +83,70 @@ function LocationInput({ value, onCommit }: { value: string; onCommit: (value: s
         if (draft.trim() !== value.trim()) onCommit(draft.trim())
       }}
       className="input"
-      placeholder="City, State"
+      placeholder="e.g. Austin, TX"
     />
   )
 }
 
-export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, onDone }: ClientEventCardProps) {
+type TypeChoice = 'caricatures' | 'personalization' | 'other'
+
+/**
+ * One Job Type. The two usual ones are a tap; anything else is typed under "Other".
+ * A job that already has something typed keeps showing it, whichever choice is picked.
+ */
+function JobTypeField({ info, onJobInfo }: { info: JobInfo | null; onJobInfo: (field: keyof JobInfo, value: any) => void }) {
+  // Older jobs saved personalization under another name
+  const saved = (info?.job_type as string) === 'names_monograms' ? 'personalization' : info?.job_type || null
+  const typed = info?.event_type || ''
+  const [otherOpen, setOtherOpen] = useState(false)
+  const choice: TypeChoice | null = saved ?? (typed || otherOpen ? 'other' : null)
+
+  return (
+    <div className="min-w-0">
+      <label className="label">Job Type</label>
+      <ChoiceChips<TypeChoice>
+        label="Job Type"
+        value={choice}
+        options={[
+          { value: 'caricatures', label: 'Caricatures' },
+          { value: 'personalization', label: 'Personalization' },
+          { value: 'other', label: 'Other' },
+        ]}
+        onChange={next => {
+          if (next === 'other') {
+            setOtherOpen(true)
+            onJobInfo('job_type', null)
+          } else if (next === null && choice === 'other') {
+            // Un-picking Other only folds the box away; what's typed in it is theirs to clear
+            setOtherOpen(false)
+          } else {
+            setOtherOpen(false)
+            onJobInfo('job_type', next)
+          }
+        }}
+      />
+      {(choice === 'other' || typed) && (
+        <>
+          <div className="mb-1.5 mt-3 text-[13px] font-medium text-white/60">{saved ? 'More about the type (optional)' : 'What kind of job is it?'}</div>
+          <input
+            type="text"
+            value={typed}
+            onChange={e => onJobInfo('event_type', e.target.value)}
+            className="input"
+            aria-label={saved ? 'More about the job type' : 'Other job type'}
+            placeholder="e.g. Live engraving"
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+export function ClientEventCard({ fldr, suggestions, open, onToggle, onJobInfo, onJobInfoPatch, onLocation, onDone }: ClientEventCardProps) {
   const info = fldr.job_info
-  const type = jobTypeLabel(info?.job_type)
+  const type = jobTypeText(info)
   const hasContact = !!(info?.client_contact_name || info?.client_contact_phone || info?.client_contact_email)
+  const products = (fldr.products || []).filter(p => p.name)
   const hasData = !!(
     info &&
     (info.client_name ||
@@ -93,13 +159,25 @@ export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, o
       info.quantity ||
       info.kickoff_date ||
       info.prepro_date ||
+      info.pre_engrave_details ||
       info.event_details)
   )
   const { editing, toggle } = useEditMode(hasData, open, onDone)
+  // Fields most jobs fill in later stay folded away until they're wanted
+  const [showDates, setShowDates] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+  const [showPreEngrave, setShowPreEngrave] = useState(false)
+  const datesShown = showDates || !!info?.kickoff_date || !!info?.prepro_date
+  const detailsShown = showDetails || !!info?.event_details
+  const preEngraveShown = showPreEngrave || !!info?.pre_engrave_details
 
   const text = (field: keyof JobInfo) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onJobInfo(field, e.target.value)
   const day = (field: keyof JobInfo) => (e: React.ChangeEvent<HTMLInputElement>) => onJobInfo(field, e.target.value || null)
+
+  const lastContact = !hasContact ? contactFor(suggestions, info?.client_name) : null
+  const productsText = products.map(p => `${p.name} ×${p.quantity}`).join(', ')
+  const productsTotal = products.reduce((sum, p) => sum + (p.quantity || 0), 0)
 
   return (
     <SectionCard
@@ -107,7 +185,7 @@ export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, o
       title="Client & Event"
       open={open}
       onToggle={onToggle}
-      summary={[info?.client_name, info?.distributor_name && `via ${info.distributor_name}`, type || info?.event_type].filter(Boolean).join(' · ') || undefined}
+      summary={[info?.client_name, info?.distributor_name && `via ${info.distributor_name}`, type].filter(Boolean).join(' · ') || 'Who the job is for and what it is'}
       actions={
         <>
           {!editing && <CopyAction text={clientCopyText(fldr)} label="Copy client details" />}
@@ -116,28 +194,58 @@ export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, o
       }
     >
       {editing ? (
-        <div className="space-y-5">
+        <div className="space-y-6">
           <FormGroup title="Client">
+            {/* The job is usually named after its client, so the name is offered rather than typed twice */}
+            {!info?.client_name && fldr.title && !/\(copy\)$/i.test(fldr.title.trim()) && (
+              <Offer action="Use" onUse={() => onJobInfo('client_name', fldr.title.trim())}>
+                Is the client &ldquo;{fldr.title.trim()}&rdquo;?
+              </Offer>
+            )}
             <FieldRow>
               <Field label="Client Name">
-                <input type="text" value={info?.client_name || ''} onChange={text('client_name')} className="input" placeholder="Client/company name" />
+                <SuggestInput
+                  value={info?.client_name || ''}
+                  onChange={value => onJobInfo('client_name', value)}
+                  suggestions={suggestions.clients.map(value => ({ value }))}
+                  placeholder="e.g. Acme Corp"
+                />
               </Field>
-              <Field label="Distributor Name">
-                <input type="text" value={info?.distributor_name || ''} onChange={text('distributor_name')} className="input" placeholder="Distributor name (if applicable)" />
+              <Field label="Distributor Name" hint="Leave blank if there isn't one.">
+                <SuggestInput
+                  value={info?.distributor_name || ''}
+                  onChange={value => onJobInfo('distributor_name', value)}
+                  suggestions={suggestions.distributors.map(value => ({ value }))}
+                  placeholder="e.g. Proven Promotions"
+                />
               </Field>
             </FieldRow>
           </FormGroup>
 
           <FormGroup title="Contact">
+            {lastContact && (
+              <Offer
+                action="Fill in"
+                onUse={() =>
+                  onJobInfoPatch({
+                    client_contact_name: lastContact.name,
+                    client_contact_phone: lastContact.phone,
+                    client_contact_email: lastContact.email,
+                  })
+                }
+              >
+                Last contact for {lastContact.client}: {[lastContact.name, lastContact.phone, lastContact.email].filter(Boolean).join(' · ')}
+              </Offer>
+            )}
             <Field label="Contact Name">
-              <input type="text" value={info?.client_contact_name || ''} onChange={text('client_contact_name')} className="input" placeholder="Contact person" />
+              <input type="text" value={info?.client_contact_name || ''} onChange={text('client_contact_name')} className="input" placeholder="e.g. Jordan Lee" />
             </Field>
             <FieldRow>
               <Field label="Phone">
-                <input type="tel" value={info?.client_contact_phone || ''} onChange={text('client_contact_phone')} className="input" placeholder="Phone" />
+                <input type="tel" value={info?.client_contact_phone || ''} onChange={text('client_contact_phone')} className="input" placeholder="e.g. 555 123 4567" />
               </Field>
               <Field label="Email">
-                <input type="email" value={info?.client_contact_email || ''} onChange={text('client_contact_email')} className="input" placeholder="Email" />
+                <input type="email" value={info?.client_contact_email || ''} onChange={text('client_contact_email')} className="input" placeholder="e.g. jordan@acme.com" />
               </Field>
             </FieldRow>
           </FormGroup>
@@ -145,35 +253,24 @@ export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, o
           <FormGroup title="Event">
             <FieldRow>
               <Field label="Job Title">
-                <input type="text" value={info?.job_title || ''} onChange={text('job_title')} className="input" placeholder="Job title or name" />
+                <input type="text" value={info?.job_title || ''} onChange={text('job_title')} className="input" placeholder="e.g. Spring Sales Kickoff" />
               </Field>
-              <Field label="Location">
+              <Field label="City" hint="Weather, local time and the map all use this.">
                 <LocationInput value={fldr.location || ''} onCommit={onLocation} />
               </Field>
             </FieldRow>
-            <FieldRow always>
-              <Field label="Job Type">
-                <select
-                  // Older jobs saved personalization under another name
-                  value={(info?.job_type as string) === 'names_monograms' ? 'personalization' : info?.job_type || ''}
-                  onChange={e => onJobInfo('job_type', e.target.value || null)}
-                  className="input"
-                >
-                  <option value="" className="bg-gray-800 text-white">Select type</option>
-                  <option value="caricatures" className="bg-gray-800 text-white">Caricatures</option>
-                  <option value="personalization" className="bg-gray-800 text-white">Personalization</option>
-                </select>
-              </Field>
-              <Field label="Event Type">
-                <input type="text" value={info?.event_type || ''} onChange={text('event_type')} className="input" placeholder="What kind of event it is" />
-              </Field>
-            </FieldRow>
+            <JobTypeField info={info} onJobInfo={onJobInfo} />
           </FormGroup>
 
           <FormGroup title="Gifts">
+            {products.length > 0 && !info?.item && (
+              <Offer action="Use" onUse={() => onJobInfoPatch({ item: products.map(p => p.name).join(', '), quantity: productsTotal || null })}>
+                From Products: {productsText}
+              </Offer>
+            )}
             <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
               <Field label="Gift/s">
-                <input type="text" value={info?.item || ''} onChange={text('item')} className="input" placeholder="What's being personalized" />
+                <input type="text" value={info?.item || ''} onChange={text('item')} className="input" placeholder="e.g. YETI Rambler 20oz" />
               </Field>
               <Field label="Gift Qty">
                 <input
@@ -183,26 +280,56 @@ export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, o
                   value={info?.quantity ?? ''}
                   onChange={e => onJobInfo('quantity', e.target.value === '' ? null : Number(e.target.value))}
                   className="input"
+                  placeholder="e.g. 150"
                 />
               </Field>
             </div>
-            <p className="text-xs leading-relaxed text-white/40">SKUs and jigs for each gift go under Products.</p>
+            <p className="text-[13px] leading-relaxed text-white/40">Item numbers and jigs for each gift go under Products.</p>
+            {preEngraveShown && (
+              <Field label="Pre-engrave Details" hint="Anything that gets engraved before the event.">
+                <textarea
+                  value={info?.pre_engrave_details || ''}
+                  onChange={text('pre_engrave_details')}
+                  className="input resize-none"
+                  rows={2}
+                  placeholder="e.g. Logo on all 300 tumblers before they ship"
+                />
+              </Field>
+            )}
           </FormGroup>
 
-          <FormGroup title="Key Dates">
-            <FieldRow always>
-              <Field label="Kick-off Date">
-                <input type="date" value={info?.kickoff_date || ''} onChange={day('kickoff_date')} className="input" />
-              </Field>
-              <Field label="Pre-pro Date">
-                <input type="date" value={info?.prepro_date || ''} onChange={day('prepro_date')} className="input" />
-              </Field>
-            </FieldRow>
-          </FormGroup>
+          {datesShown && (
+            <FormGroup title="Key Dates">
+              <FieldRow always>
+                <Field label="Kick-off Date">
+                  <input type="date" value={info?.kickoff_date || ''} onChange={day('kickoff_date')} className="input" />
+                </Field>
+                <Field label="Pre-Production Date">
+                  <input type="date" value={info?.prepro_date || ''} onChange={day('prepro_date')} className="input" />
+                </Field>
+              </FieldRow>
+            </FormGroup>
+          )}
 
-          <Field label="Event Details">
-            <textarea value={info?.event_details || ''} onChange={text('event_details')} className="input resize-none" rows={3} placeholder="Event context, special instructions..." />
-          </Field>
+          {detailsShown && (
+            <Field label="Event Details">
+              <textarea
+                value={info?.event_details || ''}
+                onChange={text('event_details')}
+                className="input resize-none"
+                rows={3}
+                placeholder="e.g. Outdoor patio, 300 guests, names only"
+              />
+            </Field>
+          )}
+
+          {(!datesShown || !detailsShown || !preEngraveShown) && (
+            <div className="flex flex-wrap gap-2">
+              {!preEngraveShown && <AddSectionButton label="Pre-engrave Details" onClick={() => setShowPreEngrave(true)} />}
+              {!datesShown && <AddSectionButton label="Key Dates" onClick={() => setShowDates(true)} />}
+              {!detailsShown && <AddSectionButton label="Event Details" onClick={() => setShowDetails(true)} />}
+            </div>
+          )}
         </div>
       ) : (
         <InfoList>
@@ -219,20 +346,33 @@ export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, o
               }
             >
               {info.client_contact_name && <div>{info.client_contact_name}</div>}
-              {info.client_contact_phone && <div className="text-xs text-white/55">{info.client_contact_phone}</div>}
-              {info.client_contact_email && <div className="break-all text-xs text-white/55">{info.client_contact_email}</div>}
+              {info.client_contact_phone && <div className="text-sm text-white/55">{info.client_contact_phone}</div>}
+              {info.client_contact_email && <div className="break-all text-sm text-white/55">{info.client_contact_email}</div>}
             </InfoRow>
           )}
           {info?.job_title && <InfoRow label="Job Title">{info.job_title}</InfoRow>}
           {type && <InfoRow label="Job Type">{type}</InfoRow>}
-          {info?.event_type && <InfoRow label="Event Type">{info.event_type}</InfoRow>}
-          {fldr.location && <InfoRow label="Location">{fldr.location}</InfoRow>}
-          {info?.item && <InfoRow label="Gift/s">{info.item}</InfoRow>}
+          {fldr.location && <InfoRow label="City">{fldr.location}</InfoRow>}
+          {info?.item ? (
+            <InfoRow label="Gift/s">{info.item}</InfoRow>
+          ) : (
+            products.length > 0 && (
+              <InfoRow label="Gift/s">
+                {productsText}
+                <span className="text-sm text-white/45"> · from Products</span>
+              </InfoRow>
+            )
+          )}
           {info?.quantity != null && <InfoRow label="Gift Qty"><span className="tabular">{info.quantity}</span></InfoRow>}
-          {info?.kickoff_date && <InfoRow label="Kick-off">{fmtDay(info.kickoff_date, true)}</InfoRow>}
-          {info?.prepro_date && <InfoRow label="Pre-pro">{fmtDay(info.prepro_date, true)}</InfoRow>}
+          {info?.pre_engrave_details && (
+            <InfoRow label="Pre-engrave Details">
+              <span className="whitespace-pre-wrap">{info.pre_engrave_details}</span>
+            </InfoRow>
+          )}
+          {info?.kickoff_date && <InfoRow label="Kick-off Date">{fmtDay(info.kickoff_date, true)}</InfoRow>}
+          {info?.prepro_date && <InfoRow label="Pre-Production Date">{fmtDay(info.prepro_date, true)}</InfoRow>}
           {info?.event_details && (
-            <InfoRow label="Details">
+            <InfoRow label="Event Details">
               <span className="whitespace-pre-wrap">{info.event_details}</span>
             </InfoRow>
           )}
@@ -246,10 +386,14 @@ export function ClientEventCard({ fldr, open, onToggle, onJobInfo, onLocation, o
 
 interface VenueTimeCardProps {
   fldr: Fldr
+  suggestions: JobSuggestions
   open: boolean
   onToggle: () => void
   onVenue: (field: keyof VenueInfo, value: string) => void
+  /** Several venue fields in one go */
+  onVenuePatch: (patch: Partial<VenueInfo>) => void
   onJobInfo: (field: keyof JobInfo, value: any) => void
+  onLocation: (value: string) => void
   onDone: () => void
 }
 
@@ -283,7 +427,7 @@ function breakTimeText(info: JobInfo | null): string {
   return fmtTimeSpan(info.break_start_time, info.break_end_time)
 }
 
-export function VenueTimeCard({ fldr, open, onToggle, onVenue, onJobInfo, onDone }: VenueTimeCardProps) {
+export function VenueTimeCard({ fldr, suggestions, open, onToggle, onVenue, onVenuePatch, onJobInfo, onLocation, onDone }: VenueTimeCardProps) {
   const venue = fldr.venue_info
   const info = fldr.job_info
   const eventTime = eventTimeText(info)
@@ -299,8 +443,28 @@ export function VenueTimeCard({ fldr, open, onToggle, onVenue, onJobInfo, onDone
     breakTime
   )
   const { editing, toggle } = useEditMode(hasData, open, onDone)
+  const [showNotes, setShowNotes] = useState(false)
+  const [showBreak, setShowBreak] = useState(false)
+  const notesShown = showNotes || !!venue?.notes
+  const breakShown = showBreak || !!breakTime
 
   const time = (field: keyof JobInfo) => (e: React.ChangeEvent<HTMLInputElement>) => onJobInfo(field, e.target.value || null)
+
+  // The job's own dates, so a time only needs its time picked
+  const firstDay = fldr.date_start
+  const lastDay = fldr.date_end || fldr.date_start
+  const startDay = dayKey(info?.job_start_time) || firstDay
+
+  // A venue used on an earlier job brings its address and contact with it
+  const known = venueNamed(suggestions, venue?.name)
+  const knownFill: Partial<VenueInfo> = known
+    ? {
+        ...(!venue?.address && known.address ? { address: known.address } : {}),
+        ...(!venue?.contact_name && known.contact_name ? { contact_name: known.contact_name } : {}),
+        ...(!venue?.contact_phone && known.contact_phone ? { contact_phone: known.contact_phone } : {}),
+      }
+    : {}
+  const city = !fldr.location ? cityFromAddress(venue?.address) : null
 
   return (
     <SectionCard
@@ -308,7 +472,7 @@ export function VenueTimeCard({ fldr, open, onToggle, onVenue, onJobInfo, onDone
       title="Venue & Time"
       open={open}
       onToggle={onToggle}
-      summary={[venue?.name || venue?.address, eventTime || (info?.show_up_time && `Show up ${fmtDateTime(info.show_up_time)}`)].filter(Boolean).join(' · ') || undefined}
+      summary={[venue?.name || venue?.address, eventTime || (info?.show_up_time && `Show up ${fmtDateTime(info.show_up_time)}`)].filter(Boolean).join(' · ') || 'Where it is and when to be there'}
       actions={
         <>
           {!editing && <CopyAction text={venueCopyText(venue)} label="Copy venue details" />}
@@ -317,45 +481,74 @@ export function VenueTimeCard({ fldr, open, onToggle, onVenue, onJobInfo, onDone
       }
     >
       {editing ? (
-        <div className="space-y-5">
+        <div className="space-y-6">
           <FormGroup title="Venue">
             <Field label="Venue Name">
-              <input type="text" value={venue?.name || ''} onChange={e => onVenue('name', e.target.value)} className="input" placeholder="Event venue name" />
+              <SuggestInput
+                value={venue?.name || ''}
+                onChange={value => onVenue('name', value)}
+                suggestions={suggestions.venues.map(v => ({ value: v.name, detail: v.address || undefined }))}
+                placeholder="e.g. JW Marriott Austin"
+              />
             </Field>
+            {known && Object.keys(knownFill).length > 0 && (
+              <Offer action="Fill in" onUse={() => onVenuePatch(knownFill)}>
+                {known.name} was on an earlier job: {[known.address, known.contact_name, known.contact_phone].filter(Boolean).join(' · ')}
+              </Offer>
+            )}
             <Field label="Event Address">
               <AddressAutocomplete
                 value={venue?.address || ''}
                 onChange={value => onVenue('address', value)}
                 className="input"
-                placeholder="Start typing venue address..."
+                placeholder="Start typing the address"
               />
             </Field>
+            {city && (
+              <Offer action="Use" onUse={() => onLocation(city)}>
+                This job has no city yet. Use {city}?
+              </Offer>
+            )}
             <FieldRow>
-              <Field label="Contact Name">
-                <input type="text" value={venue?.contact_name || ''} onChange={e => onVenue('contact_name', e.target.value)} className="input" placeholder="Venue contact person" />
+              <Field label="Venue Contact Name">
+                <input type="text" value={venue?.contact_name || ''} onChange={e => onVenue('contact_name', e.target.value)} className="input" placeholder="e.g. Sam Rivera" />
               </Field>
-              <Field label="Contact Phone">
-                <input type="tel" value={venue?.contact_phone || ''} onChange={e => onVenue('contact_phone', e.target.value)} className="input" placeholder="Venue contact phone" />
+              <Field label="Venue Contact Phone">
+                <input type="tel" value={venue?.contact_phone || ''} onChange={e => onVenue('contact_phone', e.target.value)} className="input" placeholder="e.g. 555 123 4567" />
               </Field>
             </FieldRow>
-            <Field label="Notes">
-              <textarea value={venue?.notes || ''} onChange={e => onVenue('notes', e.target.value)} className="input resize-none" rows={2} placeholder="Additional venue notes..." />
-            </Field>
+            {notesShown ? (
+              <Field label="Venue Notes">
+                <textarea
+                  value={venue?.notes || ''}
+                  onChange={e => onVenue('notes', e.target.value)}
+                  className="input resize-none"
+                  rows={2}
+                  placeholder="e.g. Load in through the back dock, ask for security"
+                />
+              </Field>
+            ) : (
+              <AddSectionButton label="Venue Notes" onClick={() => setShowNotes(true)} />
+            )}
           </FormGroup>
 
           <FormGroup title="Event Schedule">
-            <Field label="Show Up Time (one-time)">
-              <input type="datetime-local" value={info?.show_up_time || ''} onChange={time('show_up_time')} className="input" />
-            </Field>
+            <DateTimeField
+              label="Show Up Time"
+              hint="When the team needs to be on site."
+              value={info?.show_up_time}
+              defaultDay={firstDay}
+              onChange={value => onJobInfo('show_up_time', value)}
+            />
 
-            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-white/5 px-3 py-2.5">
+            <label className="flex min-h-[2.75rem] cursor-pointer items-center gap-3 rounded-xl border border-line bg-white/5 px-3.5 py-2.5">
               <input
                 type="checkbox"
                 checked={info?.use_daily_schedule || false}
                 onChange={e => onJobInfo('use_daily_schedule', e.target.checked)}
-                className="h-4 w-4 flex-shrink-0 rounded"
+                className="h-5 w-5 flex-shrink-0 rounded"
               />
-              <span className="text-sm text-white/85">Use same times daily (for multi-day events)</span>
+              <span className="text-[15px] text-white/85">Same times every day (for events longer than one day)</span>
             </label>
 
             {info?.use_daily_schedule ? (
@@ -368,35 +561,52 @@ export function VenueTimeCard({ fldr, open, onToggle, onVenue, onJobInfo, onDone
                     <input type="time" value={info?.daily_end_time || ''} onChange={time('daily_end_time')} className="input" />
                   </Field>
                 </FieldRow>
-                <FieldRow always>
-                  <Field label="Daily Break Start">
-                    <input type="time" value={info?.daily_break_start || ''} onChange={time('daily_break_start')} className="input" />
-                  </Field>
-                  <Field label="Daily Break End">
-                    <input type="time" value={info?.daily_break_end || ''} onChange={time('daily_break_end')} className="input" />
-                  </Field>
-                </FieldRow>
+                {breakShown && (
+                  <FieldRow always>
+                    <Field label="Daily Break Start">
+                      <input type="time" value={info?.daily_break_start || ''} onChange={time('daily_break_start')} className="input" />
+                    </Field>
+                    <Field label="Daily Break End">
+                      <input type="time" value={info?.daily_break_end || ''} onChange={time('daily_break_end')} className="input" />
+                    </Field>
+                  </FieldRow>
+                )}
               </>
             ) : (
               <>
                 <FieldRow>
-                  <Field label="Job Start Time">
-                    <input type="datetime-local" value={info?.job_start_time || ''} onChange={time('job_start_time')} className="input" />
-                  </Field>
-                  <Field label="Job End Time">
-                    <input type="datetime-local" value={info?.job_end_time || ''} onChange={time('job_end_time')} className="input" />
-                  </Field>
+                  <DateTimeField
+                    label="Job Start Time"
+                    value={info?.job_start_time}
+                    defaultDay={firstDay}
+                    onChange={value => onJobInfo('job_start_time', value)}
+                  />
+                  <DateTimeField
+                    label="Job End Time"
+                    value={info?.job_end_time}
+                    defaultDay={fldr.date_end ? lastDay : startDay}
+                    onChange={value => onJobInfo('job_end_time', value)}
+                  />
                 </FieldRow>
-                <FieldRow>
-                  <Field label="Break Start">
-                    <input type="datetime-local" value={info?.break_start_time || ''} onChange={time('break_start_time')} className="input" />
-                  </Field>
-                  <Field label="Break End">
-                    <input type="datetime-local" value={info?.break_end_time || ''} onChange={time('break_end_time')} className="input" />
-                  </Field>
-                </FieldRow>
+                {breakShown && (
+                  <FieldRow>
+                    <DateTimeField
+                      label="Break Start"
+                      value={info?.break_start_time}
+                      defaultDay={startDay}
+                      onChange={value => onJobInfo('break_start_time', value)}
+                    />
+                    <DateTimeField
+                      label="Break End"
+                      value={info?.break_end_time}
+                      defaultDay={dayKey(info?.break_start_time) || startDay}
+                      onChange={value => onJobInfo('break_end_time', value)}
+                    />
+                  </FieldRow>
+                )}
               </>
             )}
+            {!breakShown && <AddSectionButton label="Break Times" onClick={() => setShowBreak(true)} />}
           </FormGroup>
         </div>
       ) : (
@@ -413,21 +623,22 @@ export function VenueTimeCard({ fldr, open, onToggle, onVenue, onJobInfo, onDone
               }
             >
               {venue.address}
+              <DirectionsLinks to={venue.address} from={[{ label: 'From hotel', address: fldr.hotel_info?.address }]} />
             </InfoRow>
           )}
           {(venue?.contact_name || venue?.contact_phone) && (
-            <InfoRow label="Contact" actions={venue.contact_phone && <CallLink phone={venue.contact_phone} />}>
+            <InfoRow label="Venue Contact" actions={venue.contact_phone && <CallLink phone={venue.contact_phone} />}>
               {venue.contact_name && <div>{venue.contact_name}</div>}
-              {venue.contact_phone && <div className="text-xs text-white/55">{venue.contact_phone}</div>}
+              {venue.contact_phone && <div className="text-sm text-white/55">{venue.contact_phone}</div>}
             </InfoRow>
           )}
           {venue?.notes && (
-            <InfoRow label="Notes">
+            <InfoRow label="Venue Notes">
               <span className="whitespace-pre-wrap">{venue.notes}</span>
             </InfoRow>
           )}
-          {info?.show_up_time && <InfoRow label="Show Up">{fmtDateTime(info.show_up_time)}</InfoRow>}
-          {eventTime && <InfoRow label="Time">{eventTime}</InfoRow>}
+          {info?.show_up_time && <InfoRow label="Show Up Time">{fmtDateTime(info.show_up_time)}</InfoRow>}
+          {eventTime && <InfoRow label="Event Time">{eventTime}</InfoRow>}
           {breakTime && <InfoRow label="Break">{breakTime}</InfoRow>}
         </InfoList>
       )}

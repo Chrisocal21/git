@@ -89,7 +89,7 @@ function JigCard({
           <div className={`font-display text-2xl font-semibold leading-none tabular ${none ? 'text-amber-300' : 'text-white'}`}>
             {available}
           </div>
-          <div className="eyebrow mt-1 !text-[10px]">{none ? 'none available' : 'available'}</div>
+          <div className="eyebrow mt-1">{none ? 'none available' : 'available'}</div>
         </div>
 
         <svg
@@ -164,7 +164,7 @@ function JigCard({
             >
               History
             </Link>
-            <button type="button" onClick={onEdit} className="btn-secondary px-3 py-1.5 text-xs">
+            <button type="button" onClick={onEdit} className="btn-secondary min-h-[2.75rem] px-4">
               Edit
             </button>
           </div>
@@ -273,12 +273,14 @@ export default function InventoryPage() {
         actions={
           error ? undefined : (
             <>
-              <Link href="/inventory/history" onClick={markFromInventory} className="icon-btn" aria-label="History" title="History">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              {/* Where every jig has been: who took it, to which job, and when it came back */}
+              <Link href="/inventory/history" onClick={markFromInventory} className="btn-secondary min-h-[2.5rem] px-3 font-medium" title="Where each jig has been">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
+                History
               </Link>
-              <button type="button" onClick={() => setSheet({ jig: null })} className="btn-primary ml-1 px-3 py-1.5 text-xs">
+              <button type="button" onClick={() => setSheet({ jig: null })} className="btn-primary ml-1 min-h-[2.5rem] px-3.5">
                 + Add jig
               </button>
             </>
@@ -319,7 +321,7 @@ export default function InventoryPage() {
                 {outNow > 0 && ` · ${outNow} out`}
               </p>
               {asOf && (
-                <p className="text-[11px] text-white/35 tabular">
+                <p className="text-xs text-white/40 tabular">
                   Updated {new Date(asOf).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                 </p>
               )}

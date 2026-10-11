@@ -107,7 +107,7 @@ function analyze(segments: FlightSegment[]) {
       issue = 'tight'
       note = 'Tight connection'
     } else if (layoverMin !== null && layoverMin > 24 * 60) {
-      note = 'Overnight+ stay' // a stay between trips, not a problem
+      note = 'Overnight or longer stay' // a stay between trips, not a problem
     } else if (layoverMin !== null && layoverMin > 8 * 60) {
       issue = 'long'
       note = 'Long layover'
@@ -140,6 +140,8 @@ export default function FlightConnections({ segments }: { segments: FlightSegmen
   }, [segments])
 
   const [selected, setSelected] = useState<string | null>(null)
+  // The route drawing is folded away until it's asked for; anything wrong is always listed
+  const [showRoute, setShowRoute] = useState(false)
 
   if (segments.length === 0) return null
 
@@ -152,96 +154,116 @@ export default function FlightConnections({ segments }: { segments: FlightSegmen
   const last = code(sorted[sorted.length - 1]?.arrival_code)
   const openEnded = sorted.length > 0 && first && last && first !== last
   const issues = links.filter(l => l.issue && l.issue !== 'long').length + (openEnded ? 1 : 0)
+  const missingTimes = sorted.some(s => !ms(s.departure_time) || !ms(s.arrival_time))
 
   return (
-    <div className="p-3 bg-canvas/50 border border-line rounded-xl space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-brand-light">Connection Check</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full border ${issues === 0 ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-red-300 border-red-500/30 bg-red-500/10'}`}>
-          {issues === 0 ? 'All connected' : `${issues} ${issues === 1 ? 'issue' : 'issues'}`}
+    <div className="rounded-xl border border-line bg-canvas/50">
+      <button
+        type="button"
+        onClick={() => setShowRoute(!showRoute)}
+        aria-expanded={showRoute}
+        className="flex min-h-[2.75rem] w-full items-center justify-between gap-2 px-3 text-left"
+      >
+        <span className="text-[15px] font-semibold text-brand-light">Connection Check</span>
+        <span className="flex items-center gap-2">
+          <span className={`rounded-full border px-2.5 py-1 text-[13px] ${issues === 0 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}`}>
+            {issues === 0 ? 'All connected' : `${issues} to check`}
+          </span>
+          <svg className={`h-4 w-4 text-white/35 transition-transform ${showRoute ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </span>
-      </div>
+      </button>
 
-      {groups.length > 1 && (
-        <div className="flex flex-wrap gap-1.5">
-          {groups.map(([name, segs]) => {
-            const a = analyze(segs)
-            const bad = a.links.some(l => l.issue && l.issue !== 'long')
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => setSelected(name)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  name === active
-                    ? 'bg-brand/25 border-brand text-white'
-                    : 'border-line text-gray-400 hover:text-white'
-                }`}
-              >
-                {name}
-                {bad && <span className="ml-1 text-red-400">●</span>}
-              </button>
-            )
-          })}
+      {showRoute && (
+        <div className="space-y-3 px-3 pb-3">
+          {groups.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {groups.map(([name, segs]) => {
+                const a = analyze(segs)
+                const bad = a.links.some(l => l.issue && l.issue !== 'long')
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setSelected(name)}
+                    aria-pressed={name === active}
+                    className={`inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-full border px-3.5 text-[15px] transition-colors ${
+                      name === active
+                        ? 'border-brand bg-brand/25 text-white'
+                        : 'border-line text-white/55 hover:text-white'
+                    }`}
+                  >
+                    {name}
+                    {bad && <span className="h-1.5 w-1.5 rounded-full bg-red-400" aria-label="has something to check" />}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Graph: airports as nodes, flights as edges, layovers between flights */}
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-max items-start gap-0">
+              {sorted.map((seg, i) => {
+                const link = links[i] // link from this segment to the next
+                const prevLink = links[i - 1]
+                const dep = code(seg.departure_code) || '???'
+                const arr = code(seg.arrival_code) || '???'
+                // The departure node is only drawn for the first segment; later ones
+                // reuse the arrival node of the previous flight unless there's a gap.
+                const showDepNode = i === 0 || (prevLink && prevLink.issue === 'gap')
+                return (
+                  <div key={seg.id} className="flex items-start">
+                    {showDepNode && (
+                      <>
+                        {i > 0 && (
+                          <div className="flex flex-col items-center px-1 pt-5">
+                            <svg className="h-3.5 w-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-label="not connected">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </div>
+                        )}
+                        <Node label={dep} bad={i > 0} />
+                      </>
+                    )}
+                    <Edge seg={seg} />
+                    <Node label={arr} bad={link?.issue === 'gap' || link?.issue === 'missing'} />
+                    {link && (
+                      <LayoverBadge link={link} />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Graph: airports as nodes, flights as edges, layovers between flights */}
-      <div className="overflow-x-auto pb-1">
-        <div className="flex items-start gap-0 min-w-max">
-          {sorted.map((seg, i) => {
-            const link = links[i] // link from this segment to the next
-            const prevLink = links[i - 1]
-            const dep = code(seg.departure_code) || '???'
-            const arr = code(seg.arrival_code) || '???'
-            // The departure node is only drawn for the first segment; later ones
-            // reuse the arrival node of the previous flight unless there's a gap.
-            const showDepNode = i === 0 || (prevLink && prevLink.issue === 'gap')
-            return (
-              <div key={seg.id} className="flex items-start">
-                {showDepNode && (
-                  <>
-                    {i > 0 && (
-                      <div className="flex flex-col items-center px-1 pt-1">
-                        <span className="text-red-400 text-xs font-bold">✕</span>
-                      </div>
-                    )}
-                    <Node label={dep} bad={i > 0} />
-                  </>
-                )}
-                <Edge seg={seg} />
-                <Node label={arr} bad={link?.issue === 'gap' || link?.issue === 'missing'} />
-                {link && (
-                  <LayoverBadge link={link} />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Issue list */}
-      <ul className="space-y-1">
-        {links.filter(l => l.issue).map((l, i) => (
-          <li key={i} className={`text-xs px-2.5 py-1.5 border rounded-lg ${issueStyle[l.issue!]}`}>
-            {code(l.from.arrival_code) || '???'} → {code(l.to.departure_code) || '???'}: {l.note}
-            {l.layoverMin !== null && l.layoverMin >= 0 && l.issue !== 'gap' ? ` (${fmtDur(l.layoverMin)})` : ''}
-          </li>
-        ))}
-        {openEnded && (
-          <li className="text-xs px-2.5 py-1.5 border rounded-lg text-red-300 border-red-500/30 bg-red-500/10">
-            Trip starts at {first} but ends at {last} — no flight back to {first}
-          </li>
-        )}
-        {sorted.some(s => !ms(s.departure_time) || !ms(s.arrival_time)) && (
-          <li className="text-xs px-2.5 py-1.5 border rounded-lg text-yellow-300 border-yellow-500/30 bg-yellow-500/10">
-            Some segments are missing times, so order and layovers are approximate
-          </li>
-        )}
-        {active === UNASSIGNED && (
-          <li className="text-xs text-white/45">Add travelers to segments to see each person&apos;s itinerary.</li>
-        )}
-      </ul>
+      {/* Anything to check is listed whether or not the route is showing */}
+      {(links.some(l => l.issue) || openEnded || missingTimes || (showRoute && active === UNASSIGNED)) && (
+        <ul className="space-y-1.5 px-3 pb-3">
+          {links.filter(l => l.issue).map((l, i) => (
+            <li key={i} className={`rounded-lg border px-3 py-2 text-sm ${issueStyle[l.issue!]}`}>
+              {code(l.from.arrival_code) || '???'} → {code(l.to.departure_code) || '???'}: {l.note}
+              {l.layoverMin !== null && l.layoverMin >= 0 && l.issue !== 'gap' ? ` (${fmtDur(l.layoverMin)})` : ''}
+            </li>
+          ))}
+          {openEnded && (
+            <li className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+              The trip starts at {first} and ends at {last}. There&apos;s no flight back to {first} yet.
+            </li>
+          )}
+          {missingTimes && (
+            <li className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-300">
+              Some flights are missing times, so the order and layovers are a best guess.
+            </li>
+          )}
+          {showRoute && active === UNASSIGNED && (
+            <li className="text-sm text-white/45">Add who&apos;s on each flight to see each person&apos;s trip.</li>
+          )}
+        </ul>
+      )}
     </div>
   )
 }
@@ -250,8 +272,8 @@ function Node({ label, bad }: { label: string; bad?: boolean }) {
   return (
     <div className="flex flex-col items-center">
       <div
-        className={`w-14 h-14 rounded-full border-2 flex items-center justify-center font-mono font-bold text-sm ${
-          bad ? 'border-red-500/60 text-red-300 bg-red-500/10' : 'border-brand text-white bg-brand/15'
+        className={`flex h-14 w-14 items-center justify-center rounded-full border-2 font-mono text-[15px] font-bold ${
+          bad ? 'border-red-500/60 bg-red-500/10 text-red-300' : 'border-brand bg-brand/15 text-white'
         }`}
       >
         {label}
@@ -262,15 +284,17 @@ function Node({ label, bad }: { label: string; bad?: boolean }) {
 
 function Edge({ seg }: { seg: FlightSegment }) {
   return (
-    <div className="flex flex-col items-center w-28 pt-1">
-      <div className="text-[10px] text-gray-400 leading-tight text-center">
+    <div className="flex w-28 flex-col items-center pt-1">
+      <div className="text-center text-xs leading-tight text-white/55">
         {[seg.airline, seg.flight_number].filter(Boolean).join(' ') || 'Flight'}
       </div>
-      <div className="flex items-center w-full my-1">
-        <div className="flex-1 h-px bg-brand" />
-        <span className="text-brand-light text-xs leading-none">▶</span>
+      <div className="my-1 flex w-full items-center">
+        <div className="h-px flex-1 bg-brand" />
+        <svg className="h-2.5 w-2.5 text-brand-light" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+          <path d="M1 0l8 5-8 5z" />
+        </svg>
       </div>
-      <div className="text-[10px] text-gray-500 leading-tight text-center">{fmtTime(seg.departure_time)}</div>
+      <div className="text-center text-xs leading-tight text-white/45">{fmtTime(seg.departure_time)}</div>
     </div>
   )
 }
@@ -280,11 +304,11 @@ function LayoverBadge({ link }: { link: Link }) {
     ? 'text-red-400'
     : link.issue
     ? 'text-yellow-400'
-    : 'text-gray-500'
+    : 'text-white/45'
   return (
-    <div className="flex flex-col items-center w-20 pt-3">
+    <div className="flex w-20 flex-col items-center pt-3">
       <div className={`h-px w-full border-t border-dashed ${link.issue === 'gap' ? 'border-red-500/60' : 'border-line-strong'}`} />
-      <div className={`text-[10px] mt-1 text-center leading-tight ${color}`}>
+      <div className={`mt-1 text-center text-xs leading-tight ${color}`}>
         {link.issue === 'gap'
           ? 'not connected'
           : link.layoverMin !== null && link.layoverMin >= 0

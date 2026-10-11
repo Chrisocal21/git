@@ -4,18 +4,22 @@ import { useState, useEffect } from 'react'
 import { BurrowLogo } from './BurrowLogo'
 
 const PIN_STORAGE_KEY = 'burrow-pin-auth'
+// The server has set its sign-in cookie; this only reminds the phone of that
+const SIGNED_IN = 'cookie'
 
 export default function PinScreen() {
   const [pin, setPin] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState(false)
+  // Why it didn't work, when it wasn't simply the wrong PIN
+  const [problem, setProblem] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
 
   useEffect(() => {
     // Check if user is already authenticated (localStorage for remember me, sessionStorage for current session)
     const savedAuth = localStorage.getItem(PIN_STORAGE_KEY) || sessionStorage.getItem(PIN_STORAGE_KEY)
-    if (savedAuth === 'true') {
+    if (savedAuth === SIGNED_IN) {
       setIsAuthenticated(true)
     }
   }, [])
@@ -25,37 +29,43 @@ export default function PinScreen() {
 
     setIsVerifying(true)
     setError(false)
+    setProblem(null)
 
     try {
-      // Call API to verify PIN
+      // Call API to verify PIN. A right answer also sets the cookie the data routes look for.
       const response = await fetch('/api/verify-pin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin, remember: rememberMe }),
       })
 
-      const data = await response.json()
+      const data = await response.json().catch(() => null)
 
-      if (data.verified) {
+      if (data?.verified) {
         // PIN is correct
         if (rememberMe) {
-          localStorage.setItem(PIN_STORAGE_KEY, 'true')
+          localStorage.setItem(PIN_STORAGE_KEY, SIGNED_IN)
         } else {
           // Set session-only auth (will clear on browser close)
-          sessionStorage.setItem(PIN_STORAGE_KEY, 'true')
+          sessionStorage.setItem(PIN_STORAGE_KEY, SIGNED_IN)
         }
+        // Signing in again settles any sign-out that was still waiting for a signal
+        localStorage.removeItem('burrow-sign-out-pending')
         setIsAuthenticated(true)
         // Dispatch custom event to notify wrapper
         window.dispatchEvent(new Event('pin-auth-changed'))
       } else {
-        // PIN is incorrect
+        // Wrong PIN, or the server couldn't check it
+        if (response.status === 429) setProblem('Too many tries. Wait ten minutes and try again.')
+        else if (response.status >= 500) setProblem("The server couldn't check the PIN. Try again in a moment.")
         setError(true)
         setPin('')
       }
     } catch (error) {
       console.error('PIN verification error:', error)
+      setProblem("Couldn't reach the server. Check your connection and try again.")
       setError(true)
       setPin('')
     } finally {
@@ -118,19 +128,19 @@ export default function PinScreen() {
             />
             {error && (
               <p id="pin-error" role="alert" className="mt-2 text-sm text-red-400 text-center animate-shake">
-                Incorrect PIN. Please try again.
+                {problem || 'Incorrect PIN. Please try again.'}
               </p>
             )}
           </div>
 
           {/* Remember Me */}
-          <label htmlFor="remember" className="flex items-center gap-2.5 text-sm text-white/65 cursor-pointer select-none">
+          <label htmlFor="remember" className="flex min-h-[2.75rem] items-center gap-3 text-sm text-white/65 cursor-pointer select-none">
             <input
               id="remember"
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 rounded"
+              className="w-5 h-5 rounded"
             />
             Remember me on this device
           </label>

@@ -298,12 +298,12 @@ export default function AirportAutocomplete({
               key={airport.code}
               type="button"
               onClick={() => selectAirport(airport)}
-              className="w-full px-3 py-2.5 text-left hover:bg-white/5 transition-colors border-b border-line last:border-0"
+              className="w-full min-h-[2.75rem] px-3.5 py-2.5 text-left hover:bg-white/5 transition-colors border-b border-line last:border-0"
             >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-sm">{airport.name}</div>
-                  <div className="text-xs text-gray-400">{airport.city}</div>
+                  <div className="text-xs text-white/55">{airport.city}</div>
                 </div>
                 <div className="text-brand-light font-mono font-bold">{airport.code}</div>
               </div>

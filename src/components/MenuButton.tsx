@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getCurrentUser, getTeamProfiles, setCurrentProfile, clearProfile, autoMarkInactiveProfiles } from '@/lib/auth'
+import { fetchWeather } from '@/lib/weatherCache'
 
 type QuickNote = { id: string; label: string; value: string }
 const NOTES_KEY = 'burrow-quick-notes'
@@ -10,7 +11,7 @@ const NOTES_KEY = 'burrow-quick-notes'
 // Icon values are SVG path data (24px outline set, same as the rest of the app)
 const MENU_ITEMS: { label: string; href: string; icon: string[] }[] = [
   {
-    label: 'Scan QR Code',
+    label: 'Share App (QR Code)',
     href: '/scan',
     icon: ['M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z'],
   },
@@ -43,7 +44,7 @@ const MENU_ITEMS: { label: string; href: string; icon: string[] }[] = [
     ],
   },
   {
-    label: 'My Flight Map',
+    label: 'Flight Map',
     href: '/map',
     icon: ['M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7'],
   },
@@ -174,8 +175,7 @@ export default function MenuButton() {
   // Fetch homebase weather once on open
   useEffect(() => {
     if (!isOpen || homeWeather) return
-    fetch('/api/weather?location=San%20Diego%2C%20CA')
-      .then(res => res.ok ? res.json() : null)
+    fetchWeather('San Diego, CA')
       .then(data => {
         if (data?.current && typeof data.current.temp === 'number') {
           setHomeWeather({ temp: Math.round(data.current.temp), condition: data.current.main || data.current.description })
@@ -219,7 +219,7 @@ export default function MenuButton() {
       {/* Menu button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-10 w-10 items-center justify-center rounded-xl border border-line-strong bg-surface text-gold transition-colors hover:bg-surface-raised"
+        className="flex h-11 w-11 items-center justify-center rounded-xl border border-line-strong bg-surface text-gold transition-colors hover:bg-surface-raised"
         title="Menu"
         aria-label="Menu"
         aria-expanded={isOpen}
@@ -231,7 +231,7 @@ export default function MenuButton() {
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-surface border border-line-strong rounded-2xl shadow-pop z-50 animate-slide-in">
+        <div className="absolute right-0 mt-2 w-72 max-h-[calc(100dvh-6rem)] overflow-y-auto bg-surface border border-line-strong rounded-2xl shadow-pop z-50 animate-slide-in">
           {/* Homebase Time */}
           <div className="px-4 py-3.5 border-b border-line">
             <div className="flex items-center justify-between">
@@ -258,7 +258,7 @@ export default function MenuButton() {
               <button
                 onClick={() => setProfilePickerOpen(o => !o)}
                 aria-expanded={profilePickerOpen}
-                className="w-full flex items-center gap-2.5 pl-2.5 pr-3 py-2 rounded-lg bg-canvas hover:bg-white/5 border border-line-strong transition-colors"
+                className="w-full min-h-[2.75rem] flex items-center gap-2.5 pl-2.5 pr-3 py-2 rounded-lg bg-canvas hover:bg-white/5 border border-line-strong transition-colors"
               >
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-gold text-black flex-shrink-0">
                   {user ? user.name.charAt(0) : (
@@ -279,7 +279,7 @@ export default function MenuButton() {
                 <div className="absolute left-0 right-0 top-full mt-1.5 bg-surface-raised border border-line-strong rounded-xl shadow-pop z-10 py-1.5 max-h-72 overflow-y-auto animate-slide-in">
                   <button
                     onClick={() => { clearProfile(); setProfilePickerOpen(false) }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 transition-colors"
+                    className="w-full min-h-[2.75rem] flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 transition-colors"
                   >
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                       !user ? 'bg-gold text-black' : 'bg-white/10 text-white/60'
@@ -300,7 +300,7 @@ export default function MenuButton() {
                     <button
                       key={profile.id}
                       onClick={() => { setCurrentProfile(profile.id); setProfilePickerOpen(false) }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 transition-colors"
+                      className="w-full min-h-[2.75rem] flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 transition-colors"
                     >
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                         user?.id === profile.id ? 'bg-gold text-black' : 'bg-white/10 text-white/60'
@@ -322,7 +322,7 @@ export default function MenuButton() {
                     <>
                       <button
                         onClick={() => setShowInactive(o => !o)}
-                        className="w-full flex items-center gap-2 px-3 py-2 mt-1 border-t border-line text-xs text-white/45 hover:text-white/70 transition-colors"
+                        className="w-full min-h-[2.75rem] flex items-center gap-2 px-3 py-2 mt-1 border-t border-line text-[13px] text-white/50 hover:text-white/70 transition-colors"
                       >
                         <svg className={`w-3 h-3 transition-transform ${showInactive ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -334,14 +334,14 @@ export default function MenuButton() {
                         <button
                           key={profile.id}
                           onClick={() => { setCurrentProfile(profile.id); setProfilePickerOpen(false) }}
-                          className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-white/5 transition-colors"
+                          className="w-full min-h-[2.75rem] flex items-center gap-2.5 px-3 py-1.5 hover:bg-white/5 transition-colors"
                         >
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                             user?.id === profile.id ? 'bg-gold text-black' : 'bg-white/5 text-white/40'
                           }`}>
                             {profile.name.charAt(0)}
                           </div>
-                          <span className={`flex-1 text-left text-xs ${user?.id === profile.id ? 'text-gold font-semibold' : 'text-white/50'}`}>
+                          <span className={`flex-1 text-left text-sm ${user?.id === profile.id ? 'text-gold font-semibold' : 'text-white/50'}`}>
                             {profile.name}
                           </span>
                           {user?.id === profile.id && (
@@ -367,9 +367,9 @@ export default function MenuButton() {
                   router.push(item.href)
                   setIsOpen(false)
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-white/90 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                className="w-full min-h-[2.75rem] flex items-center gap-3 px-3 py-2.5 text-sm text-white/90 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
               >
-                <svg className="w-4 h-4 text-gold flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-[18px] h-[18px] text-gold flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   {item.icon.map(d => (
                     <path key={d} strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} />
                   ))}
@@ -384,7 +384,7 @@ export default function MenuButton() {
             <button
               onClick={() => setNotesOpen(o => !o)}
               aria-expanded={notesOpen}
-              className="w-full flex items-center justify-between px-5 py-3 text-sm text-white/90 hover:text-white hover:bg-white/5 transition-colors"
+              className="w-full min-h-[2.75rem] flex items-center justify-between px-5 py-3 text-sm text-white/90 hover:text-white hover:bg-white/5 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <svg className="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -404,18 +404,18 @@ export default function MenuButton() {
             {notesOpen && (
               <div className="px-3 pb-3 space-y-1.5">
                 {notes.length === 0 && !addingNote && (
-                  <p className="text-xs text-white/40 text-center py-2">No notes yet. Add zip codes, PINs, lock combos…</p>
+                  <p className="text-[13px] leading-relaxed text-white/45 text-center py-2">No notes yet. Add zip codes, PINs, lock combos… Everyone on the team sees these.</p>
                 )}
 
                 {notes.map(note => (
-                  <div key={note.id} className="bg-canvas border border-line rounded-lg px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-white/55 truncate flex-1">{note.label}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                  <div key={note.id} className="bg-canvas border border-line rounded-lg pl-3 pr-1 py-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[13px] text-white/60 truncate flex-1">{note.label}</span>
+                      <div className="flex items-center shrink-0">
                         {/* Edit inline */}
                         <button
                           onClick={() => editingId === note.id ? saveEdit(note.id) : startEdit(note)}
-                          className="text-white/35 hover:text-gold transition-colors p-0.5"
+                          className="flex h-10 w-10 items-center justify-center rounded-lg text-white/45 hover:text-gold hover:bg-white/5 transition-colors"
                           title={editingId === note.id ? 'Save' : 'Edit'}
                           aria-label={editingId === note.id ? 'Save' : 'Edit'}
                         >
@@ -427,7 +427,7 @@ export default function MenuButton() {
                         {/* Reveal toggle */}
                         <button
                           onClick={() => toggleReveal(note.id)}
-                          className="text-white/35 hover:text-gold transition-colors p-0.5"
+                          className="flex h-10 w-10 items-center justify-center rounded-lg text-white/45 hover:text-gold hover:bg-white/5 transition-colors"
                           title={revealed.has(note.id) ? 'Hide' : 'Reveal'}
                           aria-label={revealed.has(note.id) ? 'Hide' : 'Reveal'}
                         >
@@ -439,7 +439,7 @@ export default function MenuButton() {
                         {/* Delete */}
                         <button
                           onClick={() => promptDelete(note)}
-                          className="text-white/35 hover:text-red-400 transition-colors p-0.5"
+                          className="flex h-10 w-10 items-center justify-center rounded-lg text-white/45 hover:text-red-400 hover:bg-white/5 transition-colors"
                           title="Delete"
                           aria-label="Delete"
                         >
@@ -453,12 +453,13 @@ export default function MenuButton() {
                         value={editValue}
                         onChange={e => setEditValue(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(note.id); if (e.key === 'Escape') setEditingId(null) }}
-                        className="input mt-1.5 px-2.5 py-1.5"
+                        aria-label={`New value for ${note.label}`}
+                        className="input mb-1.5 min-h-[2.75rem]"
                       />
                     ) : revealed.has(note.id) ? (
-                      <div className="mt-1 text-sm text-gold font-mono tracking-wide select-all">{note.value}</div>
+                      <div className="pb-1.5 text-[15px] text-gold font-mono tracking-wide select-all">{note.value}</div>
                     ) : (
-                      <div className="mt-1 text-sm text-white/25 tracking-widest">{'•'.repeat(Math.min(note.value.length, 12))}</div>
+                      <div className="pb-1.5 text-sm text-white/25 tracking-widest">{'•'.repeat(Math.min(note.value.length, 12))}</div>
                     )}
                   </div>
                 ))}
@@ -467,29 +468,31 @@ export default function MenuButton() {
                   <div className="bg-canvas border border-line rounded-lg p-2 space-y-1.5">
                     <input
                       autoFocus
-                      placeholder="Label (e.g. CC Zip Code)"
+                      aria-label="What the note is"
+                      placeholder="What it is, e.g. Card zip code"
                       value={newLabel}
                       onChange={e => setNewLabel(e.target.value)}
-                      className="input px-2.5 py-1.5 text-xs bg-surface"
+                      className="input min-h-[2.75rem] bg-surface"
                     />
                     <input
-                      placeholder="Value"
+                      aria-label="The note"
+                      placeholder="The number or code"
                       value={newValue}
                       onChange={e => setNewValue(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') addNote(); if (e.key === 'Escape') setAddingNote(false) }}
-                      className="input px-2.5 py-1.5 text-xs bg-surface"
+                      className="input min-h-[2.75rem] bg-surface"
                     />
                     <div className="flex gap-1.5">
-                      <button onClick={addNote} className="btn-primary flex-1 py-1.5 text-xs">Save</button>
-                      <button onClick={() => { setAddingNote(false); setNewLabel(''); setNewValue('') }} className="btn-secondary flex-1 py-1.5 text-xs font-medium">Cancel</button>
+                      <button onClick={addNote} className="btn-primary flex-1 min-h-[2.75rem]">Save</button>
+                      <button onClick={() => { setAddingNote(false); setNewLabel(''); setNewValue('') }} className="btn-secondary flex-1 min-h-[2.75rem] font-medium">Cancel</button>
                     </div>
                   </div>
                 ) : (
                   <button
                     onClick={() => setAddingNote(true)}
-                    className="w-full flex items-center justify-center gap-1 py-2 text-xs text-white/50 hover:text-white/80 hover:bg-white/5 rounded-lg transition-colors border border-dashed border-line-strong"
+                    className="w-full min-h-[2.75rem] flex items-center justify-center gap-1.5 py-2 text-sm text-white/55 hover:text-white/80 hover:bg-white/5 rounded-lg transition-colors border border-dashed border-line-strong"
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     Add note
                   </button>
                 )}
@@ -500,13 +503,19 @@ export default function MenuButton() {
           {/* Sign Out */}
           <div className="p-2 border-t border-line">
             <button
-              onClick={() => {
-                // Clear PIN auth
+              onClick={async () => {
+                // Sign out: the server's cookie goes first, then this phone's reminder of it.
+                // With no signal the cookie can't be cleared yet, so a note is left to do it next time.
+                let cleared = false
+                try {
+                  cleared = (await fetch('/api/verify-pin', { method: 'DELETE' })).ok
+                } catch {}
+                if (!cleared) localStorage.setItem('burrow-sign-out-pending', '1')
                 localStorage.removeItem('burrow-pin-auth')
                 sessionStorage.removeItem('burrow-pin-auth')
                 window.location.reload()
               }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+              className="w-full min-h-[2.75rem] flex items-center gap-3 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -533,7 +542,7 @@ export default function MenuButton() {
                 <div className="flex border-t border-line">
                   <button
                     onClick={() => { setConfirmDeleteId(null); setConfirmDeleteLabel('') }}
-                    className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors"
+                    className="flex-1 min-h-[3rem] text-white/70 hover:bg-white/5 text-sm transition-colors"
                   >Cancel</button>
                   <button
                     onClick={() => deleteNote(confirmDeleteId)}

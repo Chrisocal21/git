@@ -1,69 +1,26 @@
 'use client';
 
-import { useState } from 'react'
 import PageHeader from '@/components/PageHeader'
+import { askConfirm, toast } from '@/components/Dialogs'
+import { getSyncQueue } from '@/lib/offlineStorage'
 
 export default function CloudSettingsPage() {
-  const [migrating, setMigrating] = useState(false)
-  const [migrationResult, setMigrationResult] = useState<any>(null)
-
-  const handleMigrateToD1 = async () => {
-    if (!confirm('Migrate all localStorage data to D1? This will push your existing fldrs to the cloud database.')) {
-      return
-    }
-
-    setMigrating(true)
-    setMigrationResult(null)
-
-    try {
-      // Get all fldrs from localStorage
-      const cached = localStorage.getItem('git-fldrs')
-      if (!cached) {
-        alert('No data found in localStorage!')
-        setMigrating(false)
-        return
-      }
-
-      const fldrs = JSON.parse(cached)
-      console.log(`[Migration] Migrating ${fldrs.length} fldrs to D1...`)
-
-      const response = await fetch('/api/migrate-to-d1', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fldrs }),
-      })
-
-      const result = await response.json()
-      setMigrationResult(result)
-
-      if (result.migrated > 0) {
-        alert(`Successfully migrated ${result.migrated} fldrs to D1!`)
-      } else {
-        alert(`Migration failed. Check console for details.`)
-      }
-      
-      console.log('Migration result:', result)
-      
-      // Log detailed errors
-      if (result.results?.failed && result.results.failed.length > 0) {
-        console.error('[Migration] Failed migrations:')
-        result.results.failed.forEach((f: any) => {
-          console.error(`  - ${f.id}: ${f.error}`)
-        })
-      }
-    } catch (error) {
-      console.error('Migration error:', error)
-      alert('Migration failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
-    } finally {
-      setMigrating(false)
-    }
-  }
-
-  const handleClearCache = () => {
-    if (confirm('Clear all cached data? You will need to refresh to reload from server.')) {
-      localStorage.clear()
-      alert('Cache cleared! Refresh the page to reload data.')
-    }
+  const handleClearCache = async () => {
+    const unsent = getSyncQueue().length
+    const confirmed = await askConfirm({
+      title: 'Clear saved copies of jobs?',
+      body:
+        'The jobs saved on this device are removed and loaded fresh from the cloud next time. You stay signed in, and your profile and Quick Notes stay.' +
+        (unsent > 0 ? `\n\n${unsent} ${unsent === 1 ? 'change that has' : 'changes that have'} not reached the cloud yet will be kept and sent.` : ''),
+      confirmLabel: 'Clear',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+    // Only the copies of jobs go. Sign-in, profiles, notes and anything waiting to be sent are left alone.
+    Object.keys(localStorage)
+      .filter(key => key === 'git-fldrs' || key.startsWith('git_offline_fldrs'))
+      .forEach(key => localStorage.removeItem(key))
+    toast('Cleared. Jobs load fresh from the cloud the next time you open them.')
   }
 
   return (
@@ -74,12 +31,12 @@ export default function CloudSettingsPage() {
       <div className="space-y-3">
         <a
           href="/import"
-          className="card shadow-card flex items-center justify-between gap-3 p-4 hover:bg-surface-raised hover:border-line-strong transition-colors"
+          className="card shadow-card flex min-h-[2.75rem] items-center justify-between gap-3 p-4 hover:bg-surface-raised hover:border-line-strong transition-colors"
         >
           <div>
-            <div className="font-semibold text-sm mb-1">Import History</div>
-            <div className="text-sm text-white/55">
-              Import jobs from old TripFldr database
+            <div className="font-semibold text-base mb-1">Import History</div>
+            <div className="text-[15px] leading-relaxed text-white/55">
+              Bring trips from the old TripFldr app into Burrow as jobs
             </div>
           </div>
           <svg className="w-4 h-4 text-white/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,36 +44,22 @@ export default function CloudSettingsPage() {
           </svg>
         </a>
 
+        {/* Migrate to D1 moved each phone's saved jobs up to the cloud when the cloud was new. It's retired. */}
         <div className="card shadow-card p-4">
-          <div className="font-semibold text-sm mb-1">Migrate to D1</div>
-          <div className="text-sm text-white/55 mb-3">
-            Push existing localStorage data to cloud database
+          <div className="font-semibold text-base mb-1">Migrate to D1</div>
+          <div className="text-[15px] leading-relaxed text-white/55">
+            Retired. This moved the jobs saved on a phone up to the cloud, back when the cloud was new. Jobs save there by themselves now, and running it again could put an old copy from one phone over newer work.
           </div>
-          <button
-            onClick={handleMigrateToD1}
-            disabled={migrating}
-            className="btn-brand py-2"
-          >
-            {migrating ? 'Migrating...' : 'Migrate to D1'}
-          </button>
-          {migrationResult && (
-            <div className="mt-3 p-3 bg-canvas border border-line rounded-lg text-xs tabular">
-              <div className="text-emerald-400">{migrationResult.migrated} migrated</div>
-              {migrationResult.failed > 0 && (
-                <div className="text-red-400">{migrationResult.failed} failed</div>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="card shadow-card p-4">
-          <div className="font-semibold text-sm mb-1">Clear Cache</div>
-          <div className="text-sm text-white/55 mb-3">
-            Remove all cached data from localStorage
+          <div className="font-semibold text-base mb-1">Clear Cache</div>
+          <div className="text-[15px] leading-relaxed text-white/55 mb-3">
+            Remove the copies of jobs saved on this device. Sign-in, profiles and unsent changes are kept.
           </div>
           <button
             onClick={handleClearCache}
-            className="btn-danger py-2"
+            className="btn-danger min-h-[2.75rem]"
           >
             Clear All Cache
           </button>
@@ -124,7 +67,7 @@ export default function CloudSettingsPage() {
       </div>
 
       <div className="mt-6 px-4 py-3 bg-yellow-500/10 border border-yellow-500/25 rounded-xl">
-        <div className="text-xs text-yellow-300">
+        <div className="text-[13px] text-yellow-300">
           WARNING: This page is only accessible via direct URL
         </div>
       </div>

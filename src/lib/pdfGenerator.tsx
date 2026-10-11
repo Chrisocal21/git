@@ -327,7 +327,7 @@ const QuickOverviewDocument = ({ fldr }: { fldr: Fldr }) => (
       )}
 
       <View style={styles.footer}>
-        <Text>Generated from GIT Job Tracker • {new Date().toLocaleDateString()}</Text>
+        <Text>Generated from Burrow • {new Date().toLocaleDateString()}</Text>
       </View>
     </Page>
   </Document>
@@ -631,7 +631,7 @@ const FullTripBriefDocument = ({ fldr }: { fldr: Fldr }) => (
 
       <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
       <View style={styles.footer}>
-        <Text>Generated from GIT Job Tracker • {new Date().toLocaleDateString()}</Text>
+        <Text>Generated from Burrow • {new Date().toLocaleDateString()}</Text>
       </View>
     </Page>
   </Document>
@@ -669,7 +669,7 @@ export const shareQuickOverviewPDF = async (fldr: Fldr) => {
       await navigator.share({
         files: [file],
         title: `${fldr.title} - Quick Overview`,
-        text: 'Job overview from GIT Job Tracker'
+        text: 'Job overview from Burrow'
       })
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
@@ -693,7 +693,7 @@ export const shareFullTripBriefPDF = async (fldr: Fldr) => {
       await navigator.share({
         files: [file],
         title: `${fldr.title} - Full Trip Brief`,
-        text: 'Complete trip brief from GIT Job Tracker'
+        text: 'Complete trip brief from Burrow'
       })
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {

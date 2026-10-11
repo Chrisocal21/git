@@ -3,7 +3,7 @@
 import type { Product } from '@/types/fldr'
 import type { JobJigs } from '@/components/jigs/useJobJigs'
 import ProductJigs, { JigsProblem } from '@/components/jigs/ProductJigs'
-import { EditButton, Field, FieldRow, SectionCard, TextAction, useEditMode } from './parts'
+import { EditButton, Field, FieldRow, Offer, RemoveButton, SectionCard, TextAction, useEditMode } from './parts'
 
 interface ProductsCardProps {
   products: Product[]
@@ -11,9 +11,11 @@ interface ProductsCardProps {
   jigs: JobJigs
   /** How many of this job's jigs are checked out */
   jigsOut: number
+  /** Gift/s and Gift Qty from Client & Event, offered as the first product */
+  gift: { name: string; quantity: number | null } | null
   open: boolean
   onToggle: () => void
-  onAdd: () => void
+  onAdd: (name?: string, quantity?: number) => void
   onField: (index: number, field: keyof Product, value: any) => void
   onRemove: (index: number) => void
   onRemoveSection: () => void
@@ -26,6 +28,7 @@ export default function ProductsCard({
   job,
   jigs,
   jigsOut,
+  gift,
   open,
   onToggle,
   onAdd,
@@ -50,14 +53,14 @@ export default function ProductsCard({
         products
           .filter(p => p.name)
           .map(p => `${p.name} ×${p.quantity}`)
-          .join(', ') || undefined
+          .join(', ') || "What's being made, and the jigs it needs"
       }
       meta={jigsOut > 0 && <span className="badge bg-amber-500/15 text-amber-300">{jigsOut} out</span>}
       actions={<EditButton editing={editing} onClick={toggle} />}
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white/45">
+          <span className="text-sm text-white/45">
             {products.length} {products.length === 1 ? 'product' : 'products'}
             {products.length > 1 && total > 0 && <span className="tabular"> · {total} total</span>}
           </span>
@@ -71,52 +74,59 @@ export default function ProductsCard({
           </TextAction>
         </div>
 
+        {gift && !hasData && (
+          <Offer
+            action="Add"
+            onUse={() => {
+              onAdd(gift.name, gift.quantity ?? undefined)
+              startEditing()
+            }}
+          >
+            From Gift/s: {gift.name}
+            {gift.quantity ? ` ×${gift.quantity}` : ''}
+          </Offer>
+        )}
+
         <JigsProblem jigs={jigs} />
 
         {products.map((product, index) => (
           <div key={product.id} className="rounded-xl border border-line bg-white/5 p-3">
             {editing ? (
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <input
                     type="text"
                     value={product.name}
                     onChange={e => onField(index, 'name', e.target.value)}
                     className="input flex-1 font-medium"
-                    placeholder="Product name"
+                    aria-label="Product name"
+                    placeholder="Product name, e.g. YETI Rambler 20oz"
                   />
-                  <button
-                    type="button"
-                    onClick={() => onRemove(index)}
-                    aria-label={`Remove ${product.name || 'product'}`}
-                    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-lg leading-none text-red-400/80 transition-colors hover:bg-red-500/10 hover:text-red-300"
-                  >
-                    ×
-                  </button>
+                  <RemoveButton label={`Remove ${product.name || 'product'}`} onClick={() => onRemove(index)} />
                 </div>
                 <FieldRow always>
-                  <Field label="SKU">
-                    <input type="text" value={product.sku || ''} onChange={e => onField(index, 'sku', e.target.value)} className="input" placeholder="SKU" />
+                  <Field label="Item Number (SKU)">
+                    <input type="text" value={product.sku || ''} onChange={e => onField(index, 'sku', e.target.value)} className="input" placeholder="e.g. YRAM20-BLK" />
                   </Field>
                   <Field label="Quantity">
-                    <input type="number" min="1" value={product.quantity} onChange={e => onField(index, 'quantity', e.target.value)} className="input" />
+                    <input type="number" min="1" inputMode="numeric" value={product.quantity} onChange={e => onField(index, 'quantity', e.target.value)} className="input" />
                   </Field>
                 </FieldRow>
-                <Field label="Notes">
-                  <input type="text" value={product.notes || ''} onChange={e => onField(index, 'notes', e.target.value)} className="input" placeholder="Notes (optional)" />
+                <Field label="Product Notes">
+                  <input type="text" value={product.notes || ''} onChange={e => onField(index, 'notes', e.target.value)} className="input" placeholder="e.g. Engrave on the side opposite the logo" />
                 </Field>
               </div>
             ) : (
               <div>
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className={`min-w-0 break-words text-sm font-medium ${product.name ? 'text-white' : 'text-white/40'}`}>
+                  <span className={`min-w-0 break-words text-base font-medium ${product.name ? 'text-white' : 'text-white/40'}`}>
                     {product.name || 'Unnamed product'}
                   </span>
-                  <span className="flex-shrink-0 text-sm font-semibold tabular text-white/80">×{product.quantity}</span>
+                  <span className="flex-shrink-0 text-base font-semibold tabular text-white/80">×{product.quantity}</span>
                 </div>
                 {(product.sku || product.notes) && (
-                  <div className="mt-0.5 break-words text-xs text-white/50">
-                    {[product.sku && `SKU ${product.sku}`, product.notes].filter(Boolean).join(' · ')}
+                  <div className="mt-0.5 break-words text-sm text-white/50">
+                    {[product.sku && `Item number ${product.sku}`, product.notes].filter(Boolean).join(' · ')}
                   </div>
                 )}
               </div>
@@ -125,7 +135,7 @@ export default function ProductsCard({
           </div>
         ))}
 
-        {products.length === 0 && <p className="py-1 text-xs text-white/40">No products yet</p>}
+        {products.length === 0 && !gift && <p className="py-1 text-sm text-white/40">No products yet. Add each thing being personalized, then the jigs it needs.</p>}
 
         {/* Jigs whose product has since been removed stay on the job, so nothing that's out can vanish */}
         <div className="empty:hidden">
@@ -133,7 +143,7 @@ export default function ProductsCard({
         </div>
 
         {editing && !jigsOpen && (
-          <div className="pt-1">
+          <div>
             <TextAction onClick={onRemoveSection} tone="danger">
               Remove Products from this job
             </TextAction>

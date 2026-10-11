@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Fldr } from '@/types/fldr'
 import { getTeamProfiles } from '@/lib/auth'
 import { getOwnFlights } from '@/lib/tripSpan'
-import { AirplaneIcon, BriefcaseIcon, TravelWorkIcon, MapPinIcon } from '@/components/Icons'
+import { AirplaneIcon, AlertIcon, BriefcaseIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, CloseIcon, PencilIcon, TravelWorkIcon, MapPinIcon } from '@/components/Icons'
+import PageHeader from '@/components/PageHeader'
+import TimeOffForm from '@/components/TimeOffForm'
+import { applyJobsChange, onJobsChanged } from '@/lib/jobsChanged'
 
 // Per-profile color palette (index matches TEAM_PROFILES order)
 const DOT_COLORS = [
@@ -128,15 +131,56 @@ export default function CalendarPage() {
   const [expandedPeople, setExpandedPeople] = useState<Set<string>>(new Set())
   const [jobsThisMonthOpen, setJobsThisMonthOpen] = useState(false)
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
+  // The time off being added (a day) or changed (an entry), in its own sheet
+  const [timeOff, setTimeOff] = useState<{ entry: Fldr | null; day: string | null } | null>(null)
+  // The server couldn't be reached and this phone has nothing saved to show instead
+  const [loadFailed, setLoadFailed] = useState(false)
 
   useEffect(() => {
-    fetch('/api/fldrs')
-      .then(r => r.ok ? r.json() : [])
-      .then(data => {
-        setFldrs(Array.isArray(data) ? data : [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
+    // The jobs list this phone keeps (the Jobs page and the time off form both write to it)
+    const readCache = (): Fldr[] => {
+      try {
+        const cached = JSON.parse(localStorage.getItem('git-fldrs') || '[]')
+        return Array.isArray(cached) ? cached : []
+      } catch {
+        return []
+      }
+    }
+
+    // What this phone already has shows straight away, and stays if the server can't be reached
+    const cached = readCache()
+    if (cached.length > 0) {
+      setFldrs(cached)
+      setLoading(false)
+    }
+
+    const load = () =>
+      fetch('/api/fldrs', { cache: 'no-store' })
+        .then(r => {
+          if (!r.ok) throw new Error(`load failed: ${r.status}`)
+          return r.json()
+        })
+        .then(data => {
+          // With no signal an empty list can come back in place of the real one,
+          // so an empty answer never replaces what this phone already knows
+          setFldrs(Array.isArray(data) && data.length > 0 ? data : readCache())
+          setLoadFailed(false)
+          setLoading(false)
+        })
+        .catch(() => {
+          const kept = readCache()
+          if (kept.length > 0) setFldrs(kept)
+          else setLoadFailed(true)
+          setLoading(false)
+        })
+
+    load()
+    // Time off added from the dock, or changed in the sheet here: on the calendar straight away,
+    // then loaded again to be sure it matches the server
+    return onJobsChanged(change => {
+      setFldrs(current => applyJobsChange(current, change))
+      load()
+    })
   }, [])
 
   // ── Build date → absences map ──────────────────────────────────────────────
@@ -333,47 +377,35 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-page text-white">
-      {/* ── Header ── */}
-      <div className="sticky top-0 z-30 bg-canvas/85 backdrop-blur-md border-b border-line">
-        <div className="flex items-center justify-between max-w-4xl mx-auto px-4 h-14">
-          <button
-            onClick={() => router.back()}
-            className="icon-btn -ml-2"
-            aria-label="Back"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-
-          <div className="flex items-center gap-1">
-            <button onClick={prevMonth} className="icon-btn" aria-label="Previous month">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <h1 className="text-base font-semibold w-40 text-center tabular">{monthLabel}</h1>
-            <button onClick={nextMonth} className="icon-btn" aria-label="Next month">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Today button */}
+      {/* ── Header: the page's own back button, like every other page ── */}
+      <PageHeader
+        title="Team Calendar"
+        width="max-w-4xl"
+        actions={
           <button
             onClick={() => {
               const n = new Date()
               setCurrentMonth({ year: n.getFullYear(), month: n.getMonth() })
             }}
-            className="btn-secondary px-3 py-1.5 text-xs font-medium"
+            className="btn-secondary min-h-[2.5rem] px-3.5 font-medium"
           >
             Today
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="max-w-4xl mx-auto px-4 pt-5">
+      <div className="max-w-4xl mx-auto px-4 pt-3">
+        {/* ── Month: its arrows sit either side of its name, well away from Back ── */}
+        <div className="mb-3 flex items-center justify-between">
+          <button onClick={prevMonth} className="icon-btn h-11 w-11" aria-label="Previous month">
+            <ChevronLeftIcon className="w-5 h-5" />
+          </button>
+          <h2 className="text-lg font-semibold text-center tabular">{monthLabel}</h2>
+          <button onClick={nextMonth} className="icon-btn h-11 w-11" aria-label="Next month">
+            <ChevronRightIcon className="w-5 h-5" />
+          </button>
+        </div>
+
         {/* ── Legend — only people with something on the calendar this month ── */}
         <div className="flex flex-wrap gap-x-4 gap-y-2 mb-4">
           {monthAbsences.map(({ profileId, name }) => {
@@ -398,7 +430,7 @@ export default function CalendarPage() {
         {/* ── DOW headers ── */}
         <div className="grid grid-cols-7 mb-1">
           {DAYS_OF_WEEK.map(d => (
-            <div key={d} className="text-center text-[10px] font-semibold uppercase tracking-wider text-white/40 py-1.5">
+            <div key={d} className="text-center text-[11px] font-semibold uppercase tracking-wider text-white/45 py-1.5">
               {d}
             </div>
           ))}
@@ -407,7 +439,16 @@ export default function CalendarPage() {
         {/* ── Grid ── */}
         {loading ? (
           <div className="flex items-center justify-center py-20 text-white/45 text-sm">
-            Loading...
+            Loading the calendar...
+          </div>
+        ) : loadFailed ? (
+          <div className="py-16 text-center">
+            <AlertIcon className="mx-auto mb-3 h-7 w-7 text-amber-300" />
+            <p className="font-semibold text-white">Couldn&apos;t load the calendar</p>
+            <p className="mt-1.5 mb-6 text-sm leading-relaxed text-white/55">Check your connection, then try again.</p>
+            <button onClick={() => window.location.reload()} className="btn-brand min-h-[2.75rem] px-6">
+              Try Again
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-7 gap-px bg-line-strong rounded-xl overflow-hidden border border-line-strong">
@@ -436,7 +477,7 @@ export default function CalendarPage() {
                 >
                   {/* Day number */}
                   <div
-                    className={`text-[11px] font-medium tabular mb-1 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
+                    className={`text-xs font-medium tabular mb-1 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
                       isToday
                         ? 'bg-gold text-black font-bold text-xs'
                         : isPastDay
@@ -456,16 +497,14 @@ export default function CalendarPage() {
                           const idx     = profileIndex(pid)
                           if (absence?.dayType === 'off') {
                             return (
-                              <svg key={pid} className={`w-3 h-3 flex-shrink-0 ${absence.isPast ? 'text-white/25' : CHIP_TEXT[idx % CHIP_TEXT.length]}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
+                              <ClockIcon key={pid} className={`w-3.5 h-3.5 flex-shrink-0 ${absence.isPast ? 'text-white/25' : CHIP_TEXT[idx % CHIP_TEXT.length]}`} />
                             )
                           }
                           const Icon = dayIcon(absence?.dayType)
                           return (
                             <Icon
                               key={pid}
-                              className={`w-3 h-3 flex-shrink-0 ${
+                              className={`w-3.5 h-3.5 flex-shrink-0 ${
                                 absence?.isPast
                                   ? 'text-white/25'
                                   : (absence?.dayType === 'travel' || absence?.dayType === 'travel_work')
@@ -490,13 +529,11 @@ export default function CalendarPage() {
                               <div
                                 key={pid}
                                 title="Time Off"
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight flex items-center gap-1 ${
+                                className={`px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight flex items-center gap-1 ${
                                   absence.isPast ? 'bg-white/5 text-white/25' : `${CHIP_BG[idx % CHIP_BG.length]} ${CHIP_TEXT[idx % CHIP_TEXT.length]}`
                                 }`}
                               >
-                                <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
+                                <ClockIcon className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{name}</span>
                               </div>
                             )
@@ -507,13 +544,13 @@ export default function CalendarPage() {
                             <div
                               key={pid}
                               title={absence?.jobTitle}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight flex items-center gap-1 ${
+                              className={`px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight flex items-center gap-1 ${
                                 absence?.isPast
                                   ? 'bg-white/5 text-white/25'
                                   : `${CHIP_BG[idx % CHIP_BG.length]} ${CHIP_TEXT[idx % CHIP_TEXT.length]}`
                               }`}
                             >
-                              <Icon className="w-2.5 h-2.5 flex-shrink-0" />
+                              <Icon className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate">{name}</span>
                             </div>
                           )
@@ -532,7 +569,8 @@ export default function CalendarPage() {
           <div className="mt-6">
             <button
               onClick={() => setJobsThisMonthOpen(o => !o)}
-              className="w-full flex items-center justify-between mb-3 px-1"
+              aria-expanded={jobsThisMonthOpen}
+              className="w-full min-h-[2.75rem] flex items-center justify-between mb-1 px-1"
             >
               <h2 className="eyebrow">
                 Jobs this month ({monthJobs.length})
@@ -553,7 +591,7 @@ export default function CalendarPage() {
                     <button
                       key={job.jobId}
                       onClick={() => router.push(`/jobs/${job.jobId}`)}
-                      className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border transition-colors ${
+                      className={`w-full min-h-[3.25rem] text-left flex items-start gap-3 p-3 rounded-xl border transition-colors ${
                         job.isPast
                           ? 'bg-surface/60 border-line'
                           : 'bg-surface border-line hover:bg-surface-raised hover:border-line-strong'
@@ -577,7 +615,7 @@ export default function CalendarPage() {
                           </div>
                         )}
                         <div className={`text-xs mt-0.5 ${job.isPast ? 'text-white/25' : 'text-white/50'}`}>
-                          {job.people.join(', ')} · {job.days.length}d
+                          {job.people.join(', ')} · {job.days.length} {job.days.length === 1 ? 'day' : 'days'}
                         </div>
                       </div>
                       <svg className="w-4 h-4 text-white/20 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -622,7 +660,8 @@ export default function CalendarPage() {
                           return next
                         })
                       }}
-                      className="w-full px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-white/5 transition-colors"
+                      aria-expanded={isExpanded}
+                      className="w-full min-h-[2.75rem] px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-white/5 transition-colors"
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div
@@ -640,7 +679,7 @@ export default function CalendarPage() {
                         <span className={`text-xs font-semibold ${
                           allPast ? 'text-white/20' : 'text-white/40'
                         }`}>
-                          {totalDays}d
+                          {totalDays} {totalDays === 1 ? 'day' : 'days'}
                         </span>
                         {/* Chevron icon */}
                         <svg
@@ -660,16 +699,17 @@ export default function CalendarPage() {
                     {isExpanded && (
                       <div className="px-3 pb-3 pt-1 space-y-2 border-t border-line">
                         {jobs.map((job, jobIdx) => {
-                          const Icon = job.dayType === 'off' 
-                            ? (props: any) => (
-                                <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              )
-                            : dayIcon(job.dayType)
+                          const Icon = job.dayType === 'off' ? ClockIcon : dayIcon(job.dayType)
+                          const entry = fldrs.find(f => f.id === job.jobId) || null
 
                           return (
-                            <div key={`${job.jobId}-${jobIdx}`} className="flex items-start gap-2 pl-4">
+                            <button
+                              key={`${job.jobId}-${jobIdx}`}
+                              type="button"
+                              // Time off opens to be changed; a job opens its page
+                              onClick={() => (job.dayType === 'off' ? setTimeOff({ entry, day: null }) : router.push(`/jobs/${job.jobId}`))}
+                              className="-mx-1 flex w-[calc(100%+0.5rem)] min-h-[2.75rem] items-start gap-2 rounded-lg py-1.5 pl-4 pr-1 text-left transition-colors hover:bg-white/5"
+                            >
                               <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${
                                 job.isPast 
                                   ? 'text-white/20' 
@@ -689,7 +729,7 @@ export default function CalendarPage() {
                                   <span className={`text-xs font-semibold flex-shrink-0 ${
                                     job.isPast ? 'text-white/20' : 'text-white/40'
                                   }`}>
-                                    {job.days.length}d
+                                    {job.days.length} {job.days.length === 1 ? 'day' : 'days'}
                                   </span>
                                 </div>
                                 {job.dayType !== 'off' && job.location && (
@@ -703,7 +743,12 @@ export default function CalendarPage() {
                                   {job.days.length > 6 && ` · +${job.days.length - 6} more`}
                                 </div>
                               </div>
-                            </div>
+                              {job.dayType === 'off' ? (
+                                <PencilIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-white/30" />
+                              ) : (
+                                <ChevronRightIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-white/20" />
+                              )}
+                            </button>
                           )
                         })}
                       </div>
@@ -715,12 +760,42 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {!loading && monthAbsences.length === 0 && (
-          <p className="text-center text-white/40 text-sm mt-8">
+        {!loading && !loadFailed && monthAbsences.length === 0 && (
+          <p className="text-center text-white/45 text-sm mt-8">
             No one out this month
           </p>
         )}
+
+        {!loading && !loadFailed && (
+          <p className="mt-6 px-1 text-center text-[13px] leading-relaxed text-white/40">
+            Tap a day to see who&apos;s out, or to add time off or a job on it.
+          </p>
+        )}
       </div>
+
+      {/* ── Time off: add one, or change or delete one that's there ── */}
+      {timeOff && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in"
+          onClick={() => setTimeOff(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Time Off"
+            className="bg-surface border border-line-strong rounded-t-3xl md:rounded-2xl w-full md:max-w-md max-h-[92dvh] overflow-y-auto p-6 pb-8 shadow-pop animate-sheet-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">{timeOff.entry ? 'Change Time Off' : 'Time Off'}</h2>
+              <button onClick={() => setTimeOff(null)} className="icon-btn h-11 w-11 -mr-2.5" aria-label="Close">
+                <CloseIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <TimeOffForm entry={timeOff.entry} defaultDay={timeOff.day} onDone={() => setTimeOff(null)} />
+          </div>
+        </div>
+      )}
 
       {/* ── Day detail modal ── */}
       {selectedDateKey && (
@@ -745,12 +820,10 @@ export default function CalendarPage() {
               </h3>
               <button
                 onClick={() => setSelectedDateKey(null)}
-                className="icon-btn"
+                className="icon-btn h-11 w-11"
                 aria-label="Close"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <CloseIcon className="w-5 h-5" />
               </button>
             </div>
 
@@ -759,8 +832,8 @@ export default function CalendarPage() {
                 const absences = absenceMap.get(selectedDateKey) || []
                 if (absences.length === 0) {
                   return (
-                    <p className="text-center text-white/40 text-sm py-6">
-                      Nothing scheduled
+                    <p className="text-center text-white/45 text-sm py-6">
+                      Nothing on this day yet
                     </p>
                   )
                 }
@@ -776,55 +849,70 @@ export default function CalendarPage() {
                 })
 
                 return Array.from(byJob.values()).map((job, idx) => {
-                  const Icon = job.dayType === 'off'
-                    ? (props: any) => (
-                        <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      )
-                    : dayIcon(job.dayType)
+                  const isOff = job.dayType === 'off'
+                  const Icon = isOff ? ClockIcon : dayIcon(job.dayType)
 
                   const fldr = fldrs.find(f => f.id === job.jobId)
                   const location = fldr?.location || fldr?.venue_info?.name || fldr?.venue_info?.address || null
-                  const isClickable = job.dayType !== 'off'
 
                   return (
                     <button
                       key={`${job.jobId}-${job.dayType}-${idx}`}
                       type="button"
-                      disabled={!isClickable}
                       onClick={() => {
-                        if (!isClickable) return
                         setSelectedDateKey(null)
-                        router.push(`/jobs/${job.jobId}`)
+                        // Time off opens to be changed or deleted; a job opens its page
+                        if (isOff) setTimeOff({ entry: fldr || null, day: null })
+                        else router.push(`/jobs/${job.jobId}`)
                       }}
-                      className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border border-line bg-canvas/40 transition-colors ${
-                        isClickable ? 'hover:bg-white/5 active:bg-white/10 cursor-pointer' : 'cursor-default'
-                      }`}
+                      className="w-full min-h-[3.25rem] text-left flex items-start gap-3 p-3 rounded-xl border border-line bg-canvas/40 transition-colors hover:bg-white/5 active:bg-white/10"
                     >
                       <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                        (job.dayType === 'travel' || job.dayType === 'travel_work') ? 'text-sky-400' : job.dayType === 'off' ? 'text-purple-300' : 'text-white/60'
+                        (job.dayType === 'travel' || job.dayType === 'travel_work') ? 'text-sky-400' : isOff ? 'text-purple-300' : 'text-white/60'
                       }`} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-white/90">
-                          {job.dayType === 'off' ? 'Time Off' : job.jobTitle}
+                        <div className="text-[15px] font-medium text-white/90">
+                          {isOff ? 'Time Off' : job.jobTitle}
                         </div>
                         {location && job.dayType !== 'off' && (
                           <div className="text-xs text-white/50 mt-0.5 flex items-center gap-1"><MapPinIcon className="w-3 h-3 flex-shrink-0" /><span className="truncate">{location}</span></div>
                         )}
-                        <div className="text-xs text-white/50 mt-1">
+                        <div className="text-[13px] text-white/55 mt-1">
                           {job.people.join(', ')}
+                          {isOff && fldr?.notes ? ` · ${fldr.notes}` : ''}
                         </div>
                       </div>
-                      {isClickable && (
-                        <svg className="w-4 h-4 text-white/20 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                      {isOff ? (
+                        <PencilIcon className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <ChevronRightIcon className="w-4 h-4 text-white/20 flex-shrink-0 mt-0.5" />
                       )}
                     </button>
                   )
                 })
               })()}
+            </div>
+
+            {/* Start something on the day that was tapped */}
+            <div className="grid grid-cols-2 gap-2 border-t border-line p-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const day = selectedDateKey
+                  setSelectedDateKey(null)
+                  setTimeOff({ entry: null, day })
+                }}
+                className="btn-secondary min-h-[2.75rem] font-medium"
+              >
+                + Time Off
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/jobs/create?date=${selectedDateKey}`)}
+                className="btn-secondary min-h-[2.75rem] font-medium"
+              >
+                + New Job
+              </button>
             </div>
           </div>
         </div>

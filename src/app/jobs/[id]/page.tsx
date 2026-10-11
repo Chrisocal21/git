@@ -4,14 +4,36 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, JobTracker, Person, Photo, Product, ChecklistItem, JobStatus } from '@/types/fldr'
-import { PencilIcon } from '@/components/Icons'
+import {
+  AlertIcon,
+  ArchiveIcon,
+  CheckIcon,
+  ChevronLeftIcon,
+  ClockIcon,
+  CopyIcon,
+  DirectionsIcon,
+  DocumentIcon,
+  DownloadIcon,
+  MapIcon,
+  MoreIcon,
+  PencilIcon,
+  RefreshIcon,
+  ShareIcon,
+  SparkIcon,
+  TrashIcon,
+} from '@/components/Icons'
 import { WeatherSVG } from '@/components/WeatherIcon'
+import { fetchWeather, readCachedWeather } from '@/lib/weatherCache'
+import { tripPhase, tripPills } from '@/lib/tripDays'
+import type { WeatherReply } from '@/lib/weatherCache'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
 import RichTextEditor from '@/components/RichTextEditor'
-import { SectionCard, GroupHeading, AddSectionButton, TextAction } from '@/components/job/parts'
+import { askConfirm, showNotice, toast } from '@/components/Dialogs'
+import { SectionCard, AddSectionButton, CopyAction, TextAction } from '@/components/job/parts'
 import SectionNav from '@/components/job/SectionNav'
 import GlanceCard from '@/components/job/GlanceCard'
+import type { DriveTime } from '@/components/job/GlanceCard'
 import { ClientEventCard, VenueTimeCard } from '@/components/job/EventCards'
 import LogisticsCard from '@/components/job/LogisticsCard'
 import { TravelDatesRow, FlightsCard, HotelCard, RentalCarCard } from '@/components/job/TravelCards'
@@ -21,7 +43,9 @@ import ProductsCard from '@/components/job/ProductsCard'
 import ChecklistCard from '@/components/job/ChecklistCard'
 import { mergeFldrUpdates } from '@/lib/fldrMerge'
 import { readStep, flightSpan } from '@/lib/jobTracker'
-import { plainText } from '@/lib/jobFormat'
+import { dayKey, directionsUrl, plainText } from '@/lib/jobFormat'
+import { NO_SUGGESTIONS, buildJobSuggestions, readCachedJobs } from '@/lib/jobSuggestions'
+import type { JobSuggestions } from '@/lib/jobSuggestions'
 import { todayKey } from '@/lib/jigsFormat'
 import { 
   getCachedFldr, 
@@ -29,8 +53,7 @@ import {
   addToSyncQueue, 
   hasUnsyncedChanges,
   isOnline,
-  syncQueuedChanges,
-  clearAllCache
+  syncQueuedChanges
 } from '@/lib/offlineStorage'
 import { logStorageInfo } from '@/lib/storageHealth'
 import { addOrUpdateProfile } from '@/lib/auth'
@@ -46,6 +69,34 @@ const FldrMap = dynamic(() => import('@/components/FldrMap'), {
     </div>
   )
 })
+
+// Which section each card lives in. The job page shows one section at a time.
+const SECTION_OF_CARD: Record<string, string> = {
+  summary: 'overview',
+  weather: 'overview',
+  itinerary: 'overview',
+  event: 'event',
+  venue: 'event',
+  products: 'event',
+  logistics: 'logistics',
+  flight: 'travel',
+  hotel: 'travel',
+  rentalCar: 'travel',
+  people: 'team',
+  notes: 'more',
+  links: 'more',
+  checklist: 'more',
+  photos: 'more',
+  prompts: 'more',
+}
+
+/**
+ * Whether a reply from the server really is this job. With no signal, the service worker
+ * can answer a job request with an empty list, and taking that on would blank the page.
+ */
+function isJobReply(data: unknown, id: string): data is Fldr {
+  return !!data && typeof data === 'object' && !Array.isArray(data) && (data as Fldr).id === id
+}
 
 export default function FldrDetailPage() {
   const router = useRouter()
@@ -67,9 +118,9 @@ export default function FldrDetailPage() {
     weather: false,
     itinerary: false,
     event: false,
-    logistics: false,
+    logistics: true, // The only card in its section, so it opens ready to use
     checklist: false,
-    people: false,
+    people: true, // Same: the only card under Team
     photos: false,
     products: false,
     notes: false,
@@ -81,7 +132,8 @@ export default function FldrDetailPage() {
   const [online, setOnline] = useState(true)
   const [hasUnsynced, setHasUnsynced] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [, setRefreshCounter] = useState(0)
+  // Lit for a moment after each save, so the Saved in the header is seen to happen
+  const [savedFlash, setSavedFlash] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editDateStart, setEditDateStart] = useState('')
@@ -103,7 +155,7 @@ export default function FldrDetailPage() {
     loading: boolean
     error: boolean
   }>({ cityLabel: null, current: null, daily: [], loading: false, error: false })
-  const [distances, setDistances] = useState<any>(null)
+  const [driveTimes, setDriveTimes] = useState<DriveTime[]>([])
   const [distancesLoading, setDistancesLoading] = useState(false)
   const [nearbyPlaces, setNearbyPlaces] = useState<any>(null)
   const [nearbyLoading, setNearbyLoading] = useState(false)
@@ -114,8 +166,16 @@ export default function FldrDetailPage() {
   const [showMapModal, setShowMapModal] = useState(false)
   const [generatingOverview, setGeneratingOverview] = useState(false)
   const [generatingPDF, setGeneratingPDF] = useState<'quick' | 'full' | null>(null)
-  const [showExportMenu, setShowExportMenu] = useState(false)
-  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  // The job isn't on this phone and the server doesn't have it either
+  const [notFound, setNotFound] = useState(false)
+  // The job isn't on this phone and the server couldn't be reached to get it
+  const [loadFailed, setLoadFailed] = useState(false)
+  // Bumped by "Try again" to run the load once more
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  // Clients, venues and hotels from earlier jobs, offered while this one is filled in
+  const [suggestions, setSuggestions] = useState<JobSuggestions>(NO_SUGGESTIONS)
   const [showParseEmailModal, setShowParseEmailModal] = useState<'flight' | 'hotel' | 'rental_car' | null>(null)
   const [parseEmailText, setParseEmailText] = useState('')
   const [parseEmailImage, setParseEmailImage] = useState<string | null>(null)
@@ -125,9 +185,6 @@ export default function FldrDetailPage() {
   const [generatedItineraryItems, setGeneratedItineraryItems] = useState<any[]>([])
   const [generatedItineraryOverview, setGeneratedItineraryOverview] = useState<string>('')
 
-  // Toast confirm dialogs
-  type ConfirmDialog = { type: 'module'; module: Parameters<typeof disableModule>[0] } | { type: 'deleteJob' } | { type: 'hardRefresh' } | { type: 'duplicate' }
-  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const prevItineraryDataRef = useRef<string>('')
   const fldrRef = useRef<Fldr | null>(null)
@@ -156,7 +213,8 @@ export default function FldrDetailPage() {
   // Remember which cards are open, on this device, from one job to the next
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('burrow-job-cards')
+      // v2: the cards now live one section at a time, so everyone starts from the new defaults once
+      const saved = localStorage.getItem('burrow-job-cards-v2')
       if (saved) setExpandedCards(prev => ({ ...prev, ...JSON.parse(saved) }))
     } catch {}
   }, [])
@@ -168,7 +226,7 @@ export default function FldrDetailPage() {
       return
     }
     try {
-      localStorage.setItem('burrow-job-cards', JSON.stringify(expandedCards))
+      localStorage.setItem('burrow-job-cards-v2', JSON.stringify(expandedCards))
     } catch {}
   }, [expandedCards])
 
@@ -299,8 +357,10 @@ export default function FldrDetailPage() {
               const response = await fetch(`/api/fldrs/${currentFldrId}`, { cache: 'no-store' })
               if (response.ok) {
                 const updated = await response.json()
-                adoptServerFldr(updated)
-                console.log('[Sync] Data refreshed from server')
+                if (isJobReply(updated, currentFldrId)) {
+                  adoptServerFldr(updated)
+                  console.log('[Sync] Data refreshed from server')
+                }
               }
             } catch (error) {
               console.error('Failed to refresh after auto-sync:', error)
@@ -348,6 +408,7 @@ export default function FldrDetailPage() {
         const response = await fetch(`/api/fldrs/${current.id}`, { cache: 'no-store' })
         if (response.ok) {
           const updated = await response.json()
+          if (!isJobReply(updated, current.id)) return
           // Something was saved while this was loading, so what just arrived is already out of date
           if (saveRequestSeqRef.current !== savesBefore) return
           console.log('[Focus] Refreshed from server (focus), photos:', updated.photos?.length || 0)
@@ -385,22 +446,33 @@ export default function FldrDetailPage() {
     }
   }, [adoptServerFldr])
 
-  // Close export menu when clicking outside
+  // Close the More menu when tapping outside it, or on Escape
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setShowExportMenu(false)
+    if (!showMenu) return
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false)
       }
     }
-
-    if (showExportMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowMenu(false)
     }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+    window.addEventListener('keydown', handleEsc)
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+      window.removeEventListener('keydown', handleEsc)
     }
-  }, [showExportMenu])
+  }, [showMenu])
+
+  // What earlier jobs already know, read from the jobs list this phone has
+  useEffect(() => {
+    setSuggestions(buildJobSuggestions(readCachedJobs(), params.id as string))
+  }, [params.id])
 
   // Update current time every minute for itinerary strikethrough
   useEffect(() => {
@@ -483,10 +555,14 @@ export default function FldrDetailPage() {
   }, [fldr?.flight_info])
 
   useEffect(() => {
+    // Set when the page moves on to another job, so a slow reply for this one is dropped
+    let cancelled = false
     if (params.id) {
       const fldrId = params.id as string
       console.log(`[Load] Loading fldr: ${fldrId}`)
       logStorageInfo()
+      setNotFound(false)
+      setLoadFailed(false)
 
       // Switching straight from one job to another: anything unsent belongs to the job
       // being left, so it goes out under that job before this one loads
@@ -569,13 +645,32 @@ export default function FldrDetailPage() {
             if (res.ok) {
               return res.json()
             }
+            // The server has no such job (deleted, or a link to one that never existed)
+            if (res.status === 404) {
+              if (!cancelled && !cached) setNotFound(true)
+              return null
+            }
             throw new Error('Failed to fetch')
           })
           .then(freshData => {
+            if (cancelled || !freshData) return
+            if (!isJobReply(freshData, fldrId)) {
+              // Not the job (no signal, most likely): keep what's on screen, or say it couldn't load
+              if (!cached) setLoadFailed(true)
+              return
+            }
             // Something was already saved from this page, so its reply is newer than this
             if (saveRequestSeqRef.current !== savesBefore) return
             console.log('[Server] Got fresh data from server, photos:', freshData.photos?.length || 0)
             const merged = adoptServerFldr(freshData)
+            // A job this phone had never seen (a shared link, a new phone): it's on screen now
+            if (!cached) {
+              setEditTitle(merged.title)
+              setEditDateStart(merged.date_start)
+              setEditDateEnd(merged.date_end || '')
+              setEditLocation(merged.location || '')
+              setLoading(false)
+            }
 
             // Also update the list cache
             try {
@@ -594,79 +689,34 @@ export default function FldrDetailPage() {
           })
           .catch(err => {
             console.log('[Server] Server fetch failed, using cached data:', err)
-            // Keep using cached data
+            // Keep using cached data; with none, say so instead of leaving a blank page
+            if (!cancelled && !cached) setLoadFailed(true)
           })
       } else {
         console.log('[Network] Offline - using cached data only')
-      }
-      
-      if (!cached) {
-        // No cached data - redirect to list
-        console.error('[Error] CRITICAL: No cached data found for fldr:', fldrId)
-        console.error('[Error] This should not happen! Data may have been lost.')
-        logStorageInfo()
-        
-        // Give user a chance to see the error before redirect
-        setTimeout(() => {
-          router.push('/jobs')
-        }, 2000)
+        if (!cached) setLoadFailed(true)
       }
     }
-  }, [params.id, router, adoptServerFldr])
-
-  // Fetch location time when fldr location is available
-  useEffect(() => {
-    const fetchLocationTime = async () => {
-      if (!fldr?.location) {
-        setLocationTime(null)
-        return
-      }
-
-      try {
-        // WorldTimeAPI is free but doesn't support direct location lookup
-        // Instead, we'll use the browser's built-in timezone detection
-        // For now, just show the time if we have location data
-        // This is a simplified version - for production, you'd want to map locations to timezones
-        
-        const updateTime = () => {
-          // For now, just use the local time with location label
-          // In production, you'd want to determine the actual timezone from the location
-          const time = new Date().toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          })
-          setLocationTime(time)
-        }
-
-        updateTime()
-        const interval = setInterval(updateTime, 60000) // Update every minute
-
-        return () => clearInterval(interval)
-      } catch (error) {
-        console.error('Location time fetch error:', error)
-        setLocationTime(null)
-      }
+    return () => {
+      cancelled = true
     }
-
-    fetchLocationTime()
-  }, [fldr?.location])
+  }, [params.id, adoptServerFldr, loadAttempt])
 
   // Fetch distances between key locations
   useEffect(() => {
     const fetchDistances = async () => {
       if (!fldr) return
       
-      const locations = []
-      if (fldr.hotel_info?.address) locations.push(fldr.hotel_info.address)
-      if (fldr.venue_info?.address) locations.push(fldr.venue_info.address)
+      const locations: Array<{ label: string; address: string }> = []
+      if (fldr.hotel_info?.address) locations.push({ label: 'Hotel', address: fldr.hotel_info.address })
+      if (fldr.venue_info?.address) locations.push({ label: 'Venue', address: fldr.venue_info.address })
       
       // Add first outbound flight arrival if available
       const outboundFlight = fldr.flight_info?.find(f => f.segment_type === 'outbound' || f.segment_type === 'connection')
-      if (outboundFlight?.arrival_address) locations.push(outboundFlight.arrival_address)
+      if (outboundFlight?.arrival_address) locations.push({ label: 'Airport', address: outboundFlight.arrival_address })
 
       if (locations.length < 2) {
-        setDistances(null)
+        setDriveTimes([])
         return
       }
 
@@ -675,19 +725,27 @@ export default function FldrDetailPage() {
       try {
         // Calculate distances from first location to all others
         const origin = locations[0]
-        const destinations = locations.slice(1).join('|')
+        const others = locations.slice(1)
+        const destinations = others.map(place => place.address).join('|')
         
-        const response = await fetch(`/api/distance?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destinations)}`)
+        const response = await fetch(`/api/distance?origins=${encodeURIComponent(origin.address)}&destinations=${encodeURIComponent(destinations)}`)
         
         if (!response.ok) {
           throw new Error('Failed to fetch distances')
         }
 
         const data = await response.json()
-        setDistances(data)
+        // The answers come back in the order the places were asked about
+        const times: DriveTime[] = []
+        ;(data.distances || []).forEach((result: { duration?: string | null; distance?: string | null; error?: string }, index: number) => {
+          const place = others[index]
+          if (!place || result.error || !result.duration || !result.distance) return
+          times.push({ label: `${origin.label} to ${place.label}`, duration: result.duration, distance: result.distance })
+        })
+        setDriveTimes(times)
       } catch (error) {
         console.error('Distance fetch error:', error)
-        setDistances(null)
+        setDriveTimes([])
       } finally {
         setDistancesLoading(false)
       }
@@ -708,22 +766,27 @@ export default function FldrDetailPage() {
     }
 
     let cancelled = false
-    setJobWeather(prev => ({ ...prev, loading: true, error: false }))
+
+    const show = (d: WeatherReply) => {
+      const cityLabel = d.location?.name
+        ? `${d.location.name}${d.location.state ? ', ' + d.location.state : d.location.country ? ', ' + d.location.country : ''}`
+        : null
+      setJobWeather({ cityLabel, current: d.current ?? null, daily: d.daily ?? [], loading: false, error: false })
+    }
+
+    // What the phone already knows is on screen straight away, with no "Loading" in between
+    // (weather barely moves in a few hours, so a saved answer is asked for again only once it's old)
+    const saved = candidates.map(readCachedWeather).find(Boolean)
+    if (saved) show(saved.data)
+    else setJobWeather(prev => ({ ...prev, loading: true, error: false }))
 
     const tryFetch = async () => {
       for (const location of candidates) {
-        try {
-          const res = await fetch(`/api/weather?location=${encodeURIComponent(location)}`)
-          const d = res.ok ? await res.json() : null
-          if (d?.current) {
-            if (cancelled) return
-            const cityLabel = d.location?.name
-              ? `${d.location.name}${d.location.state ? ', ' + d.location.state : d.location.country ? ', ' + d.location.country : ''}`
-              : null
-            setJobWeather({ cityLabel, current: d.current, daily: d.daily ?? [], loading: false, error: false })
-            return
-          }
-        } catch {}
+        const d = await fetchWeather(location)
+        if (d?.current) {
+          if (!cancelled) show(d)
+          return
+        }
       }
       if (!cancelled) {
         setJobWeather({ cityLabel: null, current: null, daily: [], loading: false, error: true })
@@ -779,54 +842,46 @@ export default function FldrDetailPage() {
     }
   }, [fldr?.venue_info?.address, searchFromAddress])
 
-  // Auto-detect timezone using Google API when location changes
+  // The time it is where the job is, from the job's time zone.
+  // When the time zone can't be found nothing is shown: this phone's own time beside
+  // another city's name would be wrong, and look right.
   useEffect(() => {
-    const fetchTimezone = async () => {
-      if (!fldr?.location && !fldr?.venue_info?.address) {
-        setLocationTime(null)
-        return
-      }
+    const address = fldr?.location || fldr?.venue_info?.address
+    setLocationTime(null)
+    if (!address) return
 
-      const address = fldr.location || fldr.venue_info?.address
-      if (!address) return
+    let cancelled = false
+    let interval: ReturnType<typeof setInterval> | null = null
 
-      try {
-        const response = await fetch(`/api/timezone?address=${encodeURIComponent(address)}`)
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch timezone')
-        }
-
-        const data = await response.json()
-        
-        // Update location time with actual timezone-aware time
+    fetch(`/api/timezone?address=${encodeURIComponent(address)}`)
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        if (cancelled || !data?.timeZoneId) return
         const updateTime = () => {
-          const time = new Date().toLocaleTimeString('en-US', {
-            timeZone: data.timeZoneId,
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          })
-          setLocationTime(time)
+          try {
+            setLocationTime(
+              new Date().toLocaleTimeString('en-US', {
+                timeZone: data.timeZoneId,
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              })
+            )
+          } catch {
+            setLocationTime(null)
+          }
         }
-
         updateTime()
-        const interval = setInterval(updateTime, 60000) // Update every minute
-
-        return () => clearInterval(interval)
-      } catch (error) {
+        interval = setInterval(updateTime, 60000) // Update every minute
+      })
+      .catch(error => {
         console.error('Timezone fetch error:', error)
-        // Fall back to simple display
-        const time = new Date().toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        })
-        setLocationTime(time)
-      }
-    }
+      })
 
-    fetchTimezone()
+    return () => {
+      cancelled = true
+      if (interval) clearInterval(interval)
+    }
   }, [fldr?.location, fldr?.venue_info?.address])
 
   // Sends everything that's waiting as one request, then takes on the server's reply.
@@ -987,6 +1042,8 @@ export default function FldrDetailPage() {
       setFldr(next)
     }
     if (!savePumpRef.current) {
+      // Nothing waiting and nothing on its way: there is no save to show
+      if (Object.keys(pendingRef.current).length === 0) return Promise.resolve()
       setAutoSaving(true)
       savePumpRef.current = (async () => {
         while (Object.keys(pendingRef.current).length > 0) {
@@ -1099,21 +1156,26 @@ export default function FldrDetailPage() {
     }
   }, [beaconPending, saveFldr])
 
-  // Update "time ago" display every minute
+  // Each save lights the header's Saved for a moment
   useEffect(() => {
     if (!lastSaved) return
-    const interval = setInterval(() => {
-      // Force re-render to update "time ago" text
-      setRefreshCounter(c => c + 1)
-    }, 60000) // Update every minute
-    return () => clearInterval(interval)
+    setSavedFlash(true)
+    const timer = setTimeout(() => setSavedFlash(false), 2500)
+    return () => clearTimeout(timer)
   }, [lastSaved])
 
+  // Opening a card puts the others in its section away, so there is only ever one thing open to look at
   const toggleCard = (cardName: string) => {
-    setExpandedCards(prev => ({
-      ...prev,
-      [cardName]: !prev[cardName]
-    }))
+    setExpandedCards(prev => {
+      const opening = !prev[cardName]
+      const next = { ...prev, [cardName]: opening }
+      if (opening) {
+        for (const other of Object.keys(SECTION_OF_CARD)) {
+          if (other !== cardName && SECTION_OF_CARD[other] === SECTION_OF_CARD[cardName]) next[other] = false
+        }
+      }
+      return next
+    })
   }
 
   // The sections of the page, as the jump bar lists them. Time off has no event or logistics to show.
@@ -1138,47 +1200,36 @@ export default function FldrDetailPage() {
     [isJob]
   )
 
-  const jumpToSection = (id: string) => {
-    document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  // The section on screen. A saved name that this job doesn't have (time off has no Event) falls back to Overview.
+  const shownSection = navSections.some(section => section.id === activeSection) ? activeSection : 'overview'
 
-  // Opens a card and brings it into view (the Job Summary uses this for what's still missing)
-  const jumpToCard = (card: string) => {
-    setExpandedCards(prev => ({ ...prev, [card]: true }))
-    // Give the card a moment to open before finding where it is
+  // Shows one section and nothing else, starting at its top just under the bar
+  const showSection = (id: string) => {
+    setActiveSection(id)
     requestAnimationFrame(() => {
-      document.getElementById(`card-${card}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const top = document.getElementById('job-content')
+      if (top && top.getBoundingClientRect().top < 0) top.scrollIntoView({ block: 'start' })
     })
   }
 
-  // Light up the section that's at the top of the screen
-  const jobLoaded = !loading && !!fldr
-  useEffect(() => {
-    if (!jobLoaded) return
-    let frame = 0
-    const update = () => {
-      frame = 0
-      let current = navSections[0].id
-      for (const section of navSections) {
-        const el = document.getElementById(`sec-${section.id}`)
-        if (el && el.getBoundingClientRect().top <= 130) current = section.id
+  // Opens a card, in whichever section it lives, and brings it into view (the Job Summary uses this for what's still missing)
+  const jumpToCard = (card: string) => {
+    setExpandedCards(prev => {
+      const next = { ...prev, [card]: true }
+      for (const other of Object.keys(SECTION_OF_CARD)) {
+        if (other !== card && SECTION_OF_CARD[other] === SECTION_OF_CARD[card]) next[other] = false
       }
-      // The last section can be too short to ever reach the top
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
-        current = navSections[navSections.length - 1].id
-      }
-      setActiveSection(current)
-    }
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(update)
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    update()
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      if (frame) cancelAnimationFrame(frame)
-    }
-  }, [jobLoaded, navSections])
+      return next
+    })
+    if (SECTION_OF_CARD[card]) setActiveSection(SECTION_OF_CARD[card])
+    // Give the section a moment to show and the card to open before finding where it is
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(`card-${card}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    })
+  }
+
 
   // Format dates in local timezone to avoid day-off errors
   const formatDate = (date: string) => {
@@ -1365,7 +1416,20 @@ export default function FldrDetailPage() {
     debouncedSave(updates)
   }
 
-  const updateVenueInfo = (field: keyof VenueInfo, value: string) => {
+  // Several hotel fields at once: what an earlier stay at the same hotel already knows
+  const patchHotelInfo = (patch: Partial<HotelInfo>) => {
+    const current = fldrRef.current
+    if (!current?.hotel_info) return
+    const updated = { ...current.hotel_info, ...patch }
+    const next = { ...current, hotel_info: updated }
+    fldrRef.current = next
+    setFldr(next)
+    debouncedSave({ hotel_info: updated })
+  }
+
+  // One or several venue fields. Reads the job through the ref, so two changes made
+  // back to back both land.
+  const patchVenueInfo = (patch: Partial<VenueInfo>) => {
     const currentFldr = fldrRef.current
     if (!currentFldr) return
     const venueInfo = currentFldr.venue_info || {
@@ -1375,11 +1439,15 @@ export default function FldrDetailPage() {
       contact_phone: null,
       notes: null,
     }
-    const updated = { ...venueInfo, [field]: value || null }
+    const updated = { ...venueInfo, ...patch }
     const nextFldr = { ...currentFldr, venue_info: updated }
     fldrRef.current = nextFldr
     setFldr(nextFldr)
     debouncedSave({ venue_info: updated })
+  }
+
+  const updateVenueInfo = (field: keyof VenueInfo, value: string) => {
+    patchVenueInfo({ [field]: value || null })
   }
 
   const updateRentalCarInfo = (field: keyof RentalCarInfo, value: string) => {
@@ -1537,9 +1605,10 @@ export default function FldrDetailPage() {
       setParseEmailText('')
       setParseEmailImage(null)
       setParseInputMode('text')
+      toast('Filled in from the email. Check it over.')
     } catch (error) {
       console.error('Parse email error:', error)
-      alert(error instanceof Error ? error.message : 'Failed to parse email')
+      toast("Couldn't read that email. Try pasting it again, or fill it in by hand.", 'error')
     } finally {
       setParsingEmail(false)
     }
@@ -1818,7 +1887,6 @@ export default function FldrDetailPage() {
       console.log('[AI] Smart itinerary saved to database')
     } catch (error) {
       console.error('Failed to generate smart itinerary:', error)
-      alert('Failed to generate smart itinerary. Please try again.')
     } finally {
       setGeneratingItinerary(false)
     }
@@ -2244,13 +2312,22 @@ export default function FldrDetailPage() {
     debouncedSave({ checklist: items })
   }
 
-  const addPerson = (name?: string) => {
+  const addPerson = (name?: string, known?: { phone: string | null; email: string | null }) => {
     if (!fldr) return
     const people = fldr.people || []
-    const newPerson: Person = { name: name || '', role: null, phone: null, email: null }
+    const newPerson: Person = { name: name || '', role: null, phone: known?.phone || null, email: known?.email || null }
     const updated = [...people, newPerson]
     setFldr({ ...fldr, people: updated })
     debouncedSave({ people: updated })
+  }
+
+  // Phone and email together, filled in from an earlier job
+  const updatePersonContact = (index: number, contact: { phone: string | null; email: string | null }) => {
+    if (!fldr?.people) return
+    const people = [...fldr.people]
+    people[index] = { ...people[index], phone: contact.phone, email: contact.email }
+    setFldr({ ...fldr, people })
+    debouncedSave({ people })
   }
 
   const updatePerson = (index: number, field: keyof Person, value: string) => {
@@ -2304,22 +2381,28 @@ export default function FldrDetailPage() {
     debouncedSave({ photos })
   }
 
-  const removePhoto = (index: number) => {
+  const removePhoto = async (index: number) => {
     if (!fldr?.photos) return
-    const photos = fldr.photos.filter((_, i) => i !== index)
-    setFldr({ ...fldr, photos })
+    // A photo can't be brought back, so it's asked about first
+    const target = fldr.photos[index]
+    const confirmed = await askConfirm({ title: 'Remove this photo?', body: "It can't be brought back once it's removed.", confirmLabel: 'Remove', tone: 'danger' })
+    const current = fldrRef.current
+    if (!confirmed || !target || !current?.photos) return
+    // By id, in case the list changed while the question was up
+    const photos = current.photos.filter(photo => photo.id !== target.id)
+    setFldr({ ...current, photos })
     debouncedSave({ photos })
   }
 
   // Product handlers
-  const addProduct = () => {
+  const addProduct = (name?: string, quantity?: number) => {
     if (!fldr) return
     const products = fldr.products || []
     const newProduct: Product = {
       id: `product_${Date.now()}`,
-      name: '',
+      name: name || '',
       sku: null,
-      quantity: 1,
+      quantity: quantity && quantity > 0 ? quantity : 1,
       notes: null,
     }
     const updated = [...products, newProduct]
@@ -2470,47 +2553,38 @@ export default function FldrDetailPage() {
     return false
   }
 
+  // What each removable section is called on the page
+  const MODULE_NAMES: Record<string, string> = {
+    flight_info: 'Flights',
+    hotel_info: 'Hotel',
+    venue_info: 'Venue',
+    rental_car_info: 'Rental Car',
+    job_info: 'Job Info',
+    checklist: 'Checklist',
+    people: 'Staff',
+    photos: 'Photos',
+    products: 'Products',
+  }
+
   const disableModule = async (module: 'flight_info' | 'hotel_info' | 'venue_info' | 'rental_car_info' | 'job_info' | 'checklist' | 'people' | 'photos' | 'products') => {
     if (!fldr) return
     
-    const hasData = hasModuleData(module)
-    
-    if (hasData) {
-      setConfirmDialog({ type: 'module', module })
-      return
+    // Anything filled in gets asked about first
+    if (hasModuleData(module)) {
+      const name = MODULE_NAMES[module]
+      const confirmed = await askConfirm({
+        title: `Remove ${name}?`,
+        body: `Everything saved under ${name} on this job will be deleted.`,
+        confirmLabel: 'Remove',
+        tone: 'danger',
+      })
+      if (!confirmed) return
     }
     
     // Remove the module - save immediately (not debounced) to prevent it from coming back
-    setFldr({ ...fldr, [module]: null })
+    setFldr(prev => (prev ? { ...prev, [module]: null } : prev))
     await saveFldr({ [module]: null })
     setExpandedCards(prev => ({ ...prev, [module.replace('_info', '')]: false }))
-  }
-
-  const updateStatus = async (newStatus: 'incomplete' | 'ready' | 'active' | 'complete') => {
-    if (!fldr) return
-    setSaving(true)
-    try {
-      setFldr({ ...fldr, status: newStatus })
-      await saveFldr({ status: newStatus })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSync = async () => {
-    if (!isOnline()) return
-    setSaving(true)
-    const success = await syncQueuedChanges()
-    if (success) {
-      setHasUnsynced(false)
-      // Don't fetch from server - it might be stale
-      // Local cache is the source of truth
-    }
-    setSaving(false)
-  }
-
-  const handleHardRefresh = async () => {
-    setConfirmDialog({ type: 'hardRefresh' })
   }
 
   const enableEditMode = () => {
@@ -2574,62 +2648,75 @@ export default function FldrDetailPage() {
 
   const duplicateJob = async () => {
     if (!fldr) return
-    setConfirmDialog({ type: 'duplicate' })
+    const confirmed = await askConfirm({
+      title: 'Duplicate job?',
+      body: 'A copy will be created. You can update dates and details after.',
+      confirmLabel: 'Duplicate',
+    })
+    if (confirmed) await doDuplicateJob()
   }
 
   const doDuplicateJob = async () => {
     if (!fldr) return
-    setConfirmDialog(null)
     
     setSaving(true)
     
     try {
-      // Create new fldr with duplicated data
-      const newFldr: Omit<Fldr, 'id' | 'created_at' | 'updated_at'> = {
-        title: `${fldr.title} (Copy)`,
-        date_start: fldr.date_start,
-        date_end: fldr.date_end,
-        location: fldr.location,
-        status: 'incomplete',
-        job_status: 'pending',
-        archived: false,
-        attending: fldr.attending,
-        created_by: null,
-        assigned_to: null,
-        flight_info: fldr.flight_info ? JSON.parse(JSON.stringify(fldr.flight_info)) : null,
-        hotel_info: fldr.hotel_info ? JSON.parse(JSON.stringify(fldr.hotel_info)) : null,
-        venue_info: fldr.venue_info ? JSON.parse(JSON.stringify(fldr.venue_info)) : null,
-        rental_car_info: fldr.rental_car_info ? JSON.parse(JSON.stringify(fldr.rental_car_info)) : null,
-        job_info: fldr.job_info ? JSON.parse(JSON.stringify(fldr.job_info)) : null,
-        checklist: fldr.checklist ? JSON.parse(JSON.stringify(fldr.checklist)).map((item: ChecklistItem) => ({ ...item, completed: false })) : null,
-        people: fldr.people ? JSON.parse(JSON.stringify(fldr.people)) : null,
-        photos: null, // Don't copy photos
-        products: fldr.products ? JSON.parse(JSON.stringify(fldr.products)) : null,
-        notes: fldr.notes || '',
-        wrap_up: null, // Don't copy wrap-up
-        polished_messages: [],
-        ai_itinerary_items: null, // Don't copy AI-generated content
-        ai_itinerary_overview: null // Don't copy AI-generated content
-      }
-      
+      const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value))
+
+      // Creating a job only takes its name, dates, city, staff and notes
       const response = await fetch('/api/fldrs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newFldr)
+        body: JSON.stringify({
+          title: `${fldr.title} (Copy)`,
+          date_start: fldr.date_start,
+          date_end: fldr.date_end,
+          location: fldr.location,
+          people: fldr.people ? copy(fldr.people) : null,
+          notes: fldr.notes || '',
+        })
       })
-      
-      if (response.ok) {
-        const createdFldr = await response.json()
-        console.log('[Duplicate] Job duplicated successfully')
-        
-        // Navigate to the new fldr
-        router.push(`/jobs/${createdFldr.id}`)
-      } else {
-        throw new Error('Failed to duplicate job')
+      if (!response.ok) throw new Error('Failed to duplicate job')
+      let createdFldr: Fldr = await response.json()
+
+      // ...so everything else goes on with a save straight after.
+      // Left behind on purpose: photos, the logistics ticks, anything AI wrote, and jigs.
+      const rest: Partial<Fldr> = {
+        attending: fldr.attending,
+        flight_info: fldr.flight_info ? copy(fldr.flight_info) : null,
+        hotel_info: fldr.hotel_info ? copy(fldr.hotel_info) : null,
+        venue_info: fldr.venue_info ? copy(fldr.venue_info) : null,
+        rental_car_info: fldr.rental_car_info ? copy(fldr.rental_car_info) : null,
+        job_info: fldr.job_info ? copy(fldr.job_info) : null,
+        checklist: fldr.checklist ? copy(fldr.checklist).map((item: ChecklistItem) => ({ ...item, completed: false })) : null,
+        products: fldr.products ? copy(fldr.products) : null,
       }
+      const filled = await fetch(`/api/fldrs/${createdFldr.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rest)
+      })
+      const complete = filled.ok
+      if (complete) createdFldr = await filled.json()
+      console.log('[Duplicate] Job duplicated successfully')
+
+      // On this phone's list right away, so the copy opens without a trip back to the list
+      cacheFldr(createdFldr)
+      try {
+        const listCache = localStorage.getItem('git-fldrs')
+        const allFldrs = listCache ? JSON.parse(listCache) : []
+        localStorage.setItem('git-fldrs', JSON.stringify([...allFldrs, createdFldr]))
+      } catch (e) {
+        console.error('Failed to update list cache:', e)
+      }
+
+      if (complete) toast('Copy made. This is the copy.')
+      else toast('The copy was made, but only its name, dates, city, staff and notes came across.', 'error')
+      router.push(`/jobs/${createdFldr.id}`)
     } catch (error) {
       console.error('[Duplicate] Duplicate job failed:', error)
-      alert('Failed to duplicate job. Please try again.')
+      toast("Couldn't duplicate the job. Please try again.", 'error')
     } finally {
       setSaving(false)
     }
@@ -2637,12 +2724,17 @@ export default function FldrDetailPage() {
 
   const deleteJob = async () => {
     if (!fldr) return
-    setConfirmDialog({ type: 'deleteJob' })
+    const confirmed = await askConfirm({
+      title: 'Delete job?',
+      body: `\u201c${fldr.title}\u201d will be permanently deleted. This cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })
+    if (confirmed) await doDeleteJob()
   }
 
   const doDeleteJob = async () => {
     if (!fldr) return
-    setConfirmDialog(null)
     
     setSaving(true)
     
@@ -2673,7 +2765,7 @@ export default function FldrDetailPage() {
       }
     } catch (error) {
       console.error('[Delete] Delete job failed:', error)
-      alert('Failed to delete job. Please try again.')
+      toast("Couldn't delete the job. Please try again.", 'error')
     } finally {
       setSaving(false)
     }
@@ -2700,7 +2792,7 @@ export default function FldrDetailPage() {
       }
     } catch (error) {
       console.error('[Overview] Generate overview failed:', error)
-      alert('Failed to generate overview. Please try again.')
+      toast("Couldn't write the overview. Please try again.", 'error')
     } finally {
       setGeneratingOverview(false)
     }
@@ -2714,7 +2806,7 @@ export default function FldrDetailPage() {
       await shareQuickOverviewPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF share failed:', error)
-      alert('Failed to share PDF. Please try again.')
+      toast("Couldn't share the PDF. Please try again.", 'error')
     } finally {
       setGeneratingPDF(null)
     }
@@ -2728,7 +2820,7 @@ export default function FldrDetailPage() {
       await generateQuickOverviewPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF download failed:', error)
-      alert('Failed to download PDF. Please try again.')
+      toast("Couldn't make the PDF. Please try again.", 'error')
     } finally {
       setGeneratingPDF(null)
     }
@@ -2742,7 +2834,7 @@ export default function FldrDetailPage() {
       await shareFullTripBriefPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF share failed:', error)
-      alert('Failed to share PDF. Please try again.')
+      toast("Couldn't share the PDF. Please try again.", 'error')
     } finally {
       setGeneratingPDF(null)
     }
@@ -2756,7 +2848,7 @@ export default function FldrDetailPage() {
       await generateFullTripBriefPDF(fldr)
     } catch (error) {
       console.error('[PDF] PDF download failed:', error)
-      alert('Failed to download PDF. Please try again.')
+      toast("Couldn't make the PDF. Please try again.", 'error')
     } finally {
       setGeneratingPDF(null)
     }
@@ -2791,8 +2883,10 @@ export default function FldrDetailPage() {
       // Anything typed goes up first, so what comes back includes it
       await saveFldr({})
       const res = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
-      if (res.ok) {
-        const freshData = await res.json()
+      const freshData = res.ok ? await res.json() : null
+      if (!isJobReply(freshData, fldr.id)) {
+        toast("Couldn't refresh. Check your connection and try again.", 'error')
+      } else {
         console.log('[Refresh] Refreshed from server, photos:', freshData.photos?.length || 0)
         const merged = adoptServerFldr(freshData)
 
@@ -2811,6 +2905,7 @@ export default function FldrDetailPage() {
       }
     } catch (error) {
       console.error('[Refresh] Refresh failed:', error)
+      toast("Couldn't refresh. Check your connection and try again.", 'error')
     }
     
     setIsRefreshing(false)
@@ -2822,6 +2917,32 @@ export default function FldrDetailPage() {
     setParseEmailText('')
   }
 
+  // The job isn't on this phone, and the server either doesn't have it or couldn't be reached
+  if (!fldr && (notFound || loadFailed)) {
+    return (
+      <div className="min-h-page flex items-center justify-center px-6">
+        <div className="w-full max-w-sm text-center">
+          <h1 className="text-xl font-semibold text-white">{notFound ? "This job isn't here anymore" : "Can't open this job right now"}</h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-white/60">
+            {notFound
+              ? 'It may have been deleted, or the link may be wrong.'
+              : "This phone doesn't have a copy of it yet, and the server couldn't be reached. Check your connection and try again."}
+          </p>
+          <div className="mt-6 flex flex-col gap-2">
+            {!notFound && (
+              <button onClick={() => setLoadAttempt(attempt => attempt + 1)} className="btn-brand min-h-[2.75rem]">
+                Try Again
+              </button>
+            )}
+            <button onClick={() => router.push('/jobs')} className="btn-secondary min-h-[2.75rem]">
+              Back to Jobs
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading || !fldr) {
     return <FldrDetailSkeleton />
   }
@@ -2830,6 +2951,34 @@ export default function FldrDetailPage() {
   const staffNames = Array.from(
     new Set([...(fldr.people || []).map(p => p.name), ...(fldr.job_info?.team_members || [])].map(n => n?.trim()).filter(Boolean))
   ) as string[]
+
+  // Where the save stands, for the button in the header
+  const saveState: 'saving' | 'unsaved' | 'waiting' | 'saved' =
+    saving || autoSaving ? 'saving' : unsavedChanges ? 'unsaved' : hasUnsynced ? 'waiting' : 'saved'
+
+  // The days the trip runs between and the airports it uses, so the travel cards can
+  // start their date pickers in the right place and offer the airport for the rental car
+  const flights = Array.isArray(fldr.flight_info) ? fldr.flight_info : []
+  const flightsOut = flights.filter(flight => flight.segment_type !== 'return')
+  const lastFlightOut = flightsOut[flightsOut.length - 1]
+  const flightHome = flights.find(flight => flight.segment_type === 'return')
+  const trip = {
+    out: fldr.job_info?.travel_start || dayKey(flightsOut[0]?.departure_time) || fldr.date_start,
+    back: fldr.job_info?.travel_end || dayKey(flightHome?.departure_time) || fldr.date_end || fldr.date_start,
+  }
+  const arrivalAirport = lastFlightOut?.arrival_address
+    ? { code: lastFlightOut.arrival_code, address: lastFlightOut.arrival_address, time: lastFlightOut.arrival_time }
+    : null
+  const departureAirport = flightHome?.departure_address
+    ? { code: flightHome.departure_code, address: flightHome.departure_address, time: flightHome.departure_time }
+    : null
+
+  const menuItem =
+    'flex min-h-[2.75rem] w-full items-center gap-3 px-4 text-left text-[15px] text-white/85 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50'
+  const menuItemDanger =
+    'flex min-h-[2.75rem] w-full items-center gap-3 px-4 text-left text-[15px] text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50'
+  const menuIcon =
+    'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-brand-light transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50'
 
   return (
     <div 
@@ -2853,18 +3002,18 @@ export default function FldrDetailPage() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-sm font-medium">Refreshing...</span>
+              <span className="text-[15px] font-medium">Refreshing...</span>
             </div>
           ) : (
-            <div className="text-brand-light text-sm font-medium">
+            <div className="text-brand-light text-[15px] font-medium">
               {pullDistance > 80 ? 'Release to refresh' : 'Pull to refresh'}
             </div>
           )}
         </div>
       )}
-      {/* Header */}
-      <div className="sticky top-0 z-30 mb-4 border-b border-line bg-canvas/85 backdrop-blur-md">
-      <div className="flex items-center justify-between h-14 px-4 max-w-2xl mx-auto">
+      {/* Header: back, how the save stands, and everything else under More */}
+      <div className="sticky top-0 z-30 border-b border-line bg-canvas/85 backdrop-blur-md">
+      <div className="flex items-center justify-between gap-2 h-14 px-3 max-w-2xl mx-auto">
         {/* Left side - Back button */}
         <button
           onClick={async () => {
@@ -2872,274 +3021,277 @@ export default function FldrDetailPage() {
             await flushAndSave()
             router.push('/jobs')
           }}
-          className="flex items-center gap-1 -ml-1.5 pl-1 pr-2.5 h-9 rounded-lg text-white/70 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
+          className="flex items-center gap-1 pl-1.5 pr-3 h-11 rounded-lg text-white/70 hover:text-white hover:bg-white/10 text-[15px] font-medium transition-colors"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeftIcon className="w-5 h-5" />
           <span>Back</span>
         </button>
 
-        {/* Right side - Actions */}
-        <div className="flex items-center gap-1.5">
-          {/* Online indicator and refresh */}
-          <div className="flex items-center gap-1 mr-1">
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-red-500'}`} />
-              <span className="text-xs text-white/55">{online ? 'Online' : 'Offline'}</span>
-            </div>
-            {online && !isRefreshing && (
-              <button
-                onClick={async () => {
-                  setIsRefreshing(true)
-                  await handleRefresh()
-                }}
-                className="icon-btn h-8 w-8"
-                title="Refresh from server"
-                aria-label="Refresh from server"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-            )}
-            {isRefreshing && (
-              <svg className="animate-spin h-4 w-4 mx-2 text-brand-light" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            )}
-          </div>
-
-          {/* Manual Save Button */}
+        {/* Right side - Save and More */}
+        <div className="flex items-center gap-1">
+          {/* Says where the save stands, and saves right away when tapped */}
           <button
             onClick={manualSave}
             disabled={saving || !fldr}
-            className={`relative h-9 px-3 rounded-lg font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50 border ${
-              unsavedChanges
+            aria-label={
+              saveState === 'saving'
+                ? 'Saving'
+                : saveState === 'unsaved'
+                ? 'Save changes now'
+                : saveState === 'waiting'
+                ? 'Changes not sent yet. Tap to try again'
+                : 'All changes saved. Tap to save again'
+            }
+            className={`inline-flex h-11 min-w-[6.5rem] items-center justify-center gap-2 rounded-lg border px-3.5 text-[15px] font-semibold transition-colors disabled:opacity-60 ${
+              saveState === 'unsaved'
                 ? 'bg-brand border-brand hover:bg-brand-hover text-white'
-                : 'bg-white/5 border-line-strong hover:bg-white/10 text-white/85'
+                : saveState === 'waiting'
+                ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+                : saveState === 'saved' && savedFlash
+                ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300'
+                : 'bg-white/5 border-line-strong hover:bg-white/10 text-white/70'
             }`}
-            title={unsavedChanges ? 'Save changes to server' : 'Save now'}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-            </svg>
-            <span>{saving ? 'Saving...' : 'Save'}</span>
-            {/* Sits on the corner so the header doesn't shift as it comes and goes */}
-            {unsavedChanges && !saving && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-gold rounded-full ring-2 ring-canvas" aria-label="Unsaved changes" />
-            )}
+            {saveState === 'saving' ? (
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : saveState === 'saved' ? (
+              <CheckIcon className="w-4 h-4" />
+            ) : saveState === 'waiting' ? (
+              <AlertIcon className="w-4 h-4" />
+            ) : null}
+            <span>
+              {saveState === 'saving' ? 'Saving...' : saveState === 'unsaved' ? 'Save' : saveState === 'waiting' ? 'Not sent' : 'Saved'}
+            </span>
           </button>
 
-          {!editMode && (
-            <>
-              <button
-                onClick={enableEditMode}
-                className="icon-btn"
-                title="Edit"
-                aria-label="Edit"
+          {/* Everything else about the job lives under one button */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={async () => {
+                await flushAndSave()
+                setShowMenu(!showMenu)
+              }}
+              className="icon-btn h-11 w-11"
+              title="More options"
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={showMenu}
+            >
+              <MoreIcon className="w-5 h-5" />
+            </button>
+
+            {showMenu && (
+              <div
+                role="menu"
+                className="absolute top-full right-0 mt-2 w-[min(19rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-surface border border-line-strong rounded-xl shadow-pop py-1.5 z-50 animate-slide-in"
               >
-                <PencilIcon className="w-[18px] h-[18px]" />
-              </button>
-              <button
-                onClick={async () => {
-                  await flushAndSave()
-                  await duplicateJob()
-                }}
-                disabled={saving}
-                className="icon-btn disabled:opacity-50"
-                title="Duplicate this job"
-                aria-label="Duplicate this job"
-              >
-                <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
-              
-              {/* Export Dropdown */}
-              <div className="relative" ref={exportMenuRef}>
                 <button
-                  onClick={async () => {
-                    await flushAndSave()
-                    setShowExportMenu(!showExportMenu)
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMenu(false)
+                    enableEditMode()
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
-                  disabled={generatingOverview || generatingPDF !== null}
-                  className="icon-btn disabled:opacity-50"
-                  title="Export options"
-                  aria-label="Export options"
-                  aria-expanded={showExportMenu}
+                  className={menuItem}
                 >
-                  <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+                  <PencilIcon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>Edit Name and Dates</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={!online || isRefreshing}
+                  onClick={async () => {
+                    setShowMenu(false)
+                    setIsRefreshing(true)
+                    await handleRefresh()
+                  }}
+                  className={menuItem}
+                >
+                  <RefreshIcon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  role="menuitem"
+                  disabled={saving}
+                  onClick={() => {
+                    setShowMenu(false)
+                    duplicateJob()
+                  }}
+                  className={menuItem}
+                >
+                  <CopyIcon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>Duplicate Job</span>
                 </button>
 
-                {showExportMenu && (
-                  <div className="absolute top-full right-0 mt-2 bg-surface border border-line-strong rounded-xl shadow-pop py-1.5 min-w-[220px] z-50 animate-slide-in">
-                    <button
-                      onClick={async () => {
-                        await flushAndSave()
-                        generateOverview()
-                        setShowExportMenu(false)
-                      }}
-                      disabled={generatingOverview}
-                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>{generatingOverview ? 'Generating...' : 'Text Overview'}</span>
-                    </button>
-                    
-                    <div className="border-t border-line my-1"></div>
-                    
-                    <div className="px-4 pt-2 pb-1">
-                      <span className="eyebrow text-[10px]">Quick PDF (1 page)</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        handleQuickOverviewDownload()
-                        setShowExportMenu(false)
-                      }}
-                      disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      <span>{generatingPDF === 'quick' ? 'Generating...' : 'Download PDF'}</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleQuickOverviewShare()
-                        setShowExportMenu(false)
-                      }}
-                      disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                      <span>Share PDF</span>
-                    </button>
-                    
-                    <div className="border-t border-line my-1"></div>
-                    
-                    <div className="px-4 pt-2 pb-1">
-                      <span className="eyebrow text-[10px]">Full Trip Brief</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        handleFullTripBriefDownload()
-                        setShowExportMenu(false)
-                      }}
-                      disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      <span>{generatingPDF === 'full' ? 'Generating...' : 'Download PDF'}</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleFullTripBriefShare()
-                        setShowExportMenu(false)
-                      }}
-                      disabled={generatingPDF !== null}
-                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                      <span>Share PDF</span>
-                    </button>
-                    
-                    <div className="border-t border-line my-1"></div>
-                    
-                    {/* Archive/Unarchive */}
-                    <button
-                      onClick={async () => {
-                        if (!fldr) return
-                        await flushAndSave()
-                        const newArchiveStatus = !fldr.archived
-                        if (newArchiveStatus && jigsOut > 0) {
-                          alert('Some jigs from this job are still out. Check them in first, or set the status to Waiting on return.')
-                          return
-                        }
-                        setSaving(true)
-                        try {
-                          setFldr({ ...fldr, archived: newArchiveStatus })
-                          await saveFldr({ archived: newArchiveStatus })
-                        } finally {
-                          setSaving(false)
-                        }
-                        setShowExportMenu(false)
-                      }}
-                      disabled={saving}
-                      className="w-full px-4 py-2.5 text-left text-sm text-white/85 hover:bg-white/5 hover:text-white disabled:opacity-50 flex items-center gap-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                      </svg>
-                      <span>{saving ? 'Updating...' : fldr.archived ? 'Unarchive Job' : 'Archive Job'}</span>
-                    </button>
-                    
-                    <div className="border-t border-line my-1"></div>
-                    
-                    <button
-                      onClick={async () => {
-                        await flushAndSave()
-                        deleteJob()
-                        setShowExportMenu(false)
-                      }}
-                      disabled={saving}
-                      className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50 flex items-center gap-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      <span>Delete Job</span>
-                    </button>
-                  </div>
-                )}
+                <div className="border-t border-line my-1.5"></div>
+                <div className="px-4 pt-1.5 pb-1">
+                  <span className="eyebrow">Share</span>
+                </div>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMenu(false)
+                    generateOverview()
+                  }}
+                  disabled={generatingOverview}
+                  className={menuItem}
+                >
+                  <DocumentIcon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>{generatingOverview ? 'Generating...' : 'Text Overview'}</span>
+                </button>
+                <div className="flex min-h-[2.75rem] items-center gap-1 pl-4 pr-2">
+                  <span className="min-w-0 flex-1 text-[15px] text-white/85">Quick PDF (1 page)</span>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setShowMenu(false)
+                      handleQuickOverviewDownload()
+                    }}
+                    disabled={generatingPDF !== null}
+                    aria-label="Download Quick PDF"
+                    title="Download"
+                    className={menuIcon}
+                  >
+                    <DownloadIcon className="w-[18px] h-[18px]" />
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setShowMenu(false)
+                      handleQuickOverviewShare()
+                    }}
+                    disabled={generatingPDF !== null}
+                    aria-label="Share Quick PDF"
+                    title="Share"
+                    className={menuIcon}
+                  >
+                    <ShareIcon className="w-[18px] h-[18px]" />
+                  </button>
+                </div>
+                <div className="flex min-h-[2.75rem] items-center gap-1 pl-4 pr-2">
+                  <span className="min-w-0 flex-1 text-[15px] text-white/85">Full Trip Brief</span>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setShowMenu(false)
+                      handleFullTripBriefDownload()
+                    }}
+                    disabled={generatingPDF !== null}
+                    aria-label="Download Full Trip Brief"
+                    title="Download"
+                    className={menuIcon}
+                  >
+                    <DownloadIcon className="w-[18px] h-[18px]" />
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setShowMenu(false)
+                      handleFullTripBriefShare()
+                    }}
+                    disabled={generatingPDF !== null}
+                    aria-label="Share Full Trip Brief"
+                    title="Share"
+                    className={menuIcon}
+                  >
+                    <ShareIcon className="w-[18px] h-[18px]" />
+                  </button>
+                </div>
+
+                <div className="border-t border-line my-1.5"></div>
+
+                {/* Archive/Unarchive */}
+                <button
+                  role="menuitem"
+                  onClick={async () => {
+                    if (!fldr) return
+                    setShowMenu(false)
+                    const newArchiveStatus = !fldr.archived
+                    if (newArchiveStatus && jigsOut > 0) {
+                      await showNotice({
+                        title: 'Jigs are still out',
+                        body: 'Some jigs from this job are still out. Check them in first, or set the status to Waiting on return.',
+                      })
+                      return
+                    }
+                    setSaving(true)
+                    try {
+                      setFldr({ ...fldr, archived: newArchiveStatus })
+                      await saveFldr({ archived: newArchiveStatus })
+                      toast(newArchiveStatus ? 'Job archived' : 'Job is back on the list')
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                  disabled={saving}
+                  className={menuItem}
+                >
+                  <ArchiveIcon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>{fldr.archived ? 'Unarchive Job' : 'Archive Job'}</span>
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMenu(false)
+                    deleteJob()
+                  }}
+                  disabled={saving}
+                  className={menuItemDanger}
+                >
+                  <TrashIcon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>Delete Job</span>
+                </button>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
       </div>
 
-      {/* Save Status Indicator */}
-      {(saving || autoSaving || unsavedChanges || lastSaved) && (
-        <div className="mb-3 text-center px-4 max-w-2xl mx-auto" aria-live="polite">
-          {saving || autoSaving || unsavedChanges ? (
-            <span className="text-[11px] text-yellow-300">Saving...</span>
-          ) : lastSaved && (
-            <span className="text-[11px] text-white/40">
-              Saved {new Date().getTime() - lastSaved.getTime() < 60000
-                ? 'just now'
-                : `${Math.floor((new Date().getTime() - lastSaved.getTime()) / 60000)}m ago`}
+      {/* Read out for screen readers as the save moves along */}
+      <div className="sr-only" aria-live="polite">
+        {saveState === 'saving' ? 'Saving' : saveState === 'unsaved' ? 'Changes not saved yet' : saveState === 'waiting' ? 'Changes not sent yet' : lastSaved ? 'Saved' : ''}
+      </div>
+
+      {/* Only shown when something needs saying: offline, or a save that hasn't got through */}
+      {(!online || hasUnsynced) && (
+        <div className="px-4 max-w-2xl mx-auto mt-3" role="status">
+          <div className="flex items-center gap-2.5 rounded-xl border border-amber-400/30 bg-amber-500/10 py-1 pl-3.5 pr-1.5 text-sm leading-snug text-amber-100">
+            <AlertIcon className="w-4 h-4 flex-shrink-0 text-amber-300" />
+            <span className="min-w-0 flex-1 py-2">
+              {!online
+                ? "You're offline. Changes are kept on this phone and sent when you're back online."
+                : "Some changes haven't reached the server yet."}
             </span>
-          )}
+            {online && hasUnsynced && (
+              <button
+                onClick={manualSave}
+                disabled={saving}
+                className="inline-flex min-h-[2.5rem] flex-shrink-0 items-center rounded-lg px-3 text-[15px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/15 disabled:opacity-50"
+              >
+                Send Now
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      <div className="mb-6 px-4 max-w-2xl mx-auto">
+      <div className="mt-4 mb-4 px-4 max-w-2xl mx-auto">
         {editMode ? (
           <div className="card shadow-card space-y-4 p-5">
             <div>
               <label className="label">
-                Title <span className="text-red-400">*</span>
+                Job Name <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="input"
-                placeholder="Client name"
+                placeholder="e.g. Acme Corp"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -3161,6 +3313,7 @@ export default function FldrDetailPage() {
                 <input
                   type="date"
                   value={editDateEnd}
+                  min={editDateStart || undefined}
                   onChange={(e) => setEditDateEnd(e.target.value)}
                   className="input"
                 />
@@ -3168,234 +3321,164 @@ export default function FldrDetailPage() {
             </div>
             <div>
               <label className="label">
-                Location <span className="text-white/35 font-normal">(optional)</span>
+                City <span className="text-white/35 font-normal">(optional)</span>
               </label>
               <input
                 type="text"
                 value={editLocation}
                 onChange={(e) => setEditLocation(e.target.value)}
                 className="input"
-                placeholder="City, State"
+                placeholder="e.g. Austin, TX"
               />
             </div>
             <div className="flex gap-2">
               <button
                 onClick={saveBasicInfo}
                 disabled={!editTitle.trim() || !editDateStart || saving}
-                className="btn-brand flex-1"
+                className="btn-brand flex-1 min-h-[2.75rem]"
               >
                 {saving ? 'Saving...' : 'Save'}
               </button>
               <button
                 onClick={cancelEdit}
                 disabled={saving}
-                className="btn-secondary flex-1"
+                className="btn-secondary flex-1 min-h-[2.75rem]"
               >
                 Cancel
               </button>
             </div>
           </div>
         ) : (
-          <div className="card shadow-card p-5">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h2 className="text-2xl font-semibold text-white leading-tight min-w-0 break-words">{fldr.title}</h2>
-              <div className={`badge flex-shrink-0 mt-1 ${
-                fldr.status === 'incomplete' ? 'bg-yellow-500/15 text-yellow-300' :
-                fldr.status === 'ready' ? 'bg-blue-500/15 text-blue-300' :
-                fldr.status === 'active' ? 'bg-emerald-500/15 text-emerald-300' :
-                'bg-white/10 text-white/60'
-              }`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-                {fldr.status}
+          <div>
+            {/* The job's name, large and sitting right on the page like the title of an app screen */}
+            <div className="px-1">
+              <h2 className="text-[28px] font-bold leading-tight tracking-tight text-white break-words">{fldr.title}</h2>
+              <div className="mt-1.5 text-base text-white/65 tabular">
+                {formatDate(fldr.date_start)}
+                {fldr.date_end && ` – ${formatDate(fldr.date_end)}`}
               </div>
-            </div>
-            <div className="text-white/60 text-sm tabular">
-              {formatDate(fldr.date_start)}
-              {fldr.date_end && ` – ${formatDate(fldr.date_end)}`}
-            </div>
-            
-            {/* Countdown Timers */}
-            {(() => {
-              const daysUntilFlight = getDaysUntilFlight()
-              const daysUntilJob = getDaysUntilJob()
-              
-              // Determine urgency based on whichever is sooner
-              const soonest = daysUntilFlight !== null && daysUntilFlight >= 0 ? daysUntilFlight : daysUntilJob
-              
-              if ((daysUntilFlight !== null && daysUntilFlight >= 0) || (daysUntilJob !== null && daysUntilJob >= 0)) {
-                const urgencyColor = soonest !== null && soonest <= 2 ? 'text-red-300' : soonest !== null && soonest <= 7 ? 'text-yellow-300' : 'text-emerald-300'
-                const urgencyBg = soonest !== null && soonest <= 2 ? 'bg-red-500/10 border-red-400/30' : soonest !== null && soonest <= 7 ? 'bg-yellow-500/10 border-yellow-400/30' : 'bg-emerald-500/10 border-emerald-400/30'
-                
+              {fldr.location && (
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                  <div className="text-base text-white/85">{fldr.location}</div>
+                  {locationTime && (
+                    <div className="flex items-center gap-1 text-sm text-white/55 tabular" title="The time there right now">
+                      <ClockIcon className="w-3.5 h-3.5" />
+                      <span>{locationTime} there</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Countdown Timers */}
+              {isJob && (() => {
+                // The countdown is to the day you leave; on that day it says Travel Day, and once the job is on, Job Day
+                const phase = tripPhase(fldr)
+                const pills = tripPills(phase)
+                if (pills.length === 0) return null
+                const urgency =
+                  phase.kind === 'travel-day' || phase.kind === 'job-day'
+                    ? 'bg-brand/20 border-brand/40 text-brand-light'
+                    : phase.days <= 2
+                    ? 'bg-red-500/10 border-red-400/30 text-red-300'
+                    : phase.days <= 7
+                    ? 'bg-yellow-500/10 border-yellow-400/30 text-yellow-300'
+                    : 'bg-emerald-500/10 border-emerald-400/30 text-emerald-300'
+
                 return (
-                  <div className={`mt-4 px-4 py-3 ${urgencyBg} border rounded-xl space-y-2`}>
-                    {daysUntilFlight !== null && daysUntilFlight >= 0 && (
-                      <div className="flex items-center gap-3">
-                        <svg className={`w-5 h-5 ${urgencyColor} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
-                        <div className="flex-1">
-                          <div className={`text-sm font-semibold ${urgencyColor}`}>
-                            {daysUntilFlight === 0 ? 'Flight Today!' : daysUntilFlight === 1 ? '1 Day Until Flight' : `${daysUntilFlight} Days Until Flight`}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {daysUntilJob !== null && daysUntilJob >= 0 && (
-                      <div className="flex items-center gap-3">
-                        <svg className={`w-5 h-5 ${urgencyColor} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div className="flex-1">
-                          <div className={`text-sm font-semibold ${urgencyColor}`}>
-                            {daysUntilJob === 0 ? 'Job is Today!' : daysUntilJob === 1 ? '1 Day Until Job' : `${daysUntilJob} Days Until Job`}
-                          </div>
-                          {daysUntilJob > 0 && (
-                            <div className="text-xs text-white/60 mt-0.5">
-                              Starting {formatDate(fldr.date_start)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {pills.map(text => (
+                      <span key={text} className={`rounded-full border px-3.5 py-1.5 text-[15px] font-semibold ${urgency}`}>
+                        {text}
+                      </span>
+                    ))}
                   </div>
                 )
-              }
-              return null
-            })()}
-            
-            {fldr.location && (
-              <div className="flex items-center gap-2.5 mt-1.5">
-                <div className="text-white/85">{fldr.location}</div>
-                {locationTime && (
-                  <div className="flex items-center gap-1 text-xs text-white/55 tabular">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>{locationTime}</span>
-                  </div>
+              })()}
+            </div>
+
+            {/* Job Status Selector */}
+            {isJob && (
+              <div className="card mt-4 py-1.5 pl-4 pr-1.5">
+                <div className="flex items-center gap-3">
+                  <label htmlFor="job-status" className="flex-shrink-0 text-base font-medium text-white/80">Job Status</label>
+                  <select
+                    id="job-status"
+                    value={fldr.job_status || ''}
+                    onChange={async (e) => {
+                      if (!fldr) return
+                      let newStatus = (e.target.value || null) as JobStatus | null
+                      // Complete waits until every jig is checked back in
+                      if (newStatus === 'complete' && jigsOut > 0) newStatus = 'awaiting_return'
+                      heldWaitingRef.current = newStatus === 'awaiting_return' && jigsOut === 0
+                      setSaving(true)
+                      try {
+                        setFldr({ ...fldr, job_status: newStatus })
+                        await saveFldr({ job_status: newStatus })
+                      } finally {
+                        setSaving(false)
+                      }
+                    }}
+                    className="input min-h-[2.75rem] flex-1"
+                  >
+                    <option value="" className="bg-gray-800 text-white">Not Set</option>
+                    <option value="pending" className="bg-gray-800 text-white">Pending</option>
+                    <option value="confirmed" className="bg-gray-800 text-white">Confirmed</option>
+                    <option value="in_progress" className="bg-gray-800 text-white">In Progress</option>
+                    <option value="awaiting_return" className="bg-gray-800 text-white">Waiting on return</option>
+                    <option value="complete" className="bg-gray-800 text-white">Complete</option>
+                  </select>
+                </div>
+                {fldr.job_status === 'awaiting_return' && (
+                  <p className="pb-2 pr-3 pt-1 text-sm leading-relaxed text-amber-200/80">
+                    Waiting on {jigsOut} jig{jigsOut === 1 ? '' : 's'} to be checked in. This job completes itself once everything is back.
+                  </p>
                 )}
               </div>
             )}
-            
-            {/* Job Status Selector */}
-            <div className="mt-4 pt-4 border-t border-line">
-              <label htmlFor="job-status" className="label">Job Status</label>
-              <select
-                id="job-status"
-                value={fldr.job_status || ''}
-                onChange={async (e) => {
-                  if (!fldr) return
-                  let newStatus = (e.target.value || null) as JobStatus | null
-                  // Complete waits until every jig is checked back in
-                  if (newStatus === 'complete' && jigsOut > 0) newStatus = 'awaiting_return'
-                  heldWaitingRef.current = newStatus === 'awaiting_return' && jigsOut === 0
-                  setSaving(true)
-                  try {
-                    setFldr({ ...fldr, job_status: newStatus })
-                    await saveFldr({ job_status: newStatus })
-                  } finally {
-                    setSaving(false)
-                  }
-                }}
-                className="input"
-              >
-                <option value="" className="bg-gray-800 text-white">Not Set</option>
-                <option value="pending" className="bg-gray-800 text-white">Pending</option>
-                <option value="confirmed" className="bg-gray-800 text-white">Confirmed</option>
-                <option value="in_progress" className="bg-gray-800 text-white">In Progress</option>
-                <option value="awaiting_return" className="bg-gray-800 text-white">Waiting on return</option>
-                <option value="complete" className="bg-gray-800 text-white">Complete</option>
-              </select>
-              {fldr.job_status === 'awaiting_return' && (
-                <p className="mt-2 text-xs text-amber-200/80">
-                  Waiting on {jigsOut} jig{jigsOut === 1 ? '' : 's'} to be checked in. This job completes itself once everything is back.
-                </p>
-              )}
-            </div>
           </div>
         )}
       </div>
 
-      {/* Status Actions & Map */}
-      <div className="px-4 max-w-2xl mx-auto mb-4 space-y-2">
-        {((fldr.status === 'ready' || fldr.status === 'incomplete') || fldr.status === 'active' || fldr.status === 'complete') && (
-          <>
-            {(fldr.status === 'ready' || fldr.status === 'incomplete') && (
-              <button
-                onClick={() => updateStatus('active')}
-                disabled={saving}
-                className="btn w-full font-medium bg-brand/15 hover:bg-brand/25 border border-brand/40 text-brand-light"
-              >
-                {!saving && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                {saving ? 'Activating...' : 'Activate Job'}
-              </button>
-            )}
-            {fldr.status === 'active' && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => updateStatus('complete')}
-                  disabled={saving}
-                  className="btn flex-1 font-medium bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300"
-                >
-                  {saving ? 'Completing...' : 'Mark Complete'}
-                </button>
-                <button
-                  onClick={() => updateStatus('ready')}
-                  disabled={saving}
-                  className="btn flex-1 font-medium bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300"
-                >
-                  {!saving && (
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
-                    </svg>
-                  )}
-                  {saving ? 'Pausing...' : 'Pause'}
-                </button>
-              </div>
-            )}
-            {fldr.status === 'complete' && (
-              <button
-                onClick={() => updateStatus('active')}
-                disabled={saving}
-                className="btn w-full font-medium bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300"
-              >
-                {!saving && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                )}
-                {saving ? 'Reactivating...' : 'Reactivate Job'}
-              </button>
-            )}
-          </>
-        )}
+      <SectionNav sections={navSections} active={shownSection} onSelect={showSection} />
 
-        {/* Map Button */}
-        <button
-          onClick={() => setShowMapModal(true)}
-          className="btn-secondary w-full font-medium"
-        >
-          <svg className="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
-          Open Google Maps & Nearby Places
-        </button>
-      </div>
-
-      <SectionNav sections={navSections} active={activeSection} onSelect={jumpToSection} />
-
-      <div className="px-4 max-w-2xl mx-auto space-y-3">
+      {/* One section at a time. The others stay mounted (so nothing typed is lost) but out of sight. */}
+      <div id="job-content" className="px-4 max-w-2xl mx-auto scroll-mt-[8.5rem]">
         {/* ── Overview: what's next, the trip start to end, the details you reach for ── */}
-        <section id="sec-overview" className="space-y-3 scroll-mt-28">
+        <section
+          id="sec-overview"
+          role="tabpanel"
+          aria-label="Overview"
+          className={shownSection === 'overview' ? 'space-y-3 animate-fade-in' : 'hidden'}
+        >
+          {/* Getting there: the venue is a tap away once its address is in */}
+          {!editMode && (
+            <div className={`grid gap-2 ${fldr.venue_info?.address ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {fldr.venue_info?.address && (
+                <a
+                  href={directionsUrl(fldr.venue_info.address)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="card flex min-h-[3.5rem] flex-col items-center justify-center gap-1 px-2 py-2.5 text-center text-[15px] font-medium leading-tight text-white transition-colors active:bg-white/10"
+                >
+                  <DirectionsIcon className="w-5 h-5 text-gold" />
+                  Directions to Venue
+                </a>
+              )}
+              <button
+                onClick={() => setShowMapModal(true)}
+                className="card flex min-h-[3.5rem] flex-col items-center justify-center gap-1 px-2 py-2.5 text-center text-[15px] font-medium leading-tight text-white transition-colors active:bg-white/10"
+              >
+                <MapIcon className="w-5 h-5 text-gold" />
+                Map &amp; Nearby Places
+              </button>
+            </div>
+          )}
+
           <GlanceCard
             fldr={fldr}
             jigsOut={jigsOut}
-            distances={distances}
-            distancesLoading={distancesLoading}
+            driveTimes={driveTimes}
+            driveTimesLoading={distancesLoading}
             open={expandedCards.summary}
             onToggle={() => toggleCard('summary')}
             onJump={jumpToCard}
@@ -3413,24 +3496,26 @@ export default function FldrDetailPage() {
                 !jobWeather.loading && jobWeather.current && (
                   <div className="flex items-center gap-1.5">
                     <WeatherSVG condition={jobWeather.current.main} size="xs" />
-                    <span className="text-sm text-white/70">{Math.round(jobWeather.current.temp)}°</span>
+                    <span className="text-[15px] text-white/70">{Math.round(jobWeather.current.temp)}°</span>
                   </div>
                 )
               }
             >
               <>
                 {jobWeather.loading && (
-                  <div className="py-6 text-center text-sm text-gray-400">Loading weather…</div>
+                  <div className="py-6 text-center text-[15px] text-white/55">Loading weather…</div>
                 )}
 
                 {!jobWeather.loading && jobWeather.error && (
-                  <div className="py-6 text-center text-sm text-gray-500">Weather unavailable</div>
+                  <div className="py-6 text-center text-[15px] leading-relaxed text-white/55">
+                    Couldn&apos;t get the weather for this city. Check the city&apos;s spelling under Client &amp; Event.
+                  </div>
                 )}
 
                 {!jobWeather.loading && !jobWeather.error && jobWeather.current && (
                   <>
                     {jobWeather.cityLabel && (
-                      <div className="text-xs text-brand-light font-semibold uppercase tracking-wide mb-2">
+                      <div className="text-[13px] text-brand-light font-semibold uppercase tracking-wide mb-2">
                         {jobWeather.cityLabel}
                       </div>
                     )}
@@ -3438,16 +3523,16 @@ export default function FldrDetailPage() {
                       <div className="flex items-center gap-3">
                         <WeatherSVG condition={jobWeather.current.main} size="lg" />
                         <div>
-                          <div className="text-2xl font-thin text-white leading-none">
+                          <div className="text-2xl font-light text-white leading-none">
                             {Math.round(jobWeather.current.temp)}°
                           </div>
-                          <div className="text-xs text-gray-400 capitalize mt-1">
+                          <div className="text-sm text-white/60 capitalize mt-1">
                             {jobWeather.current.description}
                           </div>
                         </div>
                       </div>
-                      <div className="text-right text-xs text-gray-400 space-y-0.5">
-                        <div>Feels {Math.round(jobWeather.current.feels_like)}°</div>
+                      <div className="text-right text-sm text-white/60 space-y-0.5">
+                        <div>Feels like {Math.round(jobWeather.current.feels_like)}°</div>
                         <div>{jobWeather.current.humidity}% humidity</div>
                         <div>{jobWeather.current.wind_speed} mph wind</div>
                       </div>
@@ -3457,12 +3542,12 @@ export default function FldrDetailPage() {
                       <div className="grid grid-cols-5 gap-1 pt-3">
                         {jobWeather.daily.map(day => (
                           <div key={day.date} className="flex flex-col items-center gap-1">
-                            <div className="text-[10px] text-gray-500">
+                            <div className="text-[13px] text-white/50">
                               {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
                             </div>
                             <WeatherSVG condition={day.main} size="xs" />
-                            <div className="text-xs font-semibold text-white">{day.high}°</div>
-                            <div className="text-[10px] text-gray-500">{day.low}°</div>
+                            <div className="text-[15px] font-semibold text-white">{day.high}°</div>
+                            <div className="text-[13px] text-white/50">{day.low}°</div>
                           </div>
                         ))}
                       </div>
@@ -3474,26 +3559,20 @@ export default function FldrDetailPage() {
           )}
 
           {/* Itinerary - built from every time on the job */}
-          <SectionCard id="itinerary" title="Itinerary" open={expandedCards.itinerary} onToggle={() => toggleCard('itinerary')}>
+          <SectionCard
+            id="itinerary"
+            title="Itinerary"
+            open={expandedCards.itinerary}
+            onToggle={() => toggleCard('itinerary')}
+            summary="Every time on the job, hour by hour"
+          >
             <>
-              {/* Info banner about itinerary features */}
-              <div className="mb-3 p-3 bg-canvas/50 border border-line rounded-lg backdrop-blur-sm">
-                <div className="flex items-start gap-2">
-                  <svg className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="flex-1 text-xs text-gray-400">
-                    <p className="text-gray-500">Past items automatically strike through • Next upcoming item highlights in green</p>
-                  </div>
-                </div>
-              </div>
-
               {(() => {
                 const itinerary = generateItinerary()
-                
+
                 if (Object.keys(itinerary).length === 0) {
                   return (
-                    <p className="text-sm text-gray-400 py-4 text-center">
+                    <p className="text-[15px] leading-relaxed text-white/55 py-4 text-center">
                       No scheduled events yet. Add flight times, hotel check-in/out, or rental car times to build your itinerary.
                     </p>
                   )
@@ -3515,55 +3594,51 @@ export default function FldrDetailPage() {
                   <div className="space-y-4">
                     {Object.keys(itinerary).map((day, dayIndex) => (
                       <div key={day} className={dayIndex > 0 ? 'border-t border-line pt-4' : ''}>
-                        <div className="text-sm font-semibold text-brand-light mb-3">
+                        <div className="text-[15px] font-semibold text-brand-light mb-3">
                           {day}
                         </div>
                         <div className="space-y-3">
                           {itinerary[day].map((event, eventIndex) => {
                             const isPast = event.dateTime.getTime() < currentTime.getTime()
-                            
+
                             // Mark as "NEXT" only if this is THE first upcoming event across the entire itinerary
                             const isNext = firstUpcomingEventTime !== null && event.dateTime.getTime() === firstUpcomingEventTime
-                            
+
                             return (
-                              <div 
-                                key={eventIndex} 
-                                className={`pl-4 border-l-2 transition-all ${
-                                  isPast 
-                                    ? 'border-brand/20 opacity-50' 
-                                    : isNext 
-                                      ? 'border-emerald-500 bg-emerald-500/5 shadow-sm' 
+                              <div
+                                key={eventIndex}
+                                className={`flex gap-3 pl-3 border-l-2 transition-all ${
+                                  isPast
+                                    ? 'border-brand/20 opacity-60'
+                                    : isNext
+                                      ? 'border-gold bg-gold/[0.06] py-1'
                                       : 'border-brand/40'
                                 }`}
                               >
-                                <div className="flex items-baseline gap-2 mb-1">
-                                  <span className={`text-xs font-medium ${isPast ? 'text-gray-400' : isNext ? 'text-emerald-500' : 'text-brand-light'}`}>
-                                    {event.dateTime.toLocaleTimeString('en-US', {
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                      hour12: true
-                                    })}
-                                  </span>
-                                  <span className={`text-sm flex items-center gap-1.5 ${
-                                    isPast 
-                                      ? 'line-through text-gray-400' 
-                                      : 'font-medium text-gray-100'
+                                <span className={`w-[4.25rem] flex-shrink-0 pt-px text-sm font-medium tabular ${isPast ? 'text-white/45' : isNext ? 'text-gold' : 'text-brand-light'}`}>
+                                  {event.dateTime.toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className={`flex flex-wrap items-center gap-1.5 text-base leading-snug ${
+                                    isPast
+                                      ? 'line-through text-white/45'
+                                      : 'font-medium text-white/90'
                                   }`}>
                                     {event.title}
-                                    {isNext && (
-                                      <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-emerald-500/20 text-emerald-500 rounded border border-emerald-500/30">
-                                        NEXT
-                                      </span>
-                                    )}
-                                  </span>
-                                </div>
-                                {event.details.length > 0 && (
-                                  <div className={`text-xs space-y-0.5 ml-16 ${isPast ? 'text-gray-400 line-through' : 'text-gray-400'}`}>
-                                    {event.details.map((detail, i) => (
-                                      <div key={i}>{detail}</div>
-                                    ))}
+                                    {isNext && <span className="badge bg-gold/15 py-0.5 text-gold">Next</span>}
                                   </div>
-                                )}
+                                  {event.details.length > 0 && (
+                                    <div className={`mt-0.5 text-sm space-y-0.5 text-white/50 ${isPast ? 'line-through' : ''}`}>
+                                      {event.details.map((detail, i) => (
+                                        <div key={i} className="break-words">{detail}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )
                           })}
@@ -3579,22 +3654,31 @@ export default function FldrDetailPage() {
 
         {/* ── Event Info: who it's for, where and when, what's being made ── */}
         {isJob && (
-          <section id="sec-event" className="space-y-3 scroll-mt-28">
-            <GroupHeading>Event Info</GroupHeading>
+          <section
+            id="sec-event"
+            role="tabpanel"
+            aria-label="Event"
+            className={shownSection === 'event' ? 'space-y-3 animate-fade-in' : 'hidden'}
+          >
             <ClientEventCard
               fldr={fldr}
+              suggestions={suggestions}
               open={expandedCards.event}
               onToggle={() => toggleCard('event')}
               onJobInfo={updateJobInfo}
+              onJobInfoPatch={patchJobInfo}
               onLocation={updateLocation}
               onDone={flushPending}
             />
             <VenueTimeCard
               fldr={fldr}
+              suggestions={suggestions}
               open={expandedCards.venue}
               onToggle={() => toggleCard('venue')}
               onVenue={updateVenueInfo}
+              onVenuePatch={patchVenueInfo}
               onJobInfo={updateJobInfo}
+              onLocation={updateLocation}
               onDone={flushPending}
             />
             {fldr.products !== null ? (
@@ -3603,6 +3687,7 @@ export default function FldrDetailPage() {
                 job={{ id: fldr.id, start: fldr.date_start, end: fldr.date_end }}
                 jigs={jobJigs}
                 jigsOut={jigsOut}
+                gift={fldr.job_info?.item ? { name: fldr.job_info.item, quantity: fldr.job_info.quantity } : null}
                 open={expandedCards.products}
                 onToggle={() => toggleCard('products')}
                 onAdd={addProduct}
@@ -3621,36 +3706,44 @@ export default function FldrDetailPage() {
 
         {/* ── Logistics: everything that has to happen before the event ── */}
         {isJob && (
-          <section id="sec-logistics" className="space-y-3 scroll-mt-28">
-            <GroupHeading>Logistics</GroupHeading>
+          <section
+            id="sec-logistics"
+            role="tabpanel"
+            aria-label="Logistics"
+            className={shownSection === 'logistics' ? 'space-y-3 animate-fade-in' : 'hidden'}
+          >
             <LogisticsCard
               tracker={fldr.tracker}
-              preEngraveDetails={fldr.job_info?.pre_engrave_details ?? null}
               open={expandedCards.logistics}
               onToggle={() => toggleCard('logistics')}
               onChange={patch => updateTracker(patch, true)}
               onType={patch => updateTracker(patch)}
-              onPreEngraveChange={value => updateJobInfo('pre_engrave_details', value)}
               onCommit={flushPending}
             />
           </section>
         )}
 
         {/* ── Travel ── */}
-        <section id="sec-travel" className="space-y-3 scroll-mt-28">
-          <GroupHeading>Travel</GroupHeading>
+        <section
+          id="sec-travel"
+          role="tabpanel"
+          aria-label="Travel"
+          className={shownSection === 'travel' ? 'space-y-3 animate-fade-in' : 'hidden'}
+        >
           <TravelDatesRow
             start={fldr.job_info?.travel_start ?? null}
             end={fldr.job_info?.travel_end ?? null}
             flightDates={flightSpan(fldr)}
             booked={isJob ? readStep(fldr.tracker, 'travel_booked') : null}
+            readyToBook={hasModuleData('flight_info') && hasModuleData('hotel_info')}
             onDates={updateTravelDates}
             onToggleBooked={toggleTravelBooked}
           />
           {fldr.flight_info !== null && (
             <FlightsCard
-              segments={Array.isArray(fldr.flight_info) ? fldr.flight_info : []}
+              segments={flights}
               staffNames={staffNames}
+              trip={trip}
               open={expandedCards.flight}
               onToggle={() => toggleCard('flight')}
               onField={updateFlightSegment}
@@ -3670,9 +3763,14 @@ export default function FldrDetailPage() {
           {fldr.hotel_info !== null && (
             <HotelCard
               hotel={fldr.hotel_info}
+              suggestions={suggestions}
+              trip={{ out: dayKey(arrivalAirport?.time) || trip.out, back: trip.back }}
+              airportAddress={arrivalAirport?.address ?? null}
+              venueAddress={fldr.venue_info?.address ?? null}
               open={expandedCards.hotel}
               onToggle={() => toggleCard('hotel')}
               onField={updateHotelInfo}
+              onPatch={patchHotelInfo}
               onParseEmail={() => openParseEmail('hotel')}
               onRemoveSection={() => disableModule('hotel_info')}
               onDone={flushPending}
@@ -3681,6 +3779,9 @@ export default function FldrDetailPage() {
           {fldr.rental_car_info !== null && (
             <RentalCarCard
               car={fldr.rental_car_info}
+              trip={trip}
+              arrival={arrivalAirport}
+              departure={departureAirport}
               open={expandedCards.rentalCar}
               onToggle={() => toggleCard('rentalCar')}
               onField={updateRentalCarInfo}
@@ -3699,15 +3800,21 @@ export default function FldrDetailPage() {
         </section>
 
         {/* ── Team ── */}
-        <section id="sec-team" className="space-y-3 scroll-mt-28">
-          <GroupHeading>Team</GroupHeading>
+        <section
+          id="sec-team"
+          role="tabpanel"
+          aria-label="Team"
+          className={shownSection === 'team' ? 'space-y-3 animate-fade-in' : 'hidden'}
+        >
           <StaffCard
             people={fldr.people}
             wardrobe={fldr.job_info?.wardrobe ?? null}
+            suggestions={suggestions}
             open={expandedCards.people}
             onToggle={() => toggleCard('people')}
             onAddPerson={addPerson}
             onPersonField={updatePerson}
+            onPersonContact={updatePersonContact}
             onPersonNameBlur={handlePersonNameBlur}
             onRemovePerson={removePerson}
             onWardrobe={value => updateJobInfo('wardrobe', value || null)}
@@ -3716,24 +3823,25 @@ export default function FldrDetailPage() {
         </section>
 
         {/* ── More: notes, links and the rest ── */}
-        <section id="sec-more" className="space-y-3 scroll-mt-28">
-          <GroupHeading>More</GroupHeading>
+        <section
+          id="sec-more"
+          role="tabpanel"
+          aria-label="More"
+          className={shownSection === 'more' ? 'space-y-3 animate-fade-in' : 'hidden'}
+        >
           <SectionCard
             id="notes"
             title="Notes"
             open={expandedCards.notes}
             onToggle={() => toggleCard('notes')}
-            summary={plainText(fldr.notes).slice(0, 140) || undefined}
+            summary={plainText(fldr.notes).slice(0, 140) || 'Anything else worth writing down'}
           >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs text-gray-400">Notes</label>
-                <button
-                  onClick={() => setUseRichEditor(!useRichEditor)}
-                  className="text-xs px-3 py-1 bg-brand hover:bg-brand-hover rounded-md transition-colors"
-                >
-                  {useRichEditor ? 'Simple Editor' : 'Rich Text Editor'}
-                </button>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-[13px] font-medium text-white/60">Notes</label>
+                <TextAction onClick={() => setUseRichEditor(!useRichEditor)}>
+                  {useRichEditor ? 'Plain text' : 'Add formatting'}
+                </TextAction>
               </div>
               <div>
                 {useRichEditor ? (
@@ -3747,6 +3855,8 @@ export default function FldrDetailPage() {
                   <textarea
                     value={fldr.notes}
                     onChange={(e) => updateNotes(e.target.value)}
+                    onBlur={flushPending}
+                    aria-label="Notes"
                     className="input min-h-[120px] resize-none leading-relaxed"
                     placeholder="Add notes..."
                   />
@@ -3786,12 +3896,15 @@ export default function FldrDetailPage() {
               title="Photos"
               open={expandedCards.photos}
               onToggle={() => toggleCard('photos')}
-              meta={fldr.photos.length > 0 && <span className="text-xs font-semibold tabular text-white/55">{fldr.photos.length}</span>}
+              summary={fldr.photos.length === 0 ? 'Pictures from the job' : undefined}
+              meta={fldr.photos.length > 0 && <span className="text-sm font-semibold tabular text-white/55">{fldr.photos.length}</span>}
             >
               <div className="space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">{(fldr.photos || []).length} photos</span>
-                  <label className="text-xs text-brand-light hover:text-brand-hover cursor-pointer">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-white/45">
+                    {(fldr.photos || []).length} {(fldr.photos || []).length === 1 ? 'photo' : 'photos'}
+                  </span>
+                  <label className="-mx-2 inline-flex min-h-[2.75rem] cursor-pointer items-center rounded-lg px-2 text-[15px] font-medium text-brand-light transition-colors hover:bg-white/5 hover:text-white">
                     + Add Photo
                     <input
                       type="file"
@@ -3863,7 +3976,9 @@ export default function FldrDetailPage() {
                       />
                       <button
                         onClick={() => removePhoto(index)}
-                        className="absolute top-2 right-2 p-1 bg-red-600 hover:bg-red-700 rounded-full"
+                        aria-label="Remove photo"
+                        title="Remove photo"
+                        className="absolute top-1.5 right-1.5 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm transition-colors hover:bg-red-600"
                       >
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -3874,15 +3989,17 @@ export default function FldrDetailPage() {
                       type="text"
                       value={photo.caption || ''}
                       onChange={(e) => updatePhotoCaption(index, e.target.value)}
-                      className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm"
-                      placeholder="Add caption..."
+                      onBlur={flushPending}
+                      aria-label="Photo caption"
+                      className="input"
+                      placeholder="Add a caption, e.g. Table set up and ready"
                     />
                   </div>
                 ))}
                 {(fldr.photos || []).length === 0 && (
-                  <p className="text-xs text-gray-500 py-2">No photos yet</p>
+                  <p className="text-sm text-white/40">No photos yet</p>
                 )}
-                <div className="pt-1">
+                <div>
                   <TextAction onClick={() => disableModule('photos')} tone="danger">
                     Remove Photos from this job
                   </TextAction>
@@ -3898,56 +4015,45 @@ export default function FldrDetailPage() {
               open={expandedCards.prompts}
               onToggle={() => toggleCard('prompts')}
               summary={
-                [fldr.job_info?.prompt_1 && 'Prompt 1', fldr.job_info?.prompt_2 && 'Prompt 2'].filter(Boolean).join(' · ') || undefined
+                [fldr.job_info?.prompt_1 && 'Prompt 1', fldr.job_info?.prompt_2 && 'Prompt 2'].filter(Boolean).join(' · ') ||
+                'The two prompts for this job'
               }
             >
               <div className="space-y-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-gray-400">Prompt 1</label>
-                      {fldr.job_info?.prompt_1 && (
-                        <button
-                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_1 || '')}
-                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy
-                        </button>
-                      )}
+                {/* Prompt Creator writes these and saves them back here */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await flushAndSave()
+                    router.push(`/prompt-creator?job=${fldr.id}`)
+                  }}
+                  className="flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-xl border border-line-strong bg-white/5 px-3.5 py-2 text-left transition-colors hover:bg-white/10"
+                >
+                  <SparkIcon className="h-4 w-4 flex-shrink-0 text-gold" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-medium text-white">Open Prompt Creator for this job</span>
+                    <span className="block text-[13px] text-white/45">Write or rework the prompts there, then save them back here.</span>
+                  </span>
+                </button>
+                {(['prompt_1', 'prompt_2'] as const).map((field, index) => (
+                  <div key={field}>
+                    <div className="flex min-h-[2.75rem] items-center justify-between">
+                      <label className="text-[13px] font-medium text-white/60">Prompt {index + 1}</label>
+                      <div className="-mr-2.5">
+                        <CopyAction text={fldr.job_info?.[field] || ''} label={`Copy prompt ${index + 1}`} />
+                      </div>
                     </div>
                     <textarea
-                      value={fldr.job_info?.prompt_1 || ''}
-                      onChange={(e) => updateJobInfo('prompt_1', e.target.value || null)}
+                      value={fldr.job_info?.[field] || ''}
+                      onChange={(e) => updateJobInfo(field, e.target.value || null)}
+                      onBlur={flushPending}
+                      aria-label={`Prompt ${index + 1}`}
                       className="input resize-none"
                       rows={4}
-                      placeholder="Paste prompt here..."
+                      placeholder="Paste the prompt here"
                     />
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-gray-400">Prompt 2</label>
-                      {fldr.job_info?.prompt_2 && (
-                        <button
-                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_2 || '')}
-                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy
-                        </button>
-                      )}
-                    </div>
-                    <textarea
-                      value={fldr.job_info?.prompt_2 || ''}
-                      onChange={(e) => updateJobInfo('prompt_2', e.target.value || null)}
-                      className="input resize-none"
-                      rows={4}
-                      placeholder="Paste prompt here..."
-                    />
-                  </div>
+                ))}
               </div>
             </SectionCard>
           )}
@@ -3958,20 +4064,15 @@ export default function FldrDetailPage() {
               {fldr.photos === null && <AddSectionButton label="Photos" onClick={() => enableModule('photos')} />}
             </div>
           )}
-        </section>
-      </div>
 
-      {/* Delete Job */}
-      <div className="px-4 max-w-2xl mx-auto mt-4 mb-4">
-        <button
-          onClick={() => deleteJob()}
-          className="btn-danger w-full py-3 bg-transparent"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          Delete Job
-        </button>
+          {/* Delete Job: also in the menu at the top. Kept here, quietly, for anyone who looks at the bottom of More. */}
+          <div className="flex justify-center pt-4">
+            <TextAction onClick={() => deleteJob()} tone="danger">
+              <TrashIcon className="h-4 w-4" />
+              Delete Job
+            </TextAction>
+          </div>
+        </section>
       </div>
 
       {/* Photo Expansion Modal */}
@@ -4001,7 +4102,7 @@ export default function FldrDetailPage() {
             />
             {fldr.photos[expandedPhotoIndex].caption && (
               <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-4 rounded-b-lg">
-                <p className="text-sm text-center">{fldr.photos[expandedPhotoIndex].caption}</p>
+                <p className="text-[15px] text-center">{fldr.photos[expandedPhotoIndex].caption}</p>
               </div>
             )}
           </div>
@@ -4029,7 +4130,7 @@ export default function FldrDetailPage() {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold pr-3">
-                Parse {showParseEmailModal === 'flight' ? 'Flight' : showParseEmailModal === 'hotel' ? 'Hotel' : 'Rental Car'} Confirmation Email
+                Fill in {showParseEmailModal === 'flight' ? 'Flights' : showParseEmailModal === 'hotel' ? 'the Hotel' : 'the Rental Car'} from an Email
               </h3>
               <button
                 onClick={async () => {
@@ -4039,7 +4140,7 @@ export default function FldrDetailPage() {
                   setParseEmailImage(null)
                   setParseInputMode('text')
                 }}
-                className="icon-btn -mr-2"
+                className="icon-btn h-11 w-11 -mr-2"
                 aria-label="Close"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4052,7 +4153,7 @@ export default function FldrDetailPage() {
             <div className="flex gap-2 mb-4 border-b border-line">
               <button
                 onClick={() => setParseInputMode('text')}
-                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                className={`min-h-[2.75rem] px-4 py-2 text-[15px] font-medium transition-colors border-b-2 -mb-px ${
                   parseInputMode === 'text'
                     ? 'text-brand-light border-brand'
                     : 'text-white/55 border-transparent hover:text-white'
@@ -4067,7 +4168,7 @@ export default function FldrDetailPage() {
               </button>
               <button
                 onClick={() => setParseInputMode('image')}
-                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                className={`min-h-[2.75rem] px-4 py-2 text-[15px] font-medium transition-colors border-b-2 -mb-px ${
                   parseInputMode === 'image'
                     ? 'text-brand-light border-brand'
                     : 'text-white/55 border-transparent hover:text-white'
@@ -4106,10 +4207,10 @@ export default function FldrDetailPage() {
                         <svg className="w-10 h-10 mb-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
-                        <p className="mb-2 text-sm text-gray-400">
-                          <span className="font-display font-semibold">Click to upload</span> or drag and drop
+                        <p className="mb-2 text-[15px] text-white/60">
+                          <span className="font-display font-semibold">Tap to choose a screenshot</span>
                         </p>
-                        <p className="text-xs text-gray-500">PNG, JPG, JPEG (MAX. 10MB)</p>
+                        <p className="text-[13px] text-white/45">A picture up to 10MB</p>
                       </div>
                       <input
                         type="file"
@@ -4119,7 +4220,7 @@ export default function FldrDetailPage() {
                           const file = e.target.files?.[0]
                           if (file) {
                             if (file.size > 10 * 1024 * 1024) {
-                              alert('File is too large. Maximum size is 10MB.')
+                              toast('That picture is too big. The most it can be is 10MB.', 'error')
                               return
                             }
                             const reader = new FileReader()
@@ -4153,8 +4254,8 @@ export default function FldrDetailPage() {
               )}
               
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-white/45">
-                  AI will extract and populate the form fields automatically
+                <p className="text-[13px] text-white/45">
+Burrow reads it and fills in the fields. Check them over after.
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -4165,14 +4266,14 @@ export default function FldrDetailPage() {
                       setParseEmailImage(null)
                       setParseInputMode('text')
                     }}
-                    className="btn-secondary py-2 font-medium"
+                    className="btn-secondary min-h-[2.75rem] font-medium"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={parseEmail}
                     disabled={(parseInputMode === 'text' && !parseEmailText.trim()) || (parseInputMode === 'image' && !parseEmailImage) || parsingEmail}
-                    className="btn-brand py-2"
+                    className="btn-brand min-h-[2.75rem]"
                   >
                     {parsingEmail ? (
                       <>
@@ -4180,14 +4281,14 @@ export default function FldrDetailPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Parsing...
+                        Reading...
                       </>
                     ) : (
                       <>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                         </svg>
-                        Parse & Fill
+                        Fill In
                       </>
                     )}
                   </button>
@@ -4219,7 +4320,7 @@ export default function FldrDetailPage() {
                   await flushAndSave()
                   setShowOverviewModal(false)
                 }}
-                className="icon-btn -mr-2"
+                className="icon-btn h-11 w-11 -mr-2"
                 aria-label="Close"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4229,13 +4330,13 @@ export default function FldrDetailPage() {
             </div>
             
             <div className="bg-canvas/60 border border-line rounded-xl p-4 mb-4">
-              <pre className="whitespace-pre-wrap font-mono text-sm text-white/80 leading-relaxed">
+              <pre className="whitespace-pre-wrap font-mono text-[15px] text-white/80 leading-relaxed">
                 {generatedOverview}
               </pre>
             </div>
             
             <div className="flex items-center justify-between">
-              <p className="text-xs text-white/45">
+              <p className="text-[13px] text-white/45">
                 Copy this overview to use in emails, reports, or other programs
               </p>
               <CopyButton 
@@ -4288,61 +4389,6 @@ export default function FldrDetailPage() {
         </div>
       )}
 
-      {/* Toast confirm dialogs */}
-      {confirmDialog && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-6 bg-black/60 animate-fade-in" onClick={() => setConfirmDialog(null)}>
-          <div role="alertdialog" aria-modal="true" className="w-full max-w-sm bg-surface border border-line-strong rounded-2xl overflow-hidden shadow-pop" onClick={e => e.stopPropagation()}>
-            {confirmDialog.type === 'module' && (
-              <>
-                <div className="p-5 pb-3">
-                  <p className="text-white font-semibold text-center">Remove module?</p>
-                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">All data in this module will be permanently deleted.</p>
-                </div>
-                <div className="flex border-t border-line">
-                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={async () => { setConfirmDialog(null); const m = confirmDialog.module; setFldr(prev => prev ? { ...prev, [m]: null } : prev); await saveFldr({ [m]: null }); setExpandedCards(prev => ({ ...prev, [m.replace('_info', '')]: false })) }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-line transition-colors">Remove</button>
-                </div>
-              </>
-            )}
-            {confirmDialog.type === 'deleteJob' && (
-              <>
-                <div className="p-5 pb-3">
-                  <p className="text-white font-semibold text-center">Delete job?</p>
-                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">&ldquo;{fldr?.title}&rdquo; will be permanently deleted. This cannot be undone.</p>
-                </div>
-                <div className="flex border-t border-line">
-                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={doDeleteJob} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-line transition-colors">Delete</button>
-                </div>
-              </>
-            )}
-            {confirmDialog.type === 'hardRefresh' && (
-              <>
-                <div className="p-5 pb-3">
-                  <p className="text-white font-semibold text-center">Clear offline data?</p>
-                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">All locally saved changes will be removed.</p>
-                </div>
-                <div className="flex border-t border-line">
-                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={() => { setConfirmDialog(null); clearAllCache(); setHasUnsynced(false); router.push('/jobs') }} className="flex-1 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-semibold border-l border-line transition-colors">Clear</button>
-                </div>
-              </>
-            )}
-            {confirmDialog.type === 'duplicate' && (
-              <>
-                <div className="p-5 pb-3">
-                  <p className="text-white font-semibold text-center">Duplicate job?</p>
-                  <p className="text-white/60 text-sm text-center mt-1.5 leading-relaxed">A copy will be created. You can update dates and details after.</p>
-                </div>
-                <div className="flex border-t border-line">
-                  <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3.5 text-white/70 hover:bg-white/5 text-sm transition-colors">Cancel</button>
-                  <button onClick={doDuplicateJob} className="flex-1 py-3.5 text-brand-light hover:bg-brand/10 text-sm font-semibold border-l border-line transition-colors">Duplicate</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
