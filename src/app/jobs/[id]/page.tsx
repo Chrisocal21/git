@@ -3,15 +3,26 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, ReferenceLink, Person, Photo, Product, ChecklistItem, JobStatus } from '@/types/fldr'
-import { ChevronDownIcon, PencilIcon } from '@/components/Icons'
+import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, JobTracker, Person, Photo, Product, ChecklistItem, JobStatus } from '@/types/fldr'
+import { PencilIcon } from '@/components/Icons'
 import { WeatherSVG } from '@/components/WeatherIcon'
 import CopyButton from '@/components/CopyButton'
 import { FldrDetailSkeleton } from '@/components/SkeletonLoader'
-import AirportAutocomplete from '@/components/AirportAutocomplete'
-import FlightConnections from '@/components/FlightConnections'
-import AddressAutocomplete from '@/components/AddressAutocomplete'
 import RichTextEditor from '@/components/RichTextEditor'
+import { SectionCard, GroupHeading, AddSectionButton, TextAction } from '@/components/job/parts'
+import SectionNav from '@/components/job/SectionNav'
+import GlanceCard from '@/components/job/GlanceCard'
+import { ClientEventCard, VenueTimeCard } from '@/components/job/EventCards'
+import LogisticsCard from '@/components/job/LogisticsCard'
+import { TravelDatesRow, FlightsCard, HotelCard, RentalCarCard } from '@/components/job/TravelCards'
+import StaffCard from '@/components/job/StaffCard'
+import LinksCard from '@/components/job/LinksCard'
+import ProductsCard from '@/components/job/ProductsCard'
+import ChecklistCard from '@/components/job/ChecklistCard'
+import { mergeFldrUpdates } from '@/lib/fldrMerge'
+import { readStep, flightSpan } from '@/lib/jobTracker'
+import { plainText } from '@/lib/jobFormat'
+import { todayKey } from '@/lib/jigsFormat'
 import { 
   getCachedFldr, 
   cacheFldr, 
@@ -24,7 +35,6 @@ import {
 import { logStorageInfo } from '@/lib/storageHealth'
 import { addOrUpdateProfile } from '@/lib/auth'
 import { useJobJigs } from '@/components/jigs/useJobJigs'
-import ProductJigs, { JigsProblem } from '@/components/jigs/ProductJigs'
 
 
 // Dynamic import for map (client-side only)
@@ -43,24 +53,31 @@ export default function FldrDetailPage() {
   const [fldr, setFldr] = useState<Fldr | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // A save running in the background (typing, a tick). Kept apart from `saving` so the
+  // buttons that say "Activating..." or "Updating..." only change for their own action.
+  const [autoSaving, setAutoSaving] = useState(false)
   const [unsavedChanges, setUnsavedChanges] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
-    summary: false,
+    summary: true, // The at-a-glance card is the one worth seeing first
     flight: false,
     hotel: false,
     venue: false,
     rentalCar: false,
     map: false, // Closed by default
     weather: false,
-    preTrip: false,
     itinerary: false,
-    jobInfo: false,
+    event: false,
+    logistics: false,
     checklist: false,
     people: false,
     photos: false,
     products: false,
     notes: false,
+    links: false,
+    prompts: false,
   })
+  const cardsRestoredRef = useRef(false)
+  const [activeSection, setActiveSection] = useState('overview')
   const [online, setOnline] = useState(true)
   const [hasUnsynced, setHasUnsynced] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -77,7 +94,6 @@ export default function FldrDetailPage() {
   const [touchStartY, setTouchStartY] = useState(0)
   const [useRichEditor, setUseRichEditor] = useState(false)
   const [isRoundTrip, setIsRoundTrip] = useState(false)
-  const [travelerDrafts, setTravelerDrafts] = useState<Record<string, string>>({})
   const [expandedPhotoIndex, setExpandedPhotoIndex] = useState<number | null>(null)
   const [locationTime, setLocationTime] = useState<string | null>(null)
   const [jobWeather, setJobWeather] = useState<{
@@ -116,14 +132,50 @@ export default function FldrDetailPage() {
   const prevItineraryDataRef = useRef<string>('')
   const fldrRef = useRef<Fldr | null>(null)
   const saveRequestSeqRef = useRef(0)
+  // Edits made on this page that haven't been sent yet. Anything fetched from the
+  // server is laid under these, so a refresh or a save coming back never wipes typing.
+  const pendingRef = useRef<Partial<Fldr>>({})
+  // Saves on their way to the server right now
+  const savesInFlightRef = useRef(0)
+  // The loop that sends them one at a time, while it's running
+  const savePumpRef = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
     fldrRef.current = fldr
   }, [fldr])
 
+  /** Takes the server's copy of the job, keeping anything typed here that hasn't gone out yet */
+  const adoptServerFldr = useCallback((serverFldr: Fldr): Fldr => {
+    const merged = mergeFldrUpdates(serverFldr, pendingRef.current)
+    fldrRef.current = merged
+    setFldr(merged)
+    cacheFldr(merged)
+    return merged
+  }, [])
+
+  // Remember which cards are open, on this device, from one job to the next
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('burrow-job-cards')
+      if (saved) setExpandedCards(prev => ({ ...prev, ...JSON.parse(saved) }))
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    // The first pass is the defaults, before the saved layout is back
+    if (!cardsRestoredRef.current) {
+      cardsRestoredRef.current = true
+      return
+    }
+    try {
+      localStorage.setItem('burrow-job-cards', JSON.stringify(expandedCards))
+    } catch {}
+  }, [expandedCards])
+
   // Jigs on this job, shown under each product. Only loaded when the Products card is on.
   const jobJigs = useJobJigs(fldr?.id, !!fldr && fldr.products !== null && fldr.fldr_type !== 'time_off')
   const jigsOut = jobJigs.allocations.filter(a => a.status === 'out').length
+  const heldWaitingRef = useRef(false)
 
   useEffect(() => {
     if (!showMapModal) return
@@ -247,8 +299,7 @@ export default function FldrDetailPage() {
               const response = await fetch(`/api/fldrs/${currentFldrId}`, { cache: 'no-store' })
               if (response.ok) {
                 const updated = await response.json()
-                setFldr(updated)
-                cacheFldr(updated)
+                adoptServerFldr(updated)
                 console.log('[Sync] Data refreshed from server')
               }
             } catch (error) {
@@ -275,30 +326,41 @@ export default function FldrDetailPage() {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [params.id])
+  }, [params.id, adoptServerFldr])
 
-  // Auto-refresh when tab comes into focus (for desktop)
+  // Pull the latest from the server whenever the page comes back into view:
+  // a desktop tab getting focus, or the app being reopened on a phone
   useEffect(() => {
+    let lastRefresh = 0
+
     const handleFocus = async () => {
-      if (!fldr || !isOnline()) return
+      const current = fldrRef.current
+      if (!current || !isOnline()) return
+      // An older copy landing on top of a save that's still going out would undo it
+      if (savesInFlightRef.current > 0) return
+      // Focus and visibility usually fire together
+      if (Date.now() - lastRefresh < 2000) return
+      lastRefresh = Date.now()
+      const savesBefore = saveRequestSeqRef.current
       console.log('[Focus] Tab focused - refreshing from server...')
-      
+
       try {
-        const response = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
+        const response = await fetch(`/api/fldrs/${current.id}`, { cache: 'no-store' })
         if (response.ok) {
           const updated = await response.json()
+          // Something was saved while this was loading, so what just arrived is already out of date
+          if (saveRequestSeqRef.current !== savesBefore) return
           console.log('[Focus] Refreshed from server (focus), photos:', updated.photos?.length || 0)
-          setFldr(updated)
-          cacheFldr(updated)
-          
+          const merged = adoptServerFldr(updated)
+
           // Update list cache too
           try {
             const listCache = localStorage.getItem('git-fldrs')
             if (listCache) {
               const allFldrs = JSON.parse(listCache)
-              const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
+              const index = allFldrs.findIndex((f: Fldr) => f.id === current.id)
               if (index !== -1) {
-                allFldrs[index] = updated
+                allFldrs[index] = merged
                 localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
               }
             }
@@ -310,13 +372,18 @@ export default function FldrDetailPage() {
         console.error('Failed to refresh on focus:', error)
       }
     }
-    
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') handleFocus()
+    }
+
     window.addEventListener('focus', handleFocus)
-    
+    document.addEventListener('visibilitychange', handleVisible)
+
     return () => {
       window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisible)
     }
-  }, [fldr])
+  }, [adoptServerFldr])
 
   // Close export menu when clicking outside
   useEffect(() => {
@@ -420,6 +487,10 @@ export default function FldrDetailPage() {
       const fldrId = params.id as string
       console.log(`[Load] Loading fldr: ${fldrId}`)
       logStorageInfo()
+
+      // Switching straight from one job to another: anything unsent belongs to the job
+      // being left, so it goes out under that job before this one loads
+      if (fldrRef.current && fldrRef.current.id !== fldrId) beaconPending()
       
       // Try to load from cache first (fallback 1: offlineStorage)
       let cached = getCachedFldr(fldrId)
@@ -492,6 +563,7 @@ export default function FldrDetailPage() {
       // Try to fetch fresh data if online
       if (isOnline()) {
         console.log('[Server] Fetching latest data from server...')
+        const savesBefore = saveRequestSeqRef.current
         fetch(`/api/fldrs/${fldrId}`, { cache: 'no-store' })
           .then(res => {
             if (res.ok) {
@@ -500,10 +572,11 @@ export default function FldrDetailPage() {
             throw new Error('Failed to fetch')
           })
           .then(freshData => {
+            // Something was already saved from this page, so its reply is newer than this
+            if (saveRequestSeqRef.current !== savesBefore) return
             console.log('[Server] Got fresh data from server, photos:', freshData.photos?.length || 0)
-            setFldr(freshData)
-            cacheFldr(freshData)
-            
+            const merged = adoptServerFldr(freshData)
+
             // Also update the list cache
             try {
               const listCache = localStorage.getItem('git-fldrs')
@@ -511,7 +584,7 @@ export default function FldrDetailPage() {
                 const allFldrs = JSON.parse(listCache)
                 const index = allFldrs.findIndex((f: Fldr) => f.id === fldrId)
                 if (index !== -1) {
-                  allFldrs[index] = freshData
+                  allFldrs[index] = merged
                   localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
                 }
               }
@@ -539,7 +612,7 @@ export default function FldrDetailPage() {
         }, 2000)
       }
     }
-  }, [params.id, router])
+  }, [params.id, router, adoptServerFldr])
 
   // Fetch location time when fldr location is available
   useEffect(() => {
@@ -756,14 +829,16 @@ export default function FldrDetailPage() {
     fetchTimezone()
   }, [fldr?.location, fldr?.venue_info?.address])
 
-  const saveFldr = useCallback(async (updates: Partial<Fldr>) => {
+  // Sends everything that's waiting as one request, then takes on the server's reply.
+  const sendPending = useCallback(async () => {
     const currentFldr = fldrRef.current
     if (!currentFldr) return
-    const hasExplicitUpdates = Object.keys(updates).length > 0
-    const effectiveUpdates: Partial<Fldr> = hasExplicitUpdates ? { ...updates } : { ...currentFldr }
-    const requestSeq = ++saveRequestSeqRef.current
-    setSaving(true)
-    
+    const effectiveUpdates: Partial<Fldr> = pendingRef.current
+    pendingRef.current = {}
+    setUnsavedChanges(false)
+    saveRequestSeqRef.current++
+    savesInFlightRef.current++
+
     console.log('[Save] saveFldr called with updates:', Object.keys(effectiveUpdates))
     if (effectiveUpdates.photos) {
       console.log('[Save] Saving photos:', effectiveUpdates.photos.length, 'photos')
@@ -773,10 +848,10 @@ export default function FldrDetailPage() {
         console.warn('[Save] WARNING: Photos data is large -', (photosSize / 1024).toFixed(2), 'KB')
       }
     }
-    
+
     try {
       // Check if fldr should be marked as ready/complete
-      const updatedFldr = { ...currentFldr, ...effectiveUpdates }
+      const updatedFldr = mergeFldrUpdates(currentFldr, effectiveUpdates)
       const hasFlightInfo = updatedFldr.flight_info && Array.isArray(updatedFldr.flight_info) && updatedFldr.flight_info.length > 0 && updatedFldr.flight_info.some(seg =>
         seg.departure_airport || seg.arrival_airport
       )
@@ -792,20 +867,20 @@ export default function FldrDetailPage() {
         updatedFldr.job_info.client_name ||
         updatedFldr.job_info.item
       )
-      
+
       // Auto-update status if it's currently incomplete and has key info
       if (updatedFldr.status === 'incomplete' && (hasFlightInfo || hasHotelInfo || hasVenueInfo || hasJobInfo)) {
         effectiveUpdates.status = 'ready'
       }
-      
+
       // Update local state and cache immediately
-      const newFldr = { ...currentFldr, ...effectiveUpdates }
+      const newFldr = mergeFldrUpdates(currentFldr, effectiveUpdates)
       fldrRef.current = newFldr
       setFldr(newFldr)
       cacheFldr(newFldr)
       setLastSaved(new Date())
       console.log('[Save] Updated local cache, fldr now has', newFldr.photos?.length || 0, 'photos')
-      
+
       // Also update the list cache so changes appear on list page
       try {
         const listCache = localStorage.getItem('git-fldrs')
@@ -820,27 +895,27 @@ export default function FldrDetailPage() {
       } catch (e) {
         console.error('Failed to update list cache:', e)
       }
-      
+
       // If online, save to server
       if (isOnline()) {
         console.log('[Server] Online - sending PATCH request to server...')
         try {
+          const body = JSON.stringify(effectiveUpdates)
           const response = await fetch(`/api/fldrs/${currentFldr.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(effectiveUpdates),
+            body,
+            // Lets a save that's already on its way finish if the page is closed.
+            // Browsers only allow this for small requests (64 KB), which is every save but photos.
+            keepalive: new Blob([body]).size < 60000,
           })
           if (response.ok) {
             const updated = await response.json()
-            if (requestSeq !== saveRequestSeqRef.current) {
-              return
-            }
             console.log('[Server] Server save successful! Server now has', updated.photos?.length || 0, 'photos')
-            fldrRef.current = updated
-            setFldr(updated)
-            cacheFldr(updated)
+            // The server's copy, with anything typed since this save went out laid back over it
+            const merged = adoptServerFldr(updated)
             setLastSaved(new Date())
-            
+
             // Update list cache with server response
             try {
               const listCache = localStorage.getItem('git-fldrs')
@@ -848,7 +923,7 @@ export default function FldrDetailPage() {
                 const allFldrs = JSON.parse(listCache)
                 const index = allFldrs.findIndex((f: Fldr) => f.id === currentFldr.id)
                 if (index !== -1) {
-                  allFldrs[index] = updated
+                  allFldrs[index] = merged
                   localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
                 }
               }
@@ -887,139 +962,142 @@ export default function FldrDetailPage() {
     } catch (error) {
       console.error('Failed to save:', error)
     } finally {
-      setSaving(false)
+      savesInFlightRef.current--
     }
-  }, [])
+  }, [adoptServerFldr])
 
-  // Flush any pending save immediately
-  const flushPendingSave = useCallback(() => {
+  // Saves `updates` along with anything typed and not sent yet. Call it with {} to just
+  // send what's waiting. The returned promise settles once all of it has gone out.
+  //
+  // Only one save is ever on its way at a time: the server reads the job, merges and
+  // writes it back, so two saves crossing would have the second undo the first. Whatever
+  // turns up while one is out waits in pendingRef and goes with the next.
+  const saveFldr = useCallback((updates: Partial<Fldr>): Promise<void> => {
+    const currentFldr = fldrRef.current
+    if (!currentFldr) return Promise.resolve()
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = null
-      // If there were pending changes, they're already in fldr state,
-      // so we don't need to explicitly save here - the beforeunload handler will catch it
     }
-  }, [])
-
-  // Update local state only - does NOT save to server
-  const updateLocalState = useCallback((updates: Partial<Fldr>) => {
-    if (!fldr) return
-    const newFldr = { ...fldr, ...updates }
-    setFldr(newFldr)
-    cacheFldr(newFldr)
-    setUnsavedChanges(true)
-    
-    // Also update the list cache so changes appear on list page
-    try {
-      const listCache = localStorage.getItem('git-fldrs')
-      if (listCache) {
-        const allFldrs = JSON.parse(listCache)
-        const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
-        if (index !== -1) {
-          allFldrs[index] = newFldr
-          localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
+    if (Object.keys(updates).length > 0) {
+      // On screen and in the waiting pile right away, whether or not another save is still out
+      pendingRef.current = mergeFldrUpdates(pendingRef.current, updates)
+      const next = mergeFldrUpdates(currentFldr, updates)
+      fldrRef.current = next
+      setFldr(next)
+    }
+    if (!savePumpRef.current) {
+      setAutoSaving(true)
+      savePumpRef.current = (async () => {
+        while (Object.keys(pendingRef.current).length > 0) {
+          await sendPending()
         }
-      }
-    } catch (e) {
-      console.error('Failed to update list cache:', e)
+      })().finally(() => {
+        savePumpRef.current = null
+        setAutoSaving(false)
+      })
     }
-  }, [fldr])
+    return savePumpRef.current
+  }, [sendPending])
 
-  // Manual save to server
+  // Save button: sends whatever is waiting (and nothing else, so a phone holding an
+  // older copy of the job can't write it over newer changes)
   const manualSave = useCallback(async () => {
     if (!fldrRef.current) return
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = null
+    setSaving(true)
+    try {
+      await saveFldr({})
+      // Anything that couldn't reach the server earlier gets another go
+      if (isOnline() && hasUnsyncedChanges()) {
+        const synced = await syncQueuedChanges()
+        if (synced) setHasUnsynced(false)
+      }
+    } finally {
+      setSaving(false)
     }
-    await saveFldr({})
-    setUnsavedChanges(false)
   }, [saveFldr])
 
-  // Debounced save - clear existing timeout and set new one
+  // Save shortly after typing stops. Edits to different parts of the job pile up in
+  // pendingRef until they're sent, so one never pushes another out.
   const debouncedSave = useCallback((updates: Partial<Fldr>) => {
+    pendingRef.current = mergeFldrUpdates(pendingRef.current, updates)
+    setUnsavedChanges(true)
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
     // Don't set saving=true here - let saveFldr do it when save actually starts
     saveTimeoutRef.current = setTimeout(() => {
-      saveFldr(updates)
-    }, 30000) // Save 30 seconds after typing stops
+      saveTimeoutRef.current = null
+      saveFldr({})
+    }, 2500)
   }, [saveFldr])
 
-  // Flush and save immediately - used before navigation/UI actions
   // Waiting on return finishes by itself once the last jig is checked in
   useEffect(() => {
     if (fldr?.job_status !== 'awaiting_return') return
-    if (!jobJigs.loaded || jobJigs.loading || jobJigs.problem || jigsOut > 0) return
+    if (!jobJigs.loaded || jobJigs.loading || jobJigs.problem) return
+    if (jigsOut > 0) {
+      // Something is out now, so a later empty count means it all came back
+      heldWaitingRef.current = false
+      return
+    }
+    // Picked by hand with nothing out yet: leave it be until jigs go out and return
+    if (heldWaitingRef.current) return
     setFldr(prev => (prev ? { ...prev, job_status: 'complete' } : prev))
     saveFldr({ job_status: 'complete' })
   }, [fldr?.job_status, jobJigs.loaded, jobJigs.loading, jobJigs.problem, jigsOut, saveFldr])
 
+  // Send what's waiting right now - used before navigation/UI actions, and when a card's form is closed
   const flushAndSave = useCallback(async () => {
+    await saveFldr({})
+  }, [saveFldr])
+  const flushPending = useCallback(() => {
+    saveFldr({})
+  }, [saveFldr])
+
+  // Leaving with edits still waiting: hand them to the browser to deliver after the page is gone
+  const beaconPending = useCallback(() => {
+    const current = fldrRef.current
+    const updates = pendingRef.current
+    if (!current || Object.keys(updates).length === 0) return
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = null
     }
-    // Save current fldr state immediately
-    if (fldr) {
-      await saveFldr({})
+    pendingRef.current = {}
+    if (!isOnline()) {
+      addToSyncQueue(current.id, updates)
+      return
     }
-  }, [fldr, saveFldr])
+    const body = JSON.stringify(updates)
+    const sent = navigator.sendBeacon?.(`/api/fldrs/${current.id}`, body)
+    if (!sent) {
+      fetch(`/api/fldrs/${current.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => addToSyncQueue(current.id, updates))
+    }
+  }, [])
 
-  // Save before navigating away or closing page
-  // Also has manual save buttons for double protection
+  // Save before closing the page, and whenever it goes into the background
+  // (a phone often never fires the "closing" event at all)
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // If there's a pending save, execute it immediately
-      if (saveTimeoutRef.current && fldr) {
-        // Cancel the timeout
-        clearTimeout(saveTimeoutRef.current)
-        saveTimeoutRef.current = null
-        
-        // Save synchronously (best effort)
-        // Note: Modern browsers may block this, but we try anyway
-        const fldrData = JSON.stringify(fldr)
-        navigator.sendBeacon?.(`/api/fldrs/${fldr.id}`, fldrData) ||
-          fetch(`/api/fldrs/${fldr.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: fldrData,
-            keepalive: true
-          })
-      }
+    const handleHidden = () => {
+      if (document.visibilityState === 'hidden') saveFldr({})
     }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('beforeunload', beaconPending)
+    window.addEventListener('pagehide', beaconPending)
+    document.addEventListener('visibilitychange', handleHidden)
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('beforeunload', beaconPending)
+      window.removeEventListener('pagehide', beaconPending)
+      document.removeEventListener('visibilitychange', handleHidden)
+      // Navigating to another page in the app: same thing
+      beaconPending()
     }
-  }, [fldr])
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-        // Note: beforeunload handler already handles saving on page close
-        // Don't need to save here as it causes infinite loops
-      }
-    }
-  }, []) // Empty deps - only run on actual mount/unmount
-
-  // Router cleanup - save on unmount (component navigation)
-  // Also has manual save buttons for double protection
-  useEffect(() => {
-    return () => {
-      // On unmount (navigation away), flush any pending saves
-      if (saveTimeoutRef.current && fldr) {
-        clearTimeout(saveTimeoutRef.current)
-        // Attempt synchronous save on navigation
-        const fldrData = JSON.stringify(fldr)
-        navigator.sendBeacon?.(`/api/fldrs/${fldr.id}`, fldrData)
-      }
-    }
-  }, [fldr])
+  }, [beaconPending, saveFldr])
 
   // Update "time ago" display every minute
   useEffect(() => {
@@ -1037,6 +1115,70 @@ export default function FldrDetailPage() {
       [cardName]: !prev[cardName]
     }))
   }
+
+  // The sections of the page, as the jump bar lists them. Time off has no event or logistics to show.
+  const isJob = fldr?.fldr_type !== 'time_off'
+  const navSections = useMemo(
+    () =>
+      isJob
+        ? [
+            { id: 'overview', label: 'Overview' },
+            { id: 'event', label: 'Event' },
+            { id: 'logistics', label: 'Logistics' },
+            { id: 'travel', label: 'Travel' },
+            { id: 'team', label: 'Team' },
+            { id: 'more', label: 'More' },
+          ]
+        : [
+            { id: 'overview', label: 'Overview' },
+            { id: 'travel', label: 'Travel' },
+            { id: 'team', label: 'Team' },
+            { id: 'more', label: 'More' },
+          ],
+    [isJob]
+  )
+
+  const jumpToSection = (id: string) => {
+    document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // Opens a card and brings it into view (the Job Summary uses this for what's still missing)
+  const jumpToCard = (card: string) => {
+    setExpandedCards(prev => ({ ...prev, [card]: true }))
+    // Give the card a moment to open before finding where it is
+    requestAnimationFrame(() => {
+      document.getElementById(`card-${card}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  // Light up the section that's at the top of the screen
+  const jobLoaded = !loading && !!fldr
+  useEffect(() => {
+    if (!jobLoaded) return
+    let frame = 0
+    const update = () => {
+      frame = 0
+      let current = navSections[0].id
+      for (const section of navSections) {
+        const el = document.getElementById(`sec-${section.id}`)
+        if (el && el.getBoundingClientRect().top <= 130) current = section.id
+      }
+      // The last section can be too short to ever reach the top
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        current = navSections[navSections.length - 1].id
+      }
+      setActiveSection(current)
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    update()
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [jobLoaded, navSections])
 
   // Format dates in local timezone to avoid day-off errors
   const formatDate = (date: string) => {
@@ -1684,84 +1826,81 @@ export default function FldrDetailPage() {
 
 
 
-  const updateJobInfo = (field: keyof JobInfo, value: any) => {
-    if (!fldr) return
-    const jobInfo = fldr.job_info || {
-      job_title: null,
-      client_name: null,
-      distributor_name: null,
-      item: null,
-      quantity: null,
-      job_type: null,
-      client_contact_name: null,
-      client_contact_phone: null,
-      client_contact_email: null,
-      event_details: null,
-      reference_links: [],
-      team_members: [],
-      pre_engrave_details: null,
-      show_up_time: null,
-      job_start_time: null,
-      job_end_time: null,
-      break_start_time: null,
-      break_end_time: null,
-      use_daily_schedule: false,
-      daily_start_time: null,
-      daily_end_time: null,
-      daily_break_start: null,
-      daily_break_end: null,
-      prompt_1: null,
-      prompt_2: null,
-    }
-    const updated = { ...jobInfo, [field]: value }
-    setFldr({ ...fldr, job_info: updated })
+  // What a job's info starts from the first time one of its fields is filled in
+  const emptyJobInfo = (): JobInfo => ({
+    job_title: null,
+    client_name: null,
+    distributor_name: null,
+    item: null,
+    quantity: null,
+    job_type: null,
+    client_contact_name: null,
+    client_contact_phone: null,
+    client_contact_email: null,
+    event_details: null,
+    reference_links: [],
+    team_members: [],
+    pre_engrave_details: null,
+    show_up_time: null,
+    job_start_time: null,
+    job_end_time: null,
+    break_start_time: null,
+    break_end_time: null,
+    use_daily_schedule: false,
+    daily_start_time: null,
+    daily_end_time: null,
+    daily_break_start: null,
+    daily_break_end: null,
+    prompt_1: null,
+    prompt_2: null,
+  })
+
+  // One or several job info fields at once. Reads the job through the ref, so two
+  // changes made back to back both land.
+  const patchJobInfo = (patch: Partial<JobInfo>) => {
+    const current = fldrRef.current
+    if (!current) return
+    const updated = { ...(current.job_info || emptyJobInfo()), ...patch }
+    const next = { ...current, job_info: updated }
+    fldrRef.current = next
+    setFldr(next)
     debouncedSave({ job_info: updated })
   }
 
-  const addReferenceLink = () => {
-    if (!fldr) return
-    const jobInfo = fldr.job_info || {
-      job_title: null,
-      client_name: null,
-      distributor_name: null,
-      item: null,
-      quantity: null,
-      job_type: null,
-      client_contact_name: null,
-      client_contact_phone: null,
-      client_contact_email: null,
-      event_details: null,
-      reference_links: [],
-      team_members: [],
-      pre_engrave_details: null,
-      show_up_time: null,
-      job_start_time: null,
-      job_end_time: null,
-      break_start_time: null,
-      break_end_time: null,
-      use_daily_schedule: false,
-      daily_start_time: null,
-      daily_end_time: null,
-      daily_break_start: null,
-      daily_break_end: null,
-      prompt_1: null,
-      prompt_2: null,
-    }
-    const newLink: ReferenceLink = { label: '', url: '' }
-    updateJobInfo('reference_links', [...jobInfo.reference_links, newLink])
+  const updateJobInfo = (field: keyof JobInfo, value: any) => {
+    patchJobInfo({ [field]: value })
   }
 
-  const updateReferenceLink = (index: number, field: 'label' | 'url', value: string) => {
-    if (!fldr?.job_info) return
-    const links = [...fldr.job_info.reference_links]
-    links[index] = { ...links[index], [field]: value }
-    updateJobInfo('reference_links', links)
+  const updateTravelDates = (start: string | null, end: string | null) => {
+    patchJobInfo({ travel_start: start, travel_end: end })
   }
 
-  const removeReferenceLink = (index: number) => {
-    if (!fldr?.job_info) return
-    const links = fldr.job_info.reference_links.filter((_, i) => i !== index)
-    updateJobInfo('reference_links', links)
+  // The logistics list. Only the lines that changed are sent, so two people ticking
+  // different steps on the same job never undo each other. Ticks and dates go up right
+  // away; typing waits for a pause like everything else.
+  const updateTracker = (patch: Partial<JobTracker>, now = false) => {
+    const current = fldrRef.current
+    if (!current) return
+    const next = { ...current, tracker: { ...(current.tracker || {}), ...patch } }
+    fldrRef.current = next
+    setFldr(next)
+    if (now) saveFldr({ tracker: patch })
+    else debouncedSave({ tracker: patch })
+  }
+
+  const toggleTravelBooked = () => {
+    const step = readStep(fldrRef.current?.tracker, 'travel_booked')
+    const done = step.state === 'done'
+    updateTracker({ travel_booked: { state: done ? 'todo' : 'done', date: done ? null : step.date || todayKey(), note: step.note } }, true)
+  }
+
+  const updateLocation = (value: string) => {
+    const current = fldrRef.current
+    if (!current) return
+    const next = { ...current, location: value || null }
+    fldrRef.current = next
+    setFldr(next)
+    debouncedSave({ location: value || null })
   }
 
   const addTeamMember = () => {
@@ -2105,10 +2244,10 @@ export default function FldrDetailPage() {
     debouncedSave({ checklist: items })
   }
 
-  const addPerson = () => {
+  const addPerson = (name?: string) => {
     if (!fldr) return
     const people = fldr.people || []
-    const newPerson: Person = { name: '', role: null, phone: null, email: null }
+    const newPerson: Person = { name: name || '', role: null, phone: null, email: null }
     const updated = [...people, newPerson]
     setFldr({ ...fldr, people: updated })
     debouncedSave({ people: updated })
@@ -2540,81 +2679,6 @@ export default function FldrDetailPage() {
     }
   }
 
-  // Copy flight info to clipboard
-  const copyFlightInfo = () => {
-    if (!fldr?.flight_info || fldr.flight_info.length === 0) return
-
-    const formatted = fldr.flight_info.map((segment, idx) => {
-      const parts = [
-        `Flight ${idx + 1} - ${segment.segment_type || 'Flight'}`,
-        segment.airline && segment.flight_number ? `${segment.airline} ${segment.flight_number}` : segment.airline || segment.flight_number || '',
-        segment.confirmation ? `Confirmation: ${segment.confirmation}` : '',
-        '',
-        segment.departure_airport ? `Depart: ${segment.departure_airport}${segment.departure_code ? ` (${segment.departure_code})` : ''}` : '',
-        segment.departure_time ? new Date(segment.departure_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-        '',
-        segment.arrival_airport ? `Arrive: ${segment.arrival_airport}${segment.arrival_code ? ` (${segment.arrival_code})` : ''}` : '',
-        segment.arrival_time ? new Date(segment.arrival_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-        segment.notes ? `\nNotes: ${segment.notes}` : ''
-      ].filter(p => p)
-
-      return parts.join('\n')
-    }).join('\n\n---\n\n')
-
-    navigator.clipboard.writeText(formatted)
-  }
-
-  // Copy hotel info to clipboard
-  const copyHotelInfo = () => {
-    if (!fldr?.hotel_info) return
-
-    const parts = [
-      fldr.hotel_info.name || '',
-      fldr.hotel_info.address || '',
-      fldr.hotel_info.phone || '',
-      fldr.hotel_info.confirmation ? `Confirmation: ${fldr.hotel_info.confirmation}` : '',
-      '',
-      fldr.hotel_info.check_in ? `Check-in: ${new Date(fldr.hotel_info.check_in).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : '',
-      fldr.hotel_info.check_out ? `Check-out: ${new Date(fldr.hotel_info.check_out).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : '',
-      fldr.hotel_info.notes ? `\nNotes: ${fldr.hotel_info.notes}` : ''
-    ].filter(p => p)
-
-    navigator.clipboard.writeText(parts.join('\n'))
-  }
-
-  // Copy venue info to clipboard
-  const copyVenueInfo = () => {
-    if (!fldr?.venue_info) return
-
-    const parts = [
-      fldr.venue_info.name || '',
-      fldr.venue_info.address || '',
-      fldr.venue_info.contact_name ? `Contact: ${fldr.venue_info.contact_name}` : '',
-      fldr.venue_info.contact_phone || '',
-      fldr.venue_info.notes ? `\nNotes: ${fldr.venue_info.notes}` : ''
-    ].filter(p => p)
-
-    navigator.clipboard.writeText(parts.join('\n'))
-  }
-
-  // Copy client/job contact info to clipboard
-  const copyClientInfo = () => {
-    if (!fldr?.job_info) return
-
-    const parts = [
-      fldr.job_info.client_name ? `Client: ${fldr.job_info.client_name}` : '',
-      fldr.job_info.client_contact_name ? `Contact: ${fldr.job_info.client_contact_name}` : '',
-      fldr.job_info.client_contact_phone || '',
-      fldr.job_info.client_contact_email || '',
-      '',
-      fldr.job_info.job_title ? `Job: ${fldr.job_info.job_title}` : '',
-      fldr.job_info.item ? `Item: ${fldr.job_info.item}` : '',
-      fldr.job_info.quantity ? `Quantity: ${fldr.job_info.quantity}` : ''
-    ].filter(p => p)
-
-    navigator.clipboard.writeText(parts.join('\n'))
-  }
-
   const generateOverview = async () => {
     if (!fldr) return
     
@@ -2724,20 +2788,21 @@ export default function FldrDetailPage() {
     }
 
     try {
+      // Anything typed goes up first, so what comes back includes it
+      await saveFldr({})
       const res = await fetch(`/api/fldrs/${fldr.id}`, { cache: 'no-store' })
       if (res.ok) {
         const freshData = await res.json()
         console.log('[Refresh] Refreshed from server, photos:', freshData.photos?.length || 0)
-        setFldr(freshData)
-        cacheFldr(freshData)
-        
+        const merged = adoptServerFldr(freshData)
+
         // Also update the list cache
         const listCache = localStorage.getItem('git-fldrs')
         if (listCache) {
           const allFldrs = JSON.parse(listCache)
           const index = allFldrs.findIndex((f: Fldr) => f.id === fldr.id)
           if (index !== -1) {
-            allFldrs[index] = freshData
+            allFldrs[index] = merged
             localStorage.setItem('git-fldrs', JSON.stringify(allFldrs))
           }
         }
@@ -2751,9 +2816,20 @@ export default function FldrDetailPage() {
     setIsRefreshing(false)
   }
 
+  const openParseEmail = async (kind: 'flight' | 'hotel' | 'rental_car') => {
+    await flushAndSave()
+    setShowParseEmailModal(kind)
+    setParseEmailText('')
+  }
+
   if (loading || !fldr) {
     return <FldrDetailSkeleton />
   }
+
+  // Who's on the job, offered when adding travelers to a flight
+  const staffNames = Array.from(
+    new Set([...(fldr.people || []).map(p => p.name), ...(fldr.job_info?.team_members || [])].map(n => n?.trim()).filter(Boolean))
+  ) as string[]
 
   return (
     <div 
@@ -2839,10 +2915,10 @@ export default function FldrDetailPage() {
           <button
             onClick={manualSave}
             disabled={saving || !fldr}
-            className={`h-9 px-3 rounded-lg font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50 ${
+            className={`relative h-9 px-3 rounded-lg font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50 border ${
               unsavedChanges
-                ? 'bg-brand hover:bg-brand-hover text-white'
-                : 'bg-white/5 border border-line-strong hover:bg-white/10 text-white/85'
+                ? 'bg-brand border-brand hover:bg-brand-hover text-white'
+                : 'bg-white/5 border-line-strong hover:bg-white/10 text-white/85'
             }`}
             title={unsavedChanges ? 'Save changes to server' : 'Save now'}
           >
@@ -2851,8 +2927,9 @@ export default function FldrDetailPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
             </svg>
             <span>{saving ? 'Saving...' : 'Save'}</span>
+            {/* Sits on the corner so the header doesn't shift as it comes and goes */}
             {unsavedChanges && !saving && (
-              <span className="w-2 h-2 bg-gold rounded-full" aria-label="Unsaved changes" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-gold rounded-full ring-2 ring-canvas" aria-label="Unsaved changes" />
             )}
           </button>
 
@@ -3036,9 +3113,9 @@ export default function FldrDetailPage() {
       </div>
 
       {/* Save Status Indicator */}
-      {(saving || lastSaved) && (
+      {(saving || autoSaving || unsavedChanges || lastSaved) && (
         <div className="mb-3 text-center px-4 max-w-2xl mx-auto" aria-live="polite">
-          {saving ? (
+          {saving || autoSaving || unsavedChanges ? (
             <span className="text-[11px] text-yellow-300">Saving...</span>
           ) : lastSaved && (
             <span className="text-[11px] text-white/40">
@@ -3211,6 +3288,7 @@ export default function FldrDetailPage() {
                   let newStatus = (e.target.value || null) as JobStatus | null
                   // Complete waits until every jig is checked back in
                   if (newStatus === 'complete' && jigsOut > 0) newStatus = 'awaiting_return'
+                  heldWaitingRef.current = newStatus === 'awaiting_return' && jigsOut === 0
                   setSaving(true)
                   try {
                     setFldr({ ...fldr, job_status: newStatus })
@@ -3308,283 +3386,39 @@ export default function FldrDetailPage() {
         </button>
       </div>
 
-      {/* Job Summary - Cross-module overview */}
-      <div className="px-4 max-w-2xl mx-auto mb-4">
-      <div className="card shadow-card overflow-hidden">
-        <button
-          onClick={() => toggleCard('summary')}
-          className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
-        >
-          <span className="font-display font-semibold">Job Summary</span>
-          <ChevronDownIcon
-            className={`w-5 h-5 text-white/45 transition-transform ${
-              expandedCards.summary ? 'rotate-180' : ''
-            }`}
+      <SectionNav sections={navSections} active={activeSection} onSelect={jumpToSection} />
+
+      <div className="px-4 max-w-2xl mx-auto space-y-3">
+        {/* ── Overview: what's next, the trip start to end, the details you reach for ── */}
+        <section id="sec-overview" className="space-y-3 scroll-mt-28">
+          <GlanceCard
+            fldr={fldr}
+            jigsOut={jigsOut}
+            distances={distances}
+            distancesLoading={distancesLoading}
+            open={expandedCards.summary}
+            onToggle={() => toggleCard('summary')}
+            onJump={jumpToCard}
           />
-        </button>
-        {expandedCards.summary && (
-          <div className="px-4 pb-4 space-y-3 text-sm">
-            {/* Job Info */}
-            {fldr.job_info && (
-              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
-                <div className="font-semibold text-brand-light mb-2">Job Details</div>
-                {fldr.job_info.job_title && (
-                  <div><span className="text-gray-400">Title:</span> {fldr.job_info.job_title}</div>
-                )}
-                {fldr.job_info.client_name && (
-                  <div><span className="text-gray-400">Client:</span> {fldr.job_info.client_name}</div>
-                )}
-                {fldr.job_info.distributor_name && (
-                  <div><span className="text-gray-400">Distributor:</span> {fldr.job_info.distributor_name}</div>
-                )}
-                {fldr.job_info.job_type && (
-                  <div><span className="text-gray-400">Type:</span> {(fldr.job_info.job_type as string) === 'names_monograms' || fldr.job_info.job_type === 'personalization' ? 'Personalization' : 'Caricatures'}</div>
-                )}
-                {fldr.job_info.client_contact_name && (
-                  <div><span className="text-gray-400">Contact:</span> {fldr.job_info.client_contact_name}</div>
-                )}
-                {fldr.job_info.client_contact_phone && (
-                  <div><span className="text-gray-400">Phone:</span> {fldr.job_info.client_contact_phone}</div>
-                )}
-                {fldr.job_info.client_contact_email && (
-                  <div><span className="text-gray-400">Email:</span> {fldr.job_info.client_contact_email}</div>
-                )}
-              </div>
-            )}
 
-            {/* Travel Distances */}
-            {distances && distances.distances && distances.distances.length > 0 && (
-              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
-                <div className="font-semibold text-brand-light mb-2">Travel Times</div>
-                <div className="space-y-1.5">
-                  {distances.distances.map((dist: any, idx: number) => {
-                    if (dist.error) return null
-                    
-                    // Determine label based on destination
-                    let label = 'Destination'
-                    if (dist.destination.toLowerCase().includes('venue') || fldr.venue_info?.address?.includes(dist.destination)) {
-                      label = 'to Venue'
-                    } else if (dist.destination.toLowerCase().includes('airport') || dist.destination.toLowerCase().includes('san')) {
-                      label = 'to Airport'
-                    }
-                    
-                    return (
-                      <div key={idx} className="flex justify-between items-center text-sm">
-                        <span className="text-gray-400">{label}</span>
-                        <span className="font-medium">
-                          {dist.duration} <span className="text-gray-500">({dist.distance})</span>
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-                {distancesLoading && (
-                  <div className="text-xs text-gray-500 mt-2">Calculating distances...</div>
-                )}
-              </div>
-            )}
-
-            {/* Products */}
-            {fldr.products && fldr.products.length > 0 && (
-              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
-                <div className="font-semibold text-brand-light mb-2">
-                  Products ({fldr.products.reduce((sum, p) => sum + p.quantity, 0)} total)
-                </div>
-                {fldr.products.map((product, idx) => (
-                  <div key={idx} className="flex justify-between items-center">
-                    <span>{product.name}</span>
-                    <span className="text-gray-400 text-sm">×{product.quantity}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Flight Info */}
-            {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
-              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
-                <div className="font-semibold text-brand-light mb-2">Flights ({fldr.flight_info.length} segments)</div>
-                <div className="space-y-2">
-                  {fldr.flight_info.map((segment, idx) => (
-                    <div key={segment.id} className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">#{idx + 1}</span>
-                        {segment.departure_code && (
-                          <span className="font-mono font-bold text-sm">{segment.departure_code}</span>
-                        )}
-                        <span className="text-gray-400">→</span>
-                        {segment.arrival_code && (
-                          <span className="font-mono font-bold text-sm">{segment.arrival_code}</span>
-                        )}
-                        {segment.airline && (
-                          <span className="text-gray-400 text-xs">
-                            {segment.airline} {segment.flight_number || ''}
-                          </span>
-                        )}
-                        {segment.segment_type && segment.segment_type !== 'other' && (
-                          <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
-                            {segment.segment_type}
-                          </span>
-                        )}
-                      </div>
-                      {segment.travelers && segment.travelers.length > 0 && (
-                        <div className="text-xs text-brand-light ml-7">
-                          {segment.travelers.join(', ')}
-                        </div>
-                      )}
-                      {(segment.departure_time || segment.arrival_time) && (
-                        <div className="text-xs text-gray-400 ml-7 flex gap-3">
-                          {segment.departure_time && (
-                            <span>Depart: {new Date(segment.departure_time).toLocaleString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric', 
-                              hour: 'numeric', 
-                              minute: '2-digit',
-                              hour12: true 
-                            })}</span>
-                          )}
-                          {segment.arrival_time && (
-                            <span>Arrive: {new Date(segment.arrival_time).toLocaleString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric', 
-                              hour: 'numeric', 
-                              minute: '2-digit',
-                              hour12: true 
-                            })}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Hotel & Venue */}
-            {(fldr.flight_info?.some(f => f.departure_address || f.arrival_address) || fldr.hotel_info?.name || fldr.venue_info?.name) && (
-              <div className="p-3 bg-canvas/50 border border-line rounded-lg backdrop-blur-sm space-y-2">
-                <div className="font-semibold text-brand-light mb-2">Locations</div>
-                
-                {/* Hotel */}
-                {fldr.hotel_info?.name && (
-                  <div>
-                    <div className="text-gray-400 text-xs">Hotel</div>
-                    <div>{fldr.hotel_info.name}</div>
-                    {fldr.hotel_info.address && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="text-gray-500 text-xs flex-1">{fldr.hotel_info.address}</div>
-                        <CopyButton text={fldr.hotel_info.address} label="Copy" />
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Venue */}
-                {fldr.venue_info?.name && (
-                  <div>
-                    <div className="text-gray-400 text-xs">Venue</div>
-                    <div>{fldr.venue_info.name}</div>
-                    {fldr.venue_info.address && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="text-gray-500 text-xs flex-1">{fldr.venue_info.address}</div>
-                        <CopyButton text={fldr.venue_info.address} label="Copy" />
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Airports */}
-                {fldr.flight_info && fldr.flight_info.length > 0 && (() => {
-                  // Get unique airports
-                  const airports = new Map<string, string>()
-                  fldr.flight_info.forEach(flight => {
-                    if (flight.departure_code && flight.departure_address) {
-                      airports.set(flight.departure_code, flight.departure_address)
-                    }
-                    if (flight.arrival_code && flight.arrival_address) {
-                      airports.set(flight.arrival_code, flight.arrival_address)
-                    }
-                  })
-                  
-                  return Array.from(airports.entries()).map(([code, address]) => (
-                    <div key={code}>
-                      <div className="text-gray-400 text-xs">{code} Airport</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="text-gray-500 text-xs flex-1">{address}</div>
-                        <CopyButton text={address} label="Copy" />
-                      </div>
-                    </div>
-                  ))
-                })()}
-              </div>
-            )}
-
-            {/* Team & People */}
-            {(fldr.people && fldr.people.length > 0) && (
-              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
-                <div className="font-semibold text-brand-light mb-2">People ({fldr.people.length})</div>
-                {fldr.people.slice(0, 5).map((person, idx) => (
-                  <div key={idx} className="text-xs">
-                    {person.name} {person.role && `(${person.role})`}
-                  </div>
-                ))}
-                {fldr.people.length > 5 && (
-                  <div className="text-xs text-gray-500 mt-1">+{fldr.people.length - 5} more</div>
-                )}
-              </div>
-            )}
-
-            {/* Checklist Progress */}
-            {fldr.checklist && fldr.checklist.length > 0 && (
-              <div className="p-3 bg-canvas/50 border border-line rounded-xl">
-                <div className="font-semibold text-brand-light mb-2">Checklist Progress</div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-white/10 rounded-full h-2">
-                    <div 
-                      className="bg-brand h-2 rounded-full transition-all"
-                      style={{ width: `${(fldr.checklist.filter(i => i.completed).length / fldr.checklist.length) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {fldr.checklist.filter(i => i.completed).length}/{fldr.checklist.length}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      </div>
-
-      <div className="space-y-3 px-4 max-w-2xl mx-auto">
-        {/* Weather Card - Only show if the job has a location */}
-        {(fldr.location || fldr.venue_info?.address) && (
-          <div className="card shadow-card overflow-hidden">
-            <button
-              onClick={() => toggleCard('weather')}
-              className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
-            >
-              <div className="text-left">
-                <span className="font-semibold block">Weather</span>
-                {jobWeather.cityLabel && (
-                  <span className="text-xs text-gray-400">{jobWeather.cityLabel}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {!jobWeather.loading && jobWeather.current && (
+          {/* Weather - only when the job has a location */}
+          {(fldr.location || fldr.venue_info?.address) && (
+            <SectionCard
+              id="weather"
+              title="Weather"
+              open={expandedCards.weather}
+              onToggle={() => toggleCard('weather')}
+              summary={jobWeather.cityLabel || undefined}
+              meta={
+                !jobWeather.loading && jobWeather.current && (
                   <div className="flex items-center gap-1.5">
                     <WeatherSVG condition={jobWeather.current.main} size="xs" />
                     <span className="text-sm text-white/70">{Math.round(jobWeather.current.temp)}°</span>
                   </div>
-                )}
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.weather ? 'rotate-180' : ''
-                  }`}
-                />
-              </div>
-            </button>
-            {expandedCards.weather && (
-              <div className="px-4 pb-4">
+                )
+              }
+            >
+              <>
                 {jobWeather.loading && (
                   <div className="py-6 text-center text-sm text-gray-400">Loading weather…</div>
                 )}
@@ -3635,62 +3469,13 @@ export default function FldrDetailPage() {
                     )}
                   </>
                 )}
-              </div>
-            )}
-          </div>
-        )}
+              </>
+            </SectionCard>
+          )}
 
-        {/* Pre-trip Info Card - Only show if job_info enabled */}
-        {fldr.job_info !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <button
-              onClick={() => toggleCard('preTrip')}
-              className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
-            >
-              <span className="font-display font-semibold">Pre-trip Info</span>
-              <ChevronDownIcon
-                className={`w-5 h-5 text-white/45 transition-transform ${
-                  expandedCards.preTrip ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-            {expandedCards.preTrip && (
-              <div className="px-4 pb-4 space-y-3">
-                <div>
-                  <label className="label">Pre-engrave Details</label>
-                  <textarea
-                    value={fldr.job_info?.pre_engrave_details || ''}
-                    onChange={(e) => updateJobInfo('pre_engrave_details', e.target.value)}
-                    className="input resize-none"
-                    rows={3}
-                    placeholder="Pre-engrave prep notes..."
-                  />
-                </div>
-                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                  <p className="text-xs text-blue-400">
-                    Team/contact info is in the <strong>People</strong> module below
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Itinerary Card - Always shown, auto-generated from time data */}
-        <div className="card shadow-card overflow-hidden">
-          <button
-            onClick={() => toggleCard('itinerary')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
-          >
-            <span className="font-display font-semibold">Itinerary</span>
-            <ChevronDownIcon
-              className={`w-5 h-5 text-white/45 transition-transform ${
-                expandedCards.itinerary ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-          {expandedCards.itinerary && (
-            <div className="px-4 pb-4">
+          {/* Itinerary - built from every time on the job */}
+          <SectionCard id="itinerary" title="Itinerary" open={expandedCards.itinerary} onToggle={() => toggleCard('itinerary')}>
+            <>
               {/* Info banner about itinerary features */}
               <div className="mb-3 p-3 bg-canvas/50 border border-line rounded-lg backdrop-blur-sm">
                 <div className="flex items-start gap-2">
@@ -3788,1564 +3573,222 @@ export default function FldrDetailPage() {
                   </div>
                 )
               })()}
+            </>
+          </SectionCard>
+        </section>
+
+        {/* ── Event Info: who it's for, where and when, what's being made ── */}
+        {isJob && (
+          <section id="sec-event" className="space-y-3 scroll-mt-28">
+            <GroupHeading>Event Info</GroupHeading>
+            <ClientEventCard
+              fldr={fldr}
+              open={expandedCards.event}
+              onToggle={() => toggleCard('event')}
+              onJobInfo={updateJobInfo}
+              onLocation={updateLocation}
+              onDone={flushPending}
+            />
+            <VenueTimeCard
+              fldr={fldr}
+              open={expandedCards.venue}
+              onToggle={() => toggleCard('venue')}
+              onVenue={updateVenueInfo}
+              onJobInfo={updateJobInfo}
+              onDone={flushPending}
+            />
+            {fldr.products !== null ? (
+              <ProductsCard
+                products={fldr.products}
+                job={{ id: fldr.id, start: fldr.date_start, end: fldr.date_end }}
+                jigs={jobJigs}
+                jigsOut={jigsOut}
+                open={expandedCards.products}
+                onToggle={() => toggleCard('products')}
+                onAdd={addProduct}
+                onField={updateProduct}
+                onRemove={removeProduct}
+                onRemoveSection={() => disableModule('products')}
+                onDone={flushPending}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <AddSectionButton label="Products" onClick={() => enableModule('products')} />
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Logistics: everything that has to happen before the event ── */}
+        {isJob && (
+          <section id="sec-logistics" className="space-y-3 scroll-mt-28">
+            <GroupHeading>Logistics</GroupHeading>
+            <LogisticsCard
+              tracker={fldr.tracker}
+              preEngraveDetails={fldr.job_info?.pre_engrave_details ?? null}
+              open={expandedCards.logistics}
+              onToggle={() => toggleCard('logistics')}
+              onChange={patch => updateTracker(patch, true)}
+              onType={patch => updateTracker(patch)}
+              onPreEngraveChange={value => updateJobInfo('pre_engrave_details', value)}
+              onCommit={flushPending}
+            />
+          </section>
+        )}
+
+        {/* ── Travel ── */}
+        <section id="sec-travel" className="space-y-3 scroll-mt-28">
+          <GroupHeading>Travel</GroupHeading>
+          <TravelDatesRow
+            start={fldr.job_info?.travel_start ?? null}
+            end={fldr.job_info?.travel_end ?? null}
+            flightDates={flightSpan(fldr)}
+            booked={isJob ? readStep(fldr.tracker, 'travel_booked') : null}
+            onDates={updateTravelDates}
+            onToggleBooked={toggleTravelBooked}
+          />
+          {fldr.flight_info !== null && (
+            <FlightsCard
+              segments={Array.isArray(fldr.flight_info) ? fldr.flight_info : []}
+              staffNames={staffNames}
+              open={expandedCards.flight}
+              onToggle={() => toggleCard('flight')}
+              onField={updateFlightSegment}
+              onDepartureAirport={updateSegmentDepartureAirport}
+              onArrivalAirport={updateSegmentArrivalAirport}
+              onAddTraveler={addSegmentTraveler}
+              onRemoveTraveler={removeSegmentTraveler}
+              onAddSegment={addFlightSegment}
+              onRemoveSegment={removeFlightSegment}
+              roundTrip={isRoundTrip}
+              onRoundTrip={toggleRoundTrip}
+              onParseEmail={() => openParseEmail('flight')}
+              onRemoveSection={() => disableModule('flight_info')}
+              onDone={flushPending}
+            />
+          )}
+          {fldr.hotel_info !== null && (
+            <HotelCard
+              hotel={fldr.hotel_info}
+              open={expandedCards.hotel}
+              onToggle={() => toggleCard('hotel')}
+              onField={updateHotelInfo}
+              onParseEmail={() => openParseEmail('hotel')}
+              onRemoveSection={() => disableModule('hotel_info')}
+              onDone={flushPending}
+            />
+          )}
+          {fldr.rental_car_info !== null && (
+            <RentalCarCard
+              car={fldr.rental_car_info}
+              open={expandedCards.rentalCar}
+              onToggle={() => toggleCard('rentalCar')}
+              onField={updateRentalCarInfo}
+              onParseEmail={() => openParseEmail('rental_car')}
+              onRemoveSection={() => disableModule('rental_car_info')}
+              onDone={flushPending}
+            />
+          )}
+          {(fldr.flight_info === null || fldr.hotel_info === null || fldr.rental_car_info === null) && (
+            <div className="flex flex-wrap gap-2">
+              {fldr.flight_info === null && <AddSectionButton label="Flights" onClick={() => enableModule('flight_info')} />}
+              {fldr.hotel_info === null && <AddSectionButton label="Hotel" onClick={() => enableModule('hotel_info')} />}
+              {fldr.rental_car_info === null && <AddSectionButton label="Rental Car" onClick={() => enableModule('rental_car_info')} />}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Flight Info Card - Only show if enabled */}
-        {fldr.flight_info !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('flight')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Flight Info</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.flight ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                {fldr.flight_info && fldr.flight_info.length > 0 && (
-                  <button
-                    onClick={copyFlightInfo}
-                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
-                    title="Copy all flight details"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Copy
-                  </button>
-                )}
+        {/* ── Team ── */}
+        <section id="sec-team" className="space-y-3 scroll-mt-28">
+          <GroupHeading>Team</GroupHeading>
+          <StaffCard
+            people={fldr.people}
+            wardrobe={fldr.job_info?.wardrobe ?? null}
+            open={expandedCards.people}
+            onToggle={() => toggleCard('people')}
+            onAddPerson={addPerson}
+            onPersonField={updatePerson}
+            onPersonNameBlur={handlePersonNameBlur}
+            onRemovePerson={removePerson}
+            onWardrobe={value => updateJobInfo('wardrobe', value || null)}
+            onDone={flushPending}
+          />
+        </section>
+
+        {/* ── More: notes, links and the rest ── */}
+        <section id="sec-more" className="space-y-3 scroll-mt-28">
+          <GroupHeading>More</GroupHeading>
+          <SectionCard
+            id="notes"
+            title="Notes"
+            open={expandedCards.notes}
+            onToggle={() => toggleCard('notes')}
+            summary={plainText(fldr.notes).slice(0, 140) || undefined}
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs text-gray-400">Notes</label>
                 <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
+                  onClick={() => setUseRichEditor(!useRichEditor)}
+                  className="text-xs px-3 py-1 bg-brand hover:bg-brand-hover rounded-md transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('flight_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
+                  {useRichEditor ? 'Simple Editor' : 'Rich Text Editor'}
                 </button>
               </div>
-            </div>
-            {expandedCards.flight && (
-              <div className="px-4 pb-4 space-y-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-gray-400">
-                    {fldr.flight_info?.length || 0} {(fldr.flight_info?.length || 0) === 1 ? 'segment' : 'segments'}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={async () => {
-                        await flushAndSave()
-                        setShowParseEmailModal('flight')
-                        setParseEmailText('')
-                      }}
-                      className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      Parse Email
-                    </button>
-                    <button
-                      onClick={addFlightSegment}
-                      className="text-xs font-medium text-brand-light hover:text-white transition-colors"
-                    >
-                      + Add Flight Segment
-                    </button>
-                  </div>
-                </div>
-
-                {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
-                  <FlightConnections segments={fldr.flight_info} />
-                )}
-
-                {/* Round Trip Toggle */}
-                {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
-                  <div className="flex items-center gap-2.5 p-3 bg-white/5 border border-line rounded-xl">
-                    <input
-                      type="checkbox"
-                      id="roundTrip"
-                      checked={isRoundTrip || (Array.isArray(fldr.flight_info) && fldr.flight_info.some(seg => seg.segment_type === 'return'))}
-                      onChange={(e) => toggleRoundTrip(e.target.checked)}
-                      className="w-4 h-4 rounded flex-shrink-0"
-                    />
-                    <label htmlFor="roundTrip" className="text-sm text-white cursor-pointer whitespace-nowrap">
-                      Round Trip
-                    </label>
-                    <span className="text-xs text-white/45 ml-auto text-right">
-                      Auto-creates return flight with reversed airports
-                    </span>
-                  </div>
-                )}
-
-                {(!fldr.flight_info || !Array.isArray(fldr.flight_info) || fldr.flight_info.length === 0) && (
-                  <div className="p-5 border border-dashed border-line-strong rounded-xl text-center">
-                    <p className="text-sm text-gray-400 mb-2">No flight segments yet</p>
-                    <button
-                      onClick={addFlightSegment}
-                      className="text-sm font-medium text-brand-light hover:text-white transition-colors"
-                    >
-                      Add First Segment
-                    </button>
-                  </div>
-                )}
-
-                {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.map((segment, index) => (
-                  <div key={segment.id} className="p-4 bg-white/5 rounded-xl space-y-3 border border-line">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-sm font-semibold text-brand-light whitespace-nowrap">
-                          Segment {index + 1}
-                        </span>
-                        <select
-                          value={segment.segment_type || 'other'}
-                          onChange={(e) => updateFlightSegment(index, 'segment_type', e.target.value)}
-                          className="min-w-0 text-xs px-2 py-1.5 bg-canvas border border-line-strong rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
-                        >
-                          <option value="outbound">Outbound</option>
-                          <option value="return">Return</option>
-                          <option value="connection">Connection/Layover</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-                      {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 1 && (
-                        <button
-                          onClick={() => removeFlightSegment(index)}
-                          className="flex-shrink-0 text-xs text-red-400 hover:text-red-300 px-2.5 py-1.5 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="label">Travelers</label>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {(segment.travelers || []).map((traveler, tIdx) => (
-                          <span
-                            key={tIdx}
-                            className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-brand/15 text-brand-light border border-brand/30 rounded-full"
-                          >
-                            {traveler}
-                            <button
-                              type="button"
-                              onClick={() => removeSegmentTraveler(index, tIdx)}
-                              className="hover:text-red-400"
-                              title="Remove traveler"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                        <input
-                          type="text"
-                          list="team-member-names"
-                          value={travelerDrafts[segment.id] || ''}
-                          onChange={(e) => setTravelerDrafts(prev => ({ ...prev, [segment.id]: e.target.value }))}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault()
-                              addSegmentTraveler(index, travelerDrafts[segment.id] || '')
-                              setTravelerDrafts(prev => ({ ...prev, [segment.id]: '' }))
-                            }
-                          }}
-                          onBlur={() => {
-                            if (travelerDrafts[segment.id]?.trim()) {
-                              addSegmentTraveler(index, travelerDrafts[segment.id])
-                              setTravelerDrafts(prev => ({ ...prev, [segment.id]: '' }))
-                            }
-                          }}
-                          placeholder="Add name, press Enter"
-                          className="min-w-[140px] flex-1 px-3 py-1.5 bg-canvas border border-line-strong rounded-full focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40 text-xs placeholder:text-white/30"
-                        />
-                      </div>
-                      {fldr.job_info?.team_members && fldr.job_info.team_members.filter(Boolean).length > 0 && (
-                        <datalist id="team-member-names">
-                          {fldr.job_info.team_members.filter(Boolean).map((name, i) => (
-                            <option key={i} value={name} />
-                          ))}
-                        </datalist>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="label">Departure Airport</label>
-                        <AirportAutocomplete
-                          type="name"
-                          value={segment.departure_airport || ''}
-                          onChange={(value) => updateFlightSegment(index, 'departure_airport', value)}
-                          onAirportSelect={(airport) => updateSegmentDepartureAirport(index, airport)}
-                          className="input"
-                          placeholder="Type airport name or code..."
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Code</label>
-                        <AirportAutocomplete
-                          type="code"
-                          value={segment.departure_code || ''}
-                          onChange={(value) => updateFlightSegment(index, 'departure_code', value)}
-                          onAirportSelect={(airport) => updateSegmentDepartureAirport(index, airport)}
-                          className="input"
-                          placeholder="LAX"
-                        />
-                      </div>
-                    </div>
-
-                    {segment.departure_address && (
-                      <div>
-                        <label className="label">Departure Airport Address</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={segment.departure_address}
-                            readOnly
-                            className="flex-1 px-3 py-2 bg-canvas/50 border border-line rounded-lg text-sm text-gray-300 cursor-not-allowed"
-                          />
-                          <CopyButton text={segment.departure_address} label="Copy address" />
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="label">Departure Time</label>
-                      <input
-                        type="datetime-local"
-                        value={segment.departure_time || ''}
-                        onChange={(e) => updateFlightSegment(index, 'departure_time', e.target.value)}
-                        className="input"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="label">Arrival Airport</label>
-                        <AirportAutocomplete
-                          type="name"
-                          value={segment.arrival_airport || ''}
-                          onChange={(value) => updateFlightSegment(index, 'arrival_airport', value)}
-                          onAirportSelect={(airport) => updateSegmentArrivalAirport(index, airport)}
-                          className="input"
-                          placeholder="Type airport name or code..."
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Code</label>
-                        <AirportAutocomplete
-                          type="code"
-                          value={segment.arrival_code || ''}
-                          onChange={(value) => updateFlightSegment(index, 'arrival_code', value)}
-                          onAirportSelect={(airport) => updateSegmentArrivalAirport(index, airport)}
-                          className="input"
-                          placeholder="JFK"
-                        />
-                      </div>
-                    </div>
-
-                    {segment.arrival_address && (
-                      <div>
-                        <label className="label">Arrival Airport Address</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={segment.arrival_address}
-                            readOnly
-                            className="flex-1 px-3 py-2 bg-canvas/50 border border-line rounded-lg text-sm text-gray-300 cursor-not-allowed"
-                          />
-                          <CopyButton text={segment.arrival_address} label="Copy address" />
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="label">Arrival Time</label>
-                      <input
-                        type="datetime-local"
-                        value={segment.arrival_time || ''}
-                        onChange={(e) => updateFlightSegment(index, 'arrival_time', e.target.value)}
-                        className="input"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="label">Airline</label>
-                        <input
-                          type="text"
-                          value={segment.airline || ''}
-                          onChange={(e) => updateFlightSegment(index, 'airline', e.target.value)}
-                          className="input"
-                          placeholder="Airline name"
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Flight Number</label>
-                        <input
-                          type="text"
-                          value={segment.flight_number || ''}
-                          onChange={(e) => updateFlightSegment(index, 'flight_number', e.target.value)}
-                          className="input"
-                          placeholder="e.g. AA123"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="label">Confirmation Number</label>
-                      <input
-                        type="text"
-                        value={segment.confirmation || ''}
-                        onChange={(e) => updateFlightSegment(index, 'confirmation', e.target.value)}
-                        className="input"
-                        placeholder="Confirmation code"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="label">Notes</label>
-                      <textarea
-                        value={segment.notes || ''}
-                        onChange={(e) => updateFlightSegment(index, 'notes', e.target.value)}
-                        className="input resize-none"
-                        rows={2}
-                        placeholder="Additional flight notes..."
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* NOTE: Hotel, Venue, and Rental Car cards will be added next */}
-
-        {/* Hotel Info Card - Only show if enabled */}
-        {fldr.hotel_info !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('hotel')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Hotel Info</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.hotel ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                {fldr.hotel_info && (fldr.hotel_info.name || fldr.hotel_info.address) && (
-                  <button
-                    onClick={copyHotelInfo}
-                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
-                    title="Copy hotel details"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Copy
-                  </button>
-                )}
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('hotel_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {expandedCards.hotel && (
-              <div className="px-4 pb-4 space-y-3">
-                <div className="flex justify-end mb-2">
-                  <button
-                    onClick={async () => {
-                      await flushAndSave()
-                      setShowParseEmailModal('hotel')
-                      setParseEmailText('')
-                    }}
-                    className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    Parse Email
-                  </button>
-                </div>
-                <div>
-                  <label className="label">Hotel Name</label>
-                  <input
-                    type="text"
-                    value={fldr.hotel_info?.name || ''}
-                    onChange={(e) => updateHotelInfo('name', e.target.value)}
-                    className="input"
-                    placeholder="Hotel name"
+              <div>
+                {useRichEditor ? (
+                  <RichTextEditor
+                    value={fldr.notes}
+                    onChange={(value) => updateNotes(value)}
+                    placeholder="Add notes..."
+                    className="min-h-[200px]"
                   />
-                </div>
-                <div>
-                  <label className="label">Address</label>
-                  <div className="flex items-center gap-2">
-                    <AddressAutocomplete
-                      value={fldr.hotel_info?.address || ''}
-                      onChange={(value) => updateHotelInfo('address', value)}
-                      className="input flex-1"
-                      placeholder="Start typing hotel address..."
-                    />
-                    <CopyButton text={fldr.hotel_info?.address || ''} label="Copy address" />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Phone</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="tel"
-                      value={fldr.hotel_info?.phone || ''}
-                      onChange={(e) => updateHotelInfo('phone', e.target.value)}
-                      className="input flex-1"
-                      placeholder="Hotel phone number"
-                    />
-                    {fldr.hotel_info?.phone && (
-                      <a
-                        href={`tel:${fldr.hotel_info.phone}`}
-                        className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-colors text-xs font-medium"
-                        title="Call hotel"
-                      >
-                        Call
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">Check-in</label>
-                    <input
-                      type="datetime-local"
-                      value={fldr.hotel_info?.check_in || ''}
-                      onChange={(e) => updateHotelInfo('check_in', e.target.value)}
-                      className="input"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Check-out</label>
-                    <input
-                      type="datetime-local"
-                      value={fldr.hotel_info?.check_out || ''}
-                      onChange={(e) => updateHotelInfo('check_out', e.target.value)}
-                      className="input"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Confirmation Number</label>
-                  <input
-                    type="text"
-                    value={fldr.hotel_info?.confirmation || ''}
-                    onChange={(e) => updateHotelInfo('confirmation', e.target.value)}
-                    className="input"
-                    placeholder="Confirmation code"
-                  />
-                </div>
-                <div>
-                  <label className="label">Notes</label>
+                ) : (
                   <textarea
-                    value={fldr.hotel_info?.notes || ''}
-                    onChange={(e) => updateHotelInfo('notes', e.target.value)}
-                    className="input resize-none"
-                    rows={2}
-                    placeholder="Additional hotel notes..."
+                    value={fldr.notes}
+                    onChange={(e) => updateNotes(e.target.value)}
+                    className="input min-h-[120px] resize-none leading-relaxed"
+                    placeholder="Add notes..."
                   />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Venue Info Card - Only show if enabled */}
-        {fldr.venue_info !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('venue')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Venue Info</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.venue ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                {fldr.venue_info && (fldr.venue_info.name || fldr.venue_info.address) && (
-                  <button
-                    onClick={copyVenueInfo}
-                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
-                    title="Copy venue details"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Copy
-                  </button>
-                )}
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('venue_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {expandedCards.venue && (
-              <div className="px-4 pb-4 space-y-3">
-                <div>
-                  <label className="label">Venue Name</label>
-                  <input
-                    type="text"
-                    value={fldr.venue_info?.name || ''}
-                    onChange={(e) => updateVenueInfo('name', e.target.value)}
-                    className="input"
-                    placeholder="Event venue name"
-                  />
-                </div>
-                <div>
-                  <label className="label">Address</label>
-                  <div className="flex items-center gap-2">
-                    <AddressAutocomplete
-                      value={fldr.venue_info?.address || ''}
-                      onChange={(value) => updateVenueInfo('address', value)}
-                      className="input flex-1"
-                      placeholder="Start typing venue address..."
-                    />
-                    <CopyButton text={fldr.venue_info?.address || ''} label="Copy address" />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Contact Name</label>
-                  <input
-                    type="text"
-                    value={fldr.venue_info?.contact_name || ''}
-                    onChange={(e) => updateVenueInfo('contact_name', e.target.value)}
-                    className="input"
-                    placeholder="Venue contact person"
-                  />
-                </div>
-                <div>
-                  <label className="label">Contact Phone</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="tel"
-                      value={fldr.venue_info?.contact_phone || ''}
-                      onChange={(e) => updateVenueInfo('contact_phone', e.target.value)}
-                      className="input flex-1"
-                      placeholder="Venue contact phone"
-                    />
-                    {fldr.venue_info?.contact_phone && (
-                      <a
-                        href={`tel:${fldr.venue_info.contact_phone}`}
-                        className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-colors text-xs font-medium"
-                        title="Call venue"
-                      >
-                        Call
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Notes</label>
-                  <textarea
-                    value={fldr.venue_info?.notes || ''}
-                    onChange={(e) => updateVenueInfo('notes', e.target.value)}
-                    className="input resize-none"
-                    rows={2}
-                    placeholder="Additional venue notes..."
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Rental Car Info Card - Only show if enabled */}
-        {fldr.rental_car_info !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('rentalCar')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Rental Car</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.rentalCar ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('rental_car_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {expandedCards.rentalCar && (
-              <div className="px-4 pb-4 space-y-3">
-                <div className="flex justify-end mb-2">
-                  <button
-                    onClick={async () => {
-                      await flushAndSave()
-                      setShowParseEmailModal('rental_car')
-                      setParseEmailText('')
-                    }}
-                    className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    Parse Email
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">Company</label>
-                    <input
-                      type="text"
-                      value={fldr.rental_car_info?.company || ''}
-                      onChange={(e) => updateRentalCarInfo('company', e.target.value)}
-                      className="input"
-                      placeholder="e.g. Hertz"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Vehicle Type</label>
-                    <input
-                      type="text"
-                      value={fldr.rental_car_info?.vehicle_type || ''}
-                      onChange={(e) => updateRentalCarInfo('vehicle_type', e.target.value)}
-                      className="input"
-                      placeholder="e.g. SUV"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">Insurance Policy Number</label>
-                    <input
-                      type="text"
-                      value={fldr.rental_car_info?.insurance_policy_number || ''}
-                      onChange={(e) => updateRentalCarInfo('insurance_policy_number', e.target.value)}
-                      className="input"
-                      placeholder="Insurance policy number"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Travel Reservation</label>
-                    <input
-                      type="text"
-                      value={fldr.rental_car_info?.travel_reservation || ''}
-                      onChange={(e) => updateRentalCarInfo('travel_reservation', e.target.value)}
-                      className="input"
-                      placeholder="Travel reservation number"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Pickup Location</label>
-                  <AddressAutocomplete
-                    value={fldr.rental_car_info?.pickup_location || ''}
-                    onChange={(value) => updateRentalCarInfo('pickup_location', value)}
-                    className="input"
-                    placeholder="Start typing pickup location..."
-                  />
-                </div>
-                <div>
-                  <label className="label">Pickup Time</label>
-                  <input
-                    type="datetime-local"
-                    value={fldr.rental_car_info?.pickup_time || ''}
-                    onChange={(e) => updateRentalCarInfo('pickup_time', e.target.value)}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="label">Dropoff Location</label>
-                  <AddressAutocomplete
-                    value={fldr.rental_car_info?.dropoff_location || ''}
-                    onChange={(value) => updateRentalCarInfo('dropoff_location', value)}
-                    className="input"
-                    placeholder="Start typing dropoff location..."
-                  />
-                </div>
-                <div>
-                  <label className="label">Dropoff Time</label>
-                  <input
-                    type="datetime-local"
-                    value={fldr.rental_car_info?.dropoff_time || ''}
-                    onChange={(e) => updateRentalCarInfo('dropoff_time', e.target.value)}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="label">Confirmation Number</label>
-                  <input
-                    type="text"
-                    value={fldr.rental_car_info?.confirmation || ''}
-                    onChange={(e) => updateRentalCarInfo('confirmation', e.target.value)}
-                    className="input"
-                    placeholder="Confirmation code"
-                  />
-                </div>
-                <div>
-                  <label className="label">Notes</label>
-                  <textarea
-                    value={fldr.rental_car_info?.notes || ''}
-                    onChange={(e) => updateRentalCarInfo('notes', e.target.value)}
-                    className="input resize-none"
-                    rows={2}
-                    placeholder="Additional rental car notes..."
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Job Info Card - Only show if job_info enabled */}
-        {fldr.job_info !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('jobInfo')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Job Info</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.jobInfo ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                {fldr.job_info && (fldr.job_info.client_name || fldr.job_info.client_contact_name) && (
-                  <button
-                    onClick={copyClientInfo}
-                    className="text-xs text-white/60 hover:text-white px-2.5 py-1.5 rounded-lg border border-line-strong hover:bg-white/10 transition-colors flex items-center gap-1.5"
-                    title="Copy client details"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Copy
-                  </button>
-                )}
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('job_info')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {expandedCards.jobInfo && (
-              <div className="px-4 pb-4 space-y-3">
-                {/* Job Overview - Cross-module summary */}
-                <div className="p-3 bg-black/40 border border-line rounded-lg space-y-2">
-                  <div className="text-xs font-semibold text-gray-400 mb-2">Job Overview</div>
-                  
-                  {/* Products Summary */}
-                  {fldr.products && fldr.products.length > 0 && (
-                    <div className="text-xs">
-                      <span className="text-gray-500">Products: </span>
-                      <span className="text-gray-100">
-                        {fldr.products.map(p => `${p.name} (${p.quantity})`).join(', ')}
-                      </span>
-                      <span className="text-gray-500 ml-1">
-                        • Total: {fldr.products.reduce((sum, p) => sum + p.quantity, 0)} items
-                      </span>
-                    </div>
-                  )}
-                  
-                  {/* Checklist Progress */}
-                  {fldr.checklist && fldr.checklist.length > 0 && (
-                    <div className="text-xs">
-                      <span className="text-gray-500">Checklist: </span>
-                      <span className="text-gray-100">
-                        {fldr.checklist.filter(i => i.completed).length} / {fldr.checklist.length} complete
-                      </span>
-                    </div>
-                  )}
-                  
-                  {/* People Count */}
-                  {fldr.people && fldr.people.length > 0 && (
-                    <div className="text-xs">
-                      <span className="text-gray-500">People: </span>
-                      <span className="text-gray-100">
-                        {fldr.people.map(p => p.name).join(', ')}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {/* Location Info */}
-                  {(fldr.hotel_info?.name || fldr.venue_info?.name) && (
-                    <div className="text-xs">
-                      {fldr.hotel_info?.name && (
-                        <div>
-                          <span className="text-gray-500">Hotel: </span>
-                          <span className="text-gray-100">{fldr.hotel_info.name}</span>
-                        </div>
-                      )}
-                      {fldr.venue_info?.name && (
-                        <div>
-                          <span className="text-gray-500">Venue: </span>
-                          <span className="text-gray-100">{fldr.venue_info.name}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Flight Info */}
-                  {fldr.flight_info && Array.isArray(fldr.flight_info) && fldr.flight_info.length > 0 && (
-                    <div className="text-xs">
-                      <span className="text-gray-500">Flights: </span>
-                      <span className="text-gray-100">
-                        {fldr.flight_info.map((seg, idx) => (
-                          <span key={seg.id}>
-                            {idx > 0 && ' • '}
-                            {seg.departure_code} → {seg.arrival_code}
-                            {seg.airline && ` (${seg.airline})`}
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="label">Job Title</label>
-                  <input
-                    type="text"
-                    value={fldr.job_info?.job_title || ''}
-                    onChange={(e) => updateJobInfo('job_title', e.target.value)}
-                    className="input"
-                    placeholder="Job title or name"
-                  />
-                </div>
-                <div>
-                  <label className="label">Client Name</label>
-                  <input
-                    type="text"
-                    value={fldr.job_info?.client_name || ''}
-                    onChange={(e) => updateJobInfo('client_name', e.target.value)}
-                    className="input"
-                    placeholder="Client/company name"
-                  />
-                </div>
-                <div>
-                  <label className="label">Distributor Name</label>
-                  <input
-                    type="text"
-                    value={fldr.job_info?.distributor_name || ''}
-                    onChange={(e) => updateJobInfo('distributor_name', e.target.value)}
-                    className="input"
-                    placeholder="Distributor name (if applicable)"
-                  />
-                </div>
-                <div>
-                  <label className="label">Job Type</label>
-                  <select
-                    value={fldr.job_info?.job_type || ''}
-                    onChange={(e) => updateJobInfo('job_type', e.target.value || null)}
-                    className="input"
-                  >
-                    <option value="" className="bg-gray-800 text-white">Select type</option>
-                    <option value="caricatures" className="bg-gray-800 text-white">Caricatures</option>
-                    <option value="personalization" className="bg-gray-800 text-white">Personalization</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Contact Name</label>
-                  <input
-                    type="text"
-                    value={fldr.job_info?.client_contact_name || ''}
-                    onChange={(e) => updateJobInfo('client_contact_name', e.target.value)}
-                    className="input"
-                    placeholder="Contact person"
-                  />
-                </div>
-                <div>
-                  <label className="label">Phone</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="tel"
-                      value={fldr.job_info?.client_contact_phone || ''}
-                      onChange={(e) => updateJobInfo('client_contact_phone', e.target.value)}
-                      className="input flex-1"
-                      placeholder="Phone"
-                    />
-                    {fldr.job_info?.client_contact_phone && (
-                      <a
-                        href={`tel:${fldr.job_info.client_contact_phone}`}
-                        className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-colors text-xs font-medium whitespace-nowrap"
-                        title="Call contact"
-                      >
-                        Call
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Email</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="email"
-                      value={fldr.job_info?.client_contact_email || ''}
-                      onChange={(e) => updateJobInfo('client_contact_email', e.target.value)}
-                      className="input flex-1"
-                      placeholder="Email"
-                    />
-                    {fldr.job_info?.client_contact_email && (
-                      <a
-                        href={`mailto:${fldr.job_info.client_contact_email}`}
-                        className="px-3 py-2 bg-brand/10 border border-brand/30 text-brand-light rounded-lg hover:bg-brand/20 transition-colors text-xs font-medium whitespace-nowrap"
-                        title="Send email"
-                      >
-                        Email
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Event Details</label>
-                  <textarea
-                    value={fldr.job_info?.event_details || ''}
-                    onChange={(e) => updateJobInfo('event_details', e.target.value)}
-                    className="input resize-none"
-                    rows={3}
-                    placeholder="Event context, special instructions..."
-                  />
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-gray-400 mb-2">Event Schedule</div>
-                  
-                  {/* Show Up Time - always single datetime */}
-                  <div className="mb-3">
-                    <label className="label">Show Up Time (one-time)</label>
-                    <input
-                      type="datetime-local"
-                      value={fldr.job_info?.show_up_time || ''}
-                      onChange={(e) => updateJobInfo('show_up_time', e.target.value || null)}
-                      className="input"
-                    />
-                  </div>
-
-                  {/* Daily Schedule Toggle */}
-                  <div className="mb-3 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={fldr.job_info?.use_daily_schedule || false}
-                        onChange={(e) => updateJobInfo('use_daily_schedule', e.target.checked)}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-xs text-blue-400">
-                        Use same times daily (for multi-day events)
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* Conditional: Daily Schedule or Single Event Times */}
-                  {fldr.job_info?.use_daily_schedule ? (
-                    // Daily recurring times (time-only inputs)
-                    <div className="space-y-2">
-                      <p className="text-xs text-gray-500 mb-2">Set times that repeat each day between job start/end dates:</p>
-                      <div className="space-y-2">
-                        <div>
-                          <label className="label">Daily Start Time</label>
-                          <input
-                            type="time"
-                            value={fldr.job_info?.daily_start_time || ''}
-                            onChange={(e) => updateJobInfo('daily_start_time', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Daily End Time</label>
-                          <input
-                            type="time"
-                            value={fldr.job_info?.daily_end_time || ''}
-                            onChange={(e) => updateJobInfo('daily_end_time', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Daily Break Start</label>
-                          <input
-                            type="time"
-                            value={fldr.job_info?.daily_break_start || ''}
-                            onChange={(e) => updateJobInfo('daily_break_start', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Daily Break End</label>
-                          <input
-                            type="time"
-                            value={fldr.job_info?.daily_break_end || ''}
-                            onChange={(e) => updateJobInfo('daily_break_end', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // Single event times (datetime-local inputs)
-                    <div>
-                      <div className="space-y-2">
-                        <div>
-                          <label className="label">Job Start Time</label>
-                          <input
-                            type="datetime-local"
-                            value={fldr.job_info?.job_start_time || ''}
-                            onChange={(e) => updateJobInfo('job_start_time', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Job End Time</label>
-                          <input
-                            type="datetime-local"
-                            value={fldr.job_info?.job_end_time || ''}
-                            onChange={(e) => updateJobInfo('job_end_time', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Break Start</label>
-                          <input
-                            type="datetime-local"
-                            value={fldr.job_info?.break_start_time || ''}
-                            onChange={(e) => updateJobInfo('break_start_time', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Break End</label>
-                          <input
-                            type="datetime-local"
-                            value={fldr.job_info?.break_end_time || ''}
-                            onChange={(e) => updateJobInfo('break_end_time', e.target.value || null)}
-                            className="input"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs text-gray-400">Reference Links</label>
-                    <button
-                      onClick={addReferenceLink}
-                      className="text-xs font-medium text-brand-light hover:text-white transition-colors"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                  {(fldr.job_info?.reference_links || []).map((link, index) => (
-                    <div key={index} className="space-y-2 mb-3 p-3 bg-white/5 rounded-lg border border-line">
-                      <input
-                        type="text"
-                        value={link.label}
-                        onChange={(e) => updateReferenceLink(index, 'label', e.target.value)}
-                        className="input"
-                        placeholder="Label"
-                      />
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          value={link.url}
-                          onChange={(e) => updateReferenceLink(index, 'url', e.target.value)}
-                          className="input flex-1"
-                          placeholder="URL"
-                        />
-                        <button
-                          onClick={() => removeReferenceLink(index)}
-                          className="px-3 text-red-500 hover:text-red-400"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {(!fldr.job_info?.reference_links || fldr.job_info.reference_links.length === 0) && (
-                    <p className="text-xs text-gray-500">No reference links yet</p>
-                  )}
-                </div>
-
-                {/* Prompts */}
-                <div className="space-y-3 pt-1">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Prompts</div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-gray-400">Prompt 1</label>
-                      {fldr.job_info?.prompt_1 && (
-                        <button
-                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_1 || '')}
-                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy
-                        </button>
-                      )}
-                    </div>
-                    <textarea
-                      value={fldr.job_info?.prompt_1 || ''}
-                      onChange={(e) => updateJobInfo('prompt_1', e.target.value || null)}
-                      className="input resize-none"
-                      rows={4}
-                      placeholder="Paste prompt here..."
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-gray-400">Prompt 2</label>
-                      {fldr.job_info?.prompt_2 && (
-                        <button
-                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_2 || '')}
-                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy
-                        </button>
-                      )}
-                    </div>
-                    <textarea
-                      value={fldr.job_info?.prompt_2 || ''}
-                      onChange={(e) => updateJobInfo('prompt_2', e.target.value || null)}
-                      className="input resize-none"
-                      rows={4}
-                      placeholder="Paste prompt here..."
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Checklist Card - Only show if enabled */}
-        {fldr.checklist !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('checklist')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Checklist</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.checklist ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('checklist')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {expandedCards.checklist && (
-              <div className="px-4 pb-4 space-y-2">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs text-gray-400">
-                    {(fldr.checklist || []).filter(i => i.completed).length} / {(fldr.checklist || []).length} complete
-                  </span>
-                  <button
-                    onClick={addChecklistItem}
-                    className="text-xs font-medium text-brand-light hover:text-white transition-colors"
-                  >
-                    + Add Item
-                  </button>
-                </div>
-
-                {(() => {
-                  const daysUntil = getDaysUntilJob()
-                  if (daysUntil !== null && daysUntil >= 0) {
-                    const urgencyColor = daysUntil <= 2 ? 'text-red-400' : daysUntil <= 7 ? 'text-yellow-400' : 'text-green-400'
-                    const urgencyBg = daysUntil <= 2 ? 'bg-red-500/10 border-red-500/20' : daysUntil <= 7 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-green-500/10 border-green-500/20'
-                    return (
-                      <div className={`px-3 py-2 ${urgencyBg} border rounded-lg mb-2`}>
-                        <div className="flex items-center gap-2">
-                          <svg className={`w-3.5 h-3.5 ${urgencyColor} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <p className={`text-xs ${urgencyColor} font-medium`}>
-                            {daysUntil === 0 ? 'Job is today!' : daysUntil === 1 ? '1 day until job' : `${daysUntil} days until job`}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  }
-                  return null
-                })()}
-
-                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
-                  <div className="flex items-start gap-2">
-                    <svg className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-xs text-blue-400 flex-1">
-                      Checklist progress automatically updates in Job Summary section
-                    </p>
-                  </div>
-                </div>
-                {(fldr.checklist || []).map((item, index) => {
-                  const daysUntil = getDaysUntilJob()
-                  return (
-                    <div key={index} className="flex items-start gap-2 group">
-                      <input
-                        type="checkbox"
-                        checked={item.completed}
-                        onChange={() => toggleChecklistItem(index)}
-                        className="w-4 h-4 mt-3 rounded flex-shrink-0"
-                      />
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          value={item.item}
-                          onChange={(e) => updateChecklistItem(index, e.target.value)}
-                          className={`input ${
-                            item.completed ? 'line-through text-white/40' : ''
-                          }`}
-                          placeholder="Item"
-                        />
-                        {daysUntil !== null && daysUntil >= 0 && (
-                          <div className="mt-1 flex items-center gap-1">
-                            <svg className={`w-3 h-3 ${daysUntil <= 2 ? 'text-red-400' : daysUntil <= 7 ? 'text-yellow-400' : 'text-green-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className={`text-xs ${daysUntil <= 2 ? 'text-red-400' : daysUntil <= 7 ? 'text-yellow-400' : 'text-green-400'}`}>
-                              {daysUntil === 0 ? 'Today' : daysUntil === 1 ? '1 day left' : `${daysUntil} days left`}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => removeChecklistItem(index)}
-                        className="px-2 mt-2 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )
-                })}  
-                {(fldr.checklist || []).length === 0 && (
-                  <p className="text-xs text-gray-500 py-2">No items yet</p>
                 )}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* People Card - Only show if enabled */}
-        {fldr.people !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('people')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">People</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.people ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('people')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
             </div>
-            {expandedCards.people && (
-              <div className="px-4 pb-4 space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">{(fldr.people || []).length} people</span>
-                  <button
-                    onClick={addPerson}
-                    className="text-xs font-medium text-brand-light hover:text-white transition-colors"
-                  >
-                    + Add Person
-                  </button>
-                </div>
-                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-2">
-                  <div className="flex items-start gap-2">
-                    <svg className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-xs text-blue-400 flex-1">
-                      People added here automatically appear in Job Summary and Job Info sections
-                    </p>
-                  </div>
-                </div>
-                {(fldr.people || []).map((person, index) => (
-                  <div key={index} className="p-3 bg-white/5 rounded-lg space-y-2 border border-line">
-                    <div className="flex items-start justify-between gap-2">
-                      <input
-                        type="text"
-                        value={person.name}
-                        onChange={(e) => updatePerson(index, 'name', e.target.value)}
-                        onBlur={(e) => handlePersonNameBlur(e.target.value)}
-                        className="input flex-1 font-medium"
-                        placeholder="Name"
-                      />
-                      <button
-                        onClick={() => removePerson(index)}
-                        className="px-2 text-red-500 hover:text-red-400"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={person.role || ''}
-                      onChange={(e) => updatePerson(index, 'role', e.target.value)}
-                      className="input"
-                      placeholder="Role"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <input
-                          type="tel"
-                          value={person.phone || ''}
-                          onChange={(e) => updatePerson(index, 'phone', e.target.value)}
-                          className="input"
-                          placeholder="Phone"
-                        />
-                        {person.phone && (
-                          <a
-                            href={`tel:${person.phone}`}
-                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded hover:bg-emerald-500/20 transition-colors text-xs"
-                          >
-                            Call
-                          </a>
-                        )}
-                      </div>
-                      <div>
-                        <input
-                          type="email"
-                          value={person.email || ''}
-                          onChange={(e) => updatePerson(index, 'email', e.target.value)}
-                          className="input"
-                          placeholder="Email"
-                        />
-                        {person.email && (
-                          <a
-                            href={`mailto:${person.email}`}
-                            className="mt-1 w-full inline-block text-center px-2 py-1 bg-brand/10 border border-brand/30 text-brand-light rounded hover:bg-brand/20 transition-colors text-xs"
-                          >
-                            Email
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {fldr.people.length === 0 && (
-                  <p className="text-xs text-gray-500 py-2">No people yet</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+          </SectionCard>
 
-        {/* Photos Card - Only show if enabled */}
-        {fldr.photos !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('photos')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Photos</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.photos ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('photos')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {expandedCards.photos && (
-              <div className="px-4 pb-4 space-y-3">
+          {isJob && (
+            <LinksCard
+              jobInfo={fldr.job_info}
+              open={expandedCards.links}
+              onToggle={() => toggleCard('links')}
+              onJobInfo={updateJobInfo}
+              onDone={flushPending}
+            />
+          )}
+
+          {fldr.checklist !== null && (
+            <ChecklistCard
+              items={fldr.checklist}
+              daysUntil={getDaysUntilJob()}
+              open={expandedCards.checklist}
+              onToggle={() => toggleCard('checklist')}
+              onAdd={addChecklistItem}
+              onText={updateChecklistItem}
+              onCheck={toggleChecklistItem}
+              onRemove={removeChecklistItem}
+              onRemoveSection={() => disableModule('checklist')}
+              onCommit={flushPending}
+            />
+          )}
+
+          {fldr.photos !== null && (
+            <SectionCard
+              id="photos"
+              title="Photos"
+              open={expandedCards.photos}
+              onToggle={() => toggleCard('photos')}
+              meta={fldr.photos.length > 0 && <span className="text-xs font-semibold tabular text-white/55">{fldr.photos.length}</span>}
+            >
+              <div className="space-y-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-gray-400">{(fldr.photos || []).length} photos</span>
                   <label className="text-xs text-brand-light hover:text-brand-hover cursor-pointer">
@@ -5439,271 +3882,83 @@ export default function FldrDetailPage() {
                 {(fldr.photos || []).length === 0 && (
                   <p className="text-xs text-gray-500 py-2">No photos yet</p>
                 )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Products Card - Only show if enabled */}
-        {fldr.products !== null && (
-          <div className="card shadow-card overflow-hidden">
-            <div className="w-full px-4 py-3.5 flex items-center justify-between">
-              <button
-                onClick={() => toggleCard('products')}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1"
-              >
-                <span className="font-display font-semibold">Products</span>
-                <ChevronDownIcon
-                  className={`w-5 h-5 text-white/45 transition-transform ${
-                    expandedCards.products ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={manualSave}
-                  disabled={saving || !fldr}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    unsavedChanges
-                      ? 'bg-brand/15 text-brand-light border-brand/40 hover:bg-brand/25'
-                      : 'text-white/60 border-line-strong hover:bg-white/10 hover:text-white'
-                  }`}
-                  title={unsavedChanges ? 'Save changes' : 'Save now'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h11l3 3v13a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3v6h8V6M8 17h8" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => disableModule('products')}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg border border-red-500/25 hover:bg-red-500/10 transition-colors"
-                  title="Remove module"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {expandedCards.products && (
-              <div className="px-4 pb-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">
-                    {(fldr.products || []).length} {(fldr.products || []).length === 1 ? 'product' : 'products'}
-                  </span>
-                  <button
-                    onClick={addProduct}
-                    className="text-xs font-medium text-brand-light hover:text-white transition-colors"
-                  >
-                    + Add Product
-                  </button>
+                <div className="pt-1">
+                  <TextAction onClick={() => disableModule('photos')} tone="danger">
+                    Remove Photos from this job
+                  </TextAction>
                 </div>
+              </div>
+            </SectionCard>
+          )}
 
-                <JigsProblem jigs={jobJigs} />
-
-                {(fldr.products || []).map((product, index) => (
-                  <div key={product.id} className="p-3 bg-white/5 rounded-lg space-y-2 border border-line">
-                    <div className="flex items-start gap-2">
-                      <input
-                        type="text"
-                        value={product.name}
-                        onChange={(e) => updateProduct(index, 'name', e.target.value)}
-                        className="input flex-1 font-medium"
-                        placeholder="Product name"
-                      />
-                      <button
-                        onClick={() => removeProduct(index)}
-                        className="px-2 text-red-500 hover:text-red-400"
-                      >
-                        ×
-                      </button>
+          {isJob && (
+            <SectionCard
+              id="prompts"
+              title="Prompts"
+              open={expandedCards.prompts}
+              onToggle={() => toggleCard('prompts')}
+              summary={
+                [fldr.job_info?.prompt_1 && 'Prompt 1', fldr.job_info?.prompt_2 && 'Prompt 2'].filter(Boolean).join(' · ') || undefined
+              }
+            >
+              <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-gray-400">Prompt 1</label>
+                      {fldr.job_info?.prompt_1 && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_1 || '')}
+                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy
+                        </button>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="label">SKU</label>
-                        <input
-                          type="text"
-                          value={product.sku || ''}
-                          onChange={(e) => updateProduct(index, 'sku', e.target.value)}
-                          className="input"
-                          placeholder="SKU"
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Quantity</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={product.quantity}
-                          onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
-                          className="input"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="label">Notes</label>
-                      <input
-                        type="text"
-                        value={product.notes || ''}
-                        onChange={(e) => updateProduct(index, 'notes', e.target.value)}
-                        className="input"
-                        placeholder="Notes (optional)"
-                      />
-                    </div>
-                    <ProductJigs
-                      jigs={jobJigs}
-                      job={{ id: fldr.id, start: fldr.date_start, end: fldr.date_end }}
-                      productId={product.id}
-                      productName={product.name}
+                    <textarea
+                      value={fldr.job_info?.prompt_1 || ''}
+                      onChange={(e) => updateJobInfo('prompt_1', e.target.value || null)}
+                      className="input resize-none"
+                      rows={4}
+                      placeholder="Paste prompt here..."
                     />
                   </div>
-                ))}
-                {(fldr.products || []).length === 0 && (
-                  <p className="text-xs text-gray-500 py-2">No products yet</p>
-                )}
-                {/* Jigs whose product has since been removed stay on the job, so nothing that's out can vanish */}
-                <div className="empty:hidden">
-                  <ProductJigs
-                    jigs={jobJigs}
-                    job={{ id: fldr.id, start: fldr.date_start, end: fldr.date_end }}
-                    productId={null}
-                    knownProductIds={(fldr.products || []).map(p => p.id)}
-                  />
-                </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-gray-400">Prompt 2</label>
+                      {fldr.job_info?.prompt_2 && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(fldr.job_info?.prompt_2 || '')}
+                          className="text-xs text-gray-400 hover:text-brand-light px-2 py-0.5 rounded border border-line hover:bg-white/5 transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={fldr.job_info?.prompt_2 || ''}
+                      onChange={(e) => updateJobInfo('prompt_2', e.target.value || null)}
+                      className="input resize-none"
+                      rows={4}
+                      placeholder="Paste prompt here..."
+                    />
+                  </div>
               </div>
-            )}
-          </div>
-        )}
+            </SectionCard>
+          )}
 
-        {/* Notes Card */}
-        <div className="bg-surface border border-line rounded-lg">
-          <button
-            onClick={() => toggleCard('notes')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors"
-          >
-            <span className="font-display font-semibold">Notes</span>
-            <ChevronDownIcon
-              className={`w-5 h-5 text-white/45 transition-transform ${
-                expandedCards.notes ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-          {expandedCards.notes && (
-            <div className="px-4 pb-4 space-y-3">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs text-gray-400">Notes</label>
-                <button
-                  onClick={() => setUseRichEditor(!useRichEditor)}
-                  className="text-xs px-3 py-1 bg-brand hover:bg-brand-hover rounded-md transition-colors"
-                >
-                  {useRichEditor ? 'Simple Editor' : 'Rich Text Editor'}
-                </button>
-              </div>
-              <div>
-                {useRichEditor ? (
-                  <RichTextEditor
-                    value={fldr.notes}
-                    onChange={(value) => updateNotes(value)}
-                    placeholder="Add notes..."
-                    className="min-h-[200px]"
-                  />
-                ) : (
-                  <textarea
-                    value={fldr.notes}
-                    onChange={(e) => updateNotes(e.target.value)}
-                    className="input min-h-[120px] resize-none leading-relaxed"
-                    placeholder="Add notes..."
-                  />
-                )}
-              </div>
+          {(fldr.checklist === null || fldr.photos === null) && (
+            <div className="flex flex-wrap gap-2">
+              {fldr.checklist === null && <AddSectionButton label="Checklist" onClick={() => enableModule('checklist')} />}
+              {fldr.photos === null && <AddSectionButton label="Photos" onClick={() => enableModule('photos')} />}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Add Module Section */}
-      <div className="px-4 max-w-2xl mx-auto mt-6">
-      <div className="card p-4">
-        <h3 className="eyebrow font-sans mb-3">Add Module</h3>
-        <div className="flex flex-wrap gap-2">
-          {fldr.flight_info === null && (
-            <button
-              onClick={() => enableModule('flight_info')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Flight Info
-            </button>
-          )}
-          {fldr.hotel_info === null && (
-            <button
-              onClick={() => enableModule('hotel_info')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Hotel Info
-            </button>
-          )}
-          {fldr.venue_info === null && (
-            <button
-              onClick={() => enableModule('venue_info')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Venue Info
-            </button>
-          )}
-          {fldr.rental_car_info === null && (
-            <button
-              onClick={() => enableModule('rental_car_info')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Rental Car
-            </button>
-          )}
-          {fldr.job_info === null && (
-            <button
-              onClick={() => enableModule('job_info')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Job Info
-            </button>
-          )}
-          {fldr.checklist === null && (
-            <button
-              onClick={() => enableModule('checklist')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Checklist
-            </button>
-          )}
-          {fldr.people === null && (
-            <button
-              onClick={() => enableModule('people')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + People
-            </button>
-          )}
-          {fldr.photos === null && (
-            <button
-              onClick={() => enableModule('photos')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Photos
-            </button>
-          )}
-          {fldr.products === null && (
-            <button
-              onClick={() => enableModule('products')}
-              className="btn-secondary px-3 py-2 font-medium"
-            >
-              + Products
-            </button>
-          )}
-        </div>
-        {fldr.flight_info !== null && fldr.hotel_info !== null && fldr.venue_info !== null && fldr.rental_car_info !== null && fldr.job_info !== null && fldr.checklist !== null && fldr.people !== null && fldr.photos !== null && fldr.products !== null && (
-          <p className="text-xs text-white/45">All modules enabled</p>
-        )}
-      </div>
+        </section>
       </div>
 
       {/* Delete Job */}

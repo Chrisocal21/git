@@ -1,4 +1,5 @@
 import { Fldr, NewFldr } from '@/types/fldr'
+import { mergeFldrUpdates } from '@/lib/fldrMerge'
 
 // Temporary in-memory store (will be replaced with D1)
 let fldrs: Fldr[] = []
@@ -65,8 +66,7 @@ export const fldrStore = {
     if (index === -1) return undefined
     
     fldrs[index] = {
-      ...fldrs[index],
-      ...updates,
+      ...mergeFldrUpdates(fldrs[index], updates),
       updated_at: new Date().toISOString(),
     }
     return fldrs[index]

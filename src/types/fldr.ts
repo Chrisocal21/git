@@ -84,6 +84,54 @@ export interface JobInfo {
   // Prompts
   prompt_1: string | null
   prompt_2: string | null
+  // From the event tracker sheet. Optional because jobs saved before these existed don't have them.
+  event_type?: string | null
+  kickoff_date?: string | null  // YYYY-MM-DD
+  prepro_date?: string | null   // YYYY-MM-DD
+  travel_start?: string | null  // YYYY-MM-DD
+  travel_end?: string | null    // YYYY-MM-DD
+  wardrobe?: string | null
+  asana_link?: string | null
+  asana_fee_links?: ReferenceLink[]
+}
+
+export type StepState = 'todo' | 'done' | 'na'
+
+/** One line on the logistics list: where it stands, the day it happened, and anything worth noting */
+export interface TrackerStep {
+  state: StepState
+  date: string | null // YYYY-MM-DD
+  note: string | null
+}
+
+export type YesNo = 'yes' | 'no'
+
+export type TrackerStepKey =
+  | 'po_received'
+  | 'contract_sent'
+  | 'contract_signed'
+  | 'invoice_sent'
+  | 'deposit_paid'
+  | 'travel_booked'
+  | 'mockups_sent'
+  | 'mockups_approved'
+  | 'product_shipped'
+  | 'input_form_created'
+  | 'signage_created'
+  | 'custom_sms_created'
+
+/**
+ * The logistics list for a job. Every field is optional: a job nobody has touched here
+ * has no tracker at all, and a save only sends the fields that changed.
+ */
+export type JobTracker = Partial<Record<TrackerStepKey, TrackerStep>> & {
+  pre_decoration_needed?: YesNo | null
+  product_arrival_start?: string | null // YYYY-MM-DD
+  product_arrival_end?: string | null   // YYYY-MM-DD
+  required_fields?: string | null
+  signage_required?: YesNo | null
+  signage_specifics?: string | null
+  custom_sms_needed?: YesNo | null
 }
 
 export type ChecklistCategory = 'production' | 'packing' | 'travel' | 'onsite' | 'teardown' | 'general'
@@ -154,7 +202,10 @@ export interface Fldr {
   people: Person[] | null
   photos: Photo[] | null
   products: Product[] | null
-  
+
+  // Logistics list (missing on jobs saved before it existed)
+  tracker?: JobTracker | null
+
   // Notes (always available)
   notes: string
   wrap_up: string | null
