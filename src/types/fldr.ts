@@ -93,6 +93,15 @@ export interface JobInfo {
   wardrobe?: string | null
   asana_link?: string | null
   asana_fee_links?: ReferenceLink[]
+  event_builder_qr?: string | null // PNG data URL of the Event Builder QR code, shrunk before it's saved
+  saved_places?: SavedPlace[]       // Stops saved for the trip (a Target, a gas station) for quick copy and directions
+}
+
+/** A stop saved on a job: what it is and the address to copy or drive to */
+export interface SavedPlace {
+  id: string
+  name: string
+  address: string
 }
 
 export type StepState = 'todo' | 'done' | 'na'

@@ -24,6 +24,7 @@ import {
   useEditMode,
 } from './parts'
 import { cityFromAddress, dayKey, fmtClock, fmtDateTime, fmtDay, fmtTimeSpan, jobTypeText } from '@/lib/jobFormat'
+import { readQr } from '@/lib/qrImage'
 import { contactFor, venueNamed } from '@/lib/jobSuggestions'
 import type { JobSuggestions } from '@/lib/jobSuggestions'
 
@@ -160,9 +161,25 @@ export function ClientEventCard({ fldr, suggestions, open, onToggle, onJobInfo, 
       info.kickoff_date ||
       info.prepro_date ||
       info.pre_engrave_details ||
+      info.wardrobe ||
+      info.event_builder_qr ||
       info.event_details)
   )
   const { editing, toggle } = useEditMode(hasData, open, onDone)
+  const [showAttire, setShowAttire] = useState(false)
+  const [showQr, setShowQr] = useState(false)
+  const [qrError, setQrError] = useState<string | null>(null)
+  const attireShown = showAttire || !!info?.wardrobe
+  const qrShown = showQr || !!info?.event_builder_qr
+  const pickQr = async (file: File | undefined) => {
+    if (!file) return
+    setQrError(null)
+    try {
+      onJobInfo('event_builder_qr', await readQr(file))
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : 'Could not use that file')
+    }
+  }
   // Fields most jobs fill in later stay folded away until they're wanted
   const [showDates, setShowDates] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
@@ -323,8 +340,47 @@ export function ClientEventCard({ fldr, suggestions, open, onToggle, onJobInfo, 
             </Field>
           )}
 
-          {(!datesShown || !detailsShown || !preEngraveShown) && (
+          {attireShown && (
+            <Field label="Work Attire">
+              <textarea
+                value={info?.wardrobe || ''}
+                onChange={e => onJobInfo('wardrobe', e.target.value || null)}
+                className="input resize-none"
+                rows={2}
+                placeholder="e.g. Black polo, dark jeans, closed-toe shoes"
+              />
+            </Field>
+          )}
+
+          {qrShown && (
+            <Field label="Event Builder QR Code" hint="Upload the PNG of this job's Event Builder QR code.">
+              {info?.event_builder_qr && (
+                <div className="mb-2 flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={info.event_builder_qr} alt="Event Builder QR code" className="h-28 w-28 rounded-lg bg-white p-1" />
+                  <button type="button" onClick={() => onJobInfo('event_builder_qr', null)} className="text-sm font-medium text-red-300">
+                    Remove
+                  </button>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/*"
+                onChange={e => {
+                  pickQr(e.target.files?.[0])
+                  e.target.value = ''
+                }}
+                className="input"
+                aria-label="Upload QR code PNG"
+              />
+              {qrError && <p className="mt-1 text-sm text-red-300">{qrError}</p>}
+            </Field>
+          )}
+
+          {(!datesShown || !detailsShown || !preEngraveShown || !attireShown || !qrShown) && (
             <div className="flex flex-wrap gap-2">
+              {!attireShown && <AddSectionButton label="Work Attire" onClick={() => setShowAttire(true)} />}
+              {!qrShown && <AddSectionButton label="Event Builder QR" onClick={() => setShowQr(true)} />}
               {!preEngraveShown && <AddSectionButton label="Pre-engrave Details" onClick={() => setShowPreEngrave(true)} />}
               {!datesShown && <AddSectionButton label="Key Dates" onClick={() => setShowDates(true)} />}
               {!detailsShown && <AddSectionButton label="Event Details" onClick={() => setShowDetails(true)} />}
@@ -371,6 +427,17 @@ export function ClientEventCard({ fldr, suggestions, open, onToggle, onJobInfo, 
           )}
           {info?.kickoff_date && <InfoRow label="Kick-off Date">{fmtDay(info.kickoff_date, true)}</InfoRow>}
           {info?.prepro_date && <InfoRow label="Pre-Production Date">{fmtDay(info.prepro_date, true)}</InfoRow>}
+          {info?.wardrobe && (
+            <InfoRow label="Work Attire">
+              <span className="whitespace-pre-wrap">{info.wardrobe}</span>
+            </InfoRow>
+          )}
+          {info?.event_builder_qr && (
+            <InfoRow label="Event Builder QR">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={info.event_builder_qr} alt="Event Builder QR code" className="mt-1 h-44 w-44 rounded-xl bg-white p-2" />
+            </InfoRow>
+          )}
           {info?.event_details && (
             <InfoRow label="Event Details">
               <span className="whitespace-pre-wrap">{info.event_details}</span>

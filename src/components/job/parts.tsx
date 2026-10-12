@@ -13,7 +13,7 @@ import {
   PhoneIcon,
   SparkIcon,
 } from '@/components/Icons'
-import { directionsUrl, linkHref, mapsUrl, splitDateTime } from '@/lib/jobFormat'
+import { MAP_APPS, directionsUrl, linkHref, mapsUrl, splitDateTime } from '@/lib/jobFormat'
 import { todayKey } from '@/lib/jigsFormat'
 
 // The pieces every card on the job page is built from, so they all read the same way.
@@ -224,19 +224,48 @@ export function CopyAction({ text, label = 'Copy' }: { text: string; label?: str
  */
 export function DirectionsLinks({ to, from = [] }: { to: string; from?: Array<{ label: string; address: string | null | undefined }> }) {
   const origins = from.filter(origin => origin.address && origin.address !== to)
+  // Which start is waiting on a choice of map app ('' = from here)
+  const [choosing, setChoosing] = useState<string | null>(null)
   const pill =
     'inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-full border border-line-strong px-3 text-sm font-medium text-brand-light transition-colors hover:border-brand/60 hover:text-white'
+  const starts: Array<{ key: string; label: string; address: string | null }> = [
+    { key: '', label: 'Directions', address: null },
+    ...origins.map(origin => ({ key: origin.label, label: origin.label, address: origin.address as string })),
+  ]
+  const chosen = starts.find(start => start.key === choosing)
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      <a href={directionsUrl(to)} target="_blank" rel="noopener noreferrer" className={pill}>
-        <DirectionsIcon className="h-4 w-4" />
-        Directions
-      </a>
-      {origins.map(origin => (
-        <a key={origin.label} href={directionsUrl(to, origin.address)} target="_blank" rel="noopener noreferrer" className={pill}>
-          {origin.label}
-        </a>
-      ))}
+    <div className="mt-2">
+      <div className="flex flex-wrap gap-2">
+        {starts.map(start => (
+          <button
+            key={start.key}
+            type="button"
+            onClick={() => setChoosing(choosing === start.key ? null : start.key)}
+            aria-expanded={choosing === start.key}
+            className={`${pill} ${choosing === start.key ? 'border-brand/60 text-white' : ''}`}
+          >
+            {start.key === '' && <DirectionsIcon className="h-4 w-4" />}
+            {start.label}
+          </button>
+        ))}
+      </div>
+      {chosen && (
+        <div className="mt-2 flex flex-wrap items-center gap-2" role="group" aria-label="Open directions in">
+          <span className="text-sm text-white/50">Open in</span>
+          {MAP_APPS.map(app => (
+            <a
+              key={app.id}
+              href={app.url(to, chosen.address)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setChoosing(null)}
+              className="inline-flex min-h-[2.5rem] items-center rounded-full bg-white/10 px-3.5 text-sm font-medium text-white transition-colors hover:bg-white/15"
+            >
+              {app.label}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

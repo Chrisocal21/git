@@ -112,6 +112,27 @@ export function directionsUrl(destination: string, origin?: string | null): stri
   return `https://www.google.com/maps/dir/?api=1${from}&destination=${encodeURIComponent(destination)}`
 }
 
+/** The map apps a driver can pick from, each with its own link to directions */
+export const MAP_APPS = [
+  {
+    id: 'google',
+    label: 'Google Maps',
+    url: (to: string, from?: string | null) => directionsUrl(to, from),
+  },
+  {
+    id: 'apple',
+    label: 'Apple Maps',
+    url: (to: string, from?: string | null) =>
+      `https://maps.apple.com/?daddr=${encodeURIComponent(to)}${from ? `&saddr=${encodeURIComponent(from)}` : ''}&dirflg=d`,
+  },
+  {
+    // Waze only takes a destination; it always starts from where the phone is
+    id: 'waze',
+    label: 'Waze',
+    url: (to: string) => `https://waze.com/ul?q=${encodeURIComponent(to)}&navigate=yes`,
+  },
+] as const
+
 /** The day and the clock time out of a stored time, as date and time inputs want them */
 export function splitDateTime(value: string | null | undefined): { day: string; time: string } {
   const m = value ? WALL_CLOCK.exec(value) : null

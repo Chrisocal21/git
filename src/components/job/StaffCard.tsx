@@ -22,7 +22,6 @@ import type { JobSuggestions } from '@/lib/jobSuggestions'
 
 interface StaffCardProps {
   people: Person[] | null
-  wardrobe: string | null
   suggestions: JobSuggestions
   open: boolean
   onToggle: () => void
@@ -34,7 +33,6 @@ interface StaffCardProps {
   /** Run when a name is finished, so the person gets a profile */
   onPersonNameBlur: (name: string) => void
   onRemovePerson: (index: number) => void
-  onWardrobe: (value: string) => void
   onDone: () => void
 }
 
@@ -45,7 +43,6 @@ function initials(name: string): string {
 
 export default function StaffCard({
   people,
-  wardrobe,
   suggestions,
   open,
   onToggle,
@@ -54,12 +51,11 @@ export default function StaffCard({
   onPersonContact,
   onPersonNameBlur,
   onRemovePerson,
-  onWardrobe,
   onDone,
 }: StaffCardProps) {
   const list = people || []
   const named = list.filter(p => p.name && p.name.trim())
-  const hasData = named.length > 0 || !!wardrobe
+  const hasData = named.length > 0
   const { editing, toggle } = useEditMode(hasData, open, onDone)
   // Phone and email stay folded away per person until they're wanted
   const [contactOpen, setContactOpen] = useState<Record<number, boolean>>({})
@@ -80,7 +76,7 @@ export default function StaffCard({
       title="Staff"
       open={open}
       onToggle={onToggle}
-      summary={[named.map(p => p.name).join(', '), wardrobe && `Wardrobe: ${wardrobe}`].filter(Boolean).join(' · ') || "Who's working the job and what to wear"}
+      summary={named.map(p => p.name).join(', ') || "Who's working the job"}
       meta={named.length > 0 && <span className="text-sm font-semibold tabular text-white/55">{named.length}</span>}
       actions={<EditButton editing={editing} onClick={toggle} />}
     >
@@ -165,15 +161,6 @@ export default function StaffCard({
             )
           })}
 
-          <Field label="Wardrobe">
-            <textarea
-              value={wardrobe || ''}
-              onChange={e => onWardrobe(e.target.value)}
-              className="input resize-none"
-              rows={2}
-              placeholder="e.g. Black polo, dark jeans, closed-toe shoes"
-            />
-          </Field>
         </div>
       ) : (
         <>
@@ -205,15 +192,6 @@ export default function StaffCard({
                 </li>
               ))}
             </ul>
-          )}
-          {wardrobe && (
-            <div className={named.length > 0 ? 'border-t border-line' : ''}>
-              <InfoList>
-                <InfoRow label="Wardrobe">
-                  <span className="whitespace-pre-wrap">{wardrobe}</span>
-                </InfoRow>
-              </InfoList>
-            </div>
           )}
         </>
       )}

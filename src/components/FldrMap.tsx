@@ -3,6 +3,10 @@
 import { useEffect, useState, useRef, memo } from 'react'
 import { googleMapsLoader } from '@/lib/googleMapsLoader'
 import { toast } from '@/components/Dialogs'
+import type { SavedPlace } from '@/types/fldr'
+import { PlaceRow } from '@/components/job/SavedPlacesCard'
+import { CopyAction } from '@/components/job/parts'
+import { MAP_APPS } from '@/lib/jobFormat'
 
 interface Location {
   label: string
@@ -33,6 +37,10 @@ interface FldrMapProps {
   nearbyLoading?: boolean
   nearbyType?: 'restaurant' | 'cafe' | 'gas_station' | 'bar'
   searchFromAddress?: string
+  /** Stops saved on this job, and ways to add and drop them */
+  savedPlaces?: SavedPlace[]
+  onSavePlace?: (place: { name: string; address: string }) => void
+  onRemovePlace?: (id: string) => void
 }
 
 function FldrMap({
@@ -46,7 +54,10 @@ function FldrMap({
   nearbyPlaces,
   nearbyLoading,
   nearbyType = 'restaurant',
-  searchFromAddress
+  searchFromAddress,
+  savedPlaces = [],
+  onSavePlace,
+  onRemovePlace
 }: FldrMapProps) {
   const [geocodedLocations, setGeocodedLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(false)
@@ -56,6 +67,9 @@ function FldrMap({
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [gettingCurrentLocation, setGettingCurrentLocation] = useState(false)
   const [sidebarVisible, setSidebarVisible] = useState(true)
+  // Which result is waiting on a choice of map app
+  const [goingTo, setGoingTo] = useState<number | null>(null)
+  const [showSaved, setShowSaved] = useState(false)
   const isFullscreenView = forceFullscreen || isFullscreen
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const fullscreenContainerRef = useRef<HTMLDivElement | null>(null)
@@ -355,8 +369,8 @@ function FldrMap({
 
       {/* Sidebar (visible only in fullscreen) */}
       {isFullscreenView && (
-        <div className={`absolute inset-y-0 left-0 z-[9999] w-[82vw] max-w-[360px] md:w-96 lg:w-[420px] bg-surface flex flex-col border-r border-line-strong shadow-pop overflow-hidden transition-transform duration-300 ${
-          sidebarVisible ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        <div className={`absolute inset-x-0 bottom-0 z-[9999] h-[62vh] rounded-t-2xl border-t border-line-strong md:inset-y-0 md:left-0 md:right-auto md:bottom-auto md:h-auto md:w-96 lg:w-[420px] md:rounded-none md:border-t-0 md:border-r bg-surface flex flex-col shadow-pop overflow-hidden transition-transform duration-300 ${
+          sidebarVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'
         }`}>
           {/* Header */}
           <div className="flex-shrink-0 p-4 border-b border-line">
@@ -367,11 +381,11 @@ function FldrMap({
                 <button 
                   onClick={() => setSidebarVisible(false)}
                   className="md:hidden icon-btn"
-                  title="Hide sidebar"
-                  aria-label="Hide sidebar"
+                  title="Show the map"
+                  aria-label="Show the map"
                 >
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
                 {/* Desktop Exit Fullscreen Button */}
@@ -500,6 +514,30 @@ function FldrMap({
             )}
           </div>
 
+          {/* Saved for this trip */}
+          {onRemovePlace && savedPlaces.length > 0 && (
+            <div className="flex-shrink-0 border-b border-line px-4 py-2">
+              <button
+                type="button"
+                onClick={() => setShowSaved(open => !open)}
+                aria-expanded={showSaved}
+                className="flex min-h-[2.5rem] w-full items-center justify-between text-sm font-semibold text-white"
+              >
+                <span>Saved Places <span className="ml-1 tabular text-white/55">{savedPlaces.length}</span></span>
+                <svg className={`w-4 h-4 text-white/50 transition-transform ${showSaved ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showSaved && (
+                <ul className="max-h-48 divide-y divide-line overflow-y-auto">
+                  {savedPlaces.map(place => (
+                    <PlaceRow key={place.id} place={place} onRemove={() => onRemovePlace(place.id)} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {/* Results List */}
           <div className="flex-1 overflow-y-auto p-3">
             {!selectedLocation ? (
@@ -532,18 +570,62 @@ function FldrMap({
                         )}
                       </div>
                     </div>
-                    {/* Google Search Link */}
-                    <a
-                      href={`https://www.google.com/search?q=${encodeURIComponent(place.name + ' ' + place.vicinity)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-brand-light hover:text-white text-xs font-medium transition-colors"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                      Google Search
-                    </a>
+                    {(() => {
+                      const full = `${place.name}, ${place.vicinity}`
+                      const saved = savedPlaces.find(p => p.name === place.name && p.address === place.vicinity)
+                      return (
+                        <>
+                          <div className="-ml-2.5 flex flex-wrap items-center gap-0.5">
+                            {onSavePlace && onRemovePlace && (
+                              <button
+                                type="button"
+                                onClick={() => (saved ? onRemovePlace(saved.id) : onSavePlace({ name: place.name, address: place.vicinity }))}
+                                aria-pressed={!!saved}
+                                className={`inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors hover:bg-white/5 ${saved ? 'text-gold' : 'text-white/70 hover:text-white'}`}
+                              >
+                                <svg className="w-4 h-4" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                </svg>
+                                {saved ? 'Saved' : 'Save'}
+                              </button>
+                            )}
+                            <CopyAction text={full} label="Copy address" />
+                            <button
+                              type="button"
+                              onClick={() => setGoingTo(goingTo === idx ? null : idx)}
+                              aria-expanded={goingTo === idx}
+                              className="inline-flex min-h-[2.5rem] items-center rounded-lg px-2.5 text-xs font-semibold text-brand-light transition-colors hover:bg-white/5 hover:text-white"
+                            >
+                              Go
+                            </button>
+                            <a
+                              href={`https://www.google.com/search?q=${encodeURIComponent(full)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-[2.5rem] items-center rounded-lg px-2.5 text-xs font-medium text-white/55 transition-colors hover:bg-white/5 hover:text-white"
+                            >
+                              Search
+                            </a>
+                          </div>
+                          {goingTo === idx && (
+                            <div className="mt-1 flex flex-wrap items-center gap-2" role="group" aria-label="Open directions in">
+                              {MAP_APPS.map(app => (
+                                <a
+                                  key={app.id}
+                                  href={app.url(full)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => setGoingTo(null)}
+                                  className="inline-flex min-h-[2.5rem] items-center rounded-full bg-white/10 px-3.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
+                                >
+                                  {app.label}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 ))}
               </div>
@@ -564,13 +646,13 @@ function FldrMap({
       {isFullscreenView && !sidebarVisible && (
         <button
           onClick={() => setSidebarVisible(true)}
-          className="md:hidden absolute top-[max(4.5rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-[10000] bg-surface/90 border border-line-strong backdrop-blur-md text-white p-2.5 rounded-xl shadow-pop hover:bg-surface-raised transition-colors"
-          title="Show sidebar"
-          aria-label="Show sidebar"
+          className="md:hidden absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-[10000] flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-gold px-5 text-sm font-semibold text-black shadow-pop transition-colors hover:bg-gold-hover active:scale-95"
+          aria-label="Show nearby places"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
           </svg>
+          Nearby Places
         </button>
       )}
 

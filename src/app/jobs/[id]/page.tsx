@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, JobTracker, Person, Photo, Product, ChecklistItem, JobStatus } from '@/types/fldr'
+import { Fldr, FlightSegment, HotelInfo, VenueInfo, RentalCarInfo, JobInfo, JobTracker, Person, Photo, Product, ChecklistItem, JobStatus, SavedPlace } from '@/types/fldr'
 import {
   AlertIcon,
   ArchiveIcon,
@@ -38,12 +38,13 @@ import { ClientEventCard, VenueTimeCard } from '@/components/job/EventCards'
 import LogisticsCard from '@/components/job/LogisticsCard'
 import { TravelDatesRow, FlightsCard, HotelCard, RentalCarCard } from '@/components/job/TravelCards'
 import StaffCard from '@/components/job/StaffCard'
+import SavedPlacesCard from '@/components/job/SavedPlacesCard'
 import LinksCard from '@/components/job/LinksCard'
 import ProductsCard from '@/components/job/ProductsCard'
 import ChecklistCard from '@/components/job/ChecklistCard'
 import { mergeFldrUpdates } from '@/lib/fldrMerge'
 import { readStep, flightSpan } from '@/lib/jobTracker'
-import { dayKey, directionsUrl, plainText } from '@/lib/jobFormat'
+import { MAP_APPS, dayKey, plainText } from '@/lib/jobFormat'
 import { NO_SUGGESTIONS, buildJobSuggestions, readCachedJobs } from '@/lib/jobSuggestions'
 import type { JobSuggestions } from '@/lib/jobSuggestions'
 import { todayKey } from '@/lib/jigsFormat'
@@ -125,6 +126,7 @@ export default function FldrDetailPage() {
     products: false,
     notes: false,
     links: false,
+    places: false,
     prompts: false,
   })
   const cardsRestoredRef = useRef(false)
@@ -164,6 +166,7 @@ export default function FldrDetailPage() {
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [generatedOverview, setGeneratedOverview] = useState<string>('')
   const [showMapModal, setShowMapModal] = useState(false)
+  const [showVenueApps, setShowVenueApps] = useState(false)
   const [generatingOverview, setGeneratingOverview] = useState(false)
   const [generatingPDF, setGeneratingPDF] = useState<'quick' | 'full' | null>(null)
   const [showMenu, setShowMenu] = useState(false)
@@ -1935,6 +1938,8 @@ export default function FldrDetailPage() {
     debouncedSave({ job_info: updated })
   }
 
+  const savePlaces = (places: SavedPlace[]) => updateJobInfo('saved_places', places)
+
   const updateJobInfo = (field: keyof JobInfo, value: any) => {
     patchJobInfo({ [field]: value })
   }
@@ -3454,15 +3459,15 @@ export default function FldrDetailPage() {
           {!editMode && (
             <div className={`grid gap-2 ${fldr.venue_info?.address ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {fldr.venue_info?.address && (
-                <a
-                  href={directionsUrl(fldr.venue_info.address)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setShowVenueApps(open => !open)}
+                  aria-expanded={showVenueApps}
                   className="card flex min-h-[3.5rem] flex-col items-center justify-center gap-1 px-2 py-2.5 text-center text-[15px] font-medium leading-tight text-white transition-colors active:bg-white/10"
                 >
                   <DirectionsIcon className="w-5 h-5 text-gold" />
                   Directions to Venue
-                </a>
+                </button>
               )}
               <button
                 onClick={() => setShowMapModal(true)}
@@ -3471,6 +3476,23 @@ export default function FldrDetailPage() {
                 <MapIcon className="w-5 h-5 text-gold" />
                 Map &amp; Nearby Places
               </button>
+            </div>
+          )}
+          {!editMode && showVenueApps && fldr.venue_info?.address && (
+            <div className="card flex flex-wrap items-center gap-2 p-3" role="group" aria-label="Open directions in">
+              <span className="text-sm text-white/55">Open directions in</span>
+              {MAP_APPS.map(app => (
+                <a
+                  key={app.id}
+                  href={app.url(fldr.venue_info!.address!)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowVenueApps(false)}
+                  className="inline-flex min-h-[2.5rem] items-center rounded-full bg-white/10 px-3.5 text-sm font-medium text-white transition-colors hover:bg-white/15"
+                >
+                  {app.label}
+                </a>
+              ))}
             </div>
           )}
 
@@ -3790,6 +3812,12 @@ export default function FldrDetailPage() {
               onDone={flushPending}
             />
           )}
+          <SavedPlacesCard
+            places={fldr.job_info?.saved_places || []}
+            open={expandedCards.places}
+            onToggle={() => toggleCard('places')}
+            onChange={savePlaces}
+          />
           {(fldr.flight_info === null || fldr.hotel_info === null || fldr.rental_car_info === null) && (
             <div className="flex flex-wrap gap-2">
               {fldr.flight_info === null && <AddSectionButton label="Flights" onClick={() => enableModule('flight_info')} />}
@@ -3808,7 +3836,6 @@ export default function FldrDetailPage() {
         >
           <StaffCard
             people={fldr.people}
-            wardrobe={fldr.job_info?.wardrobe ?? null}
             suggestions={suggestions}
             open={expandedCards.people}
             onToggle={() => toggleCard('people')}
@@ -3817,7 +3844,6 @@ export default function FldrDetailPage() {
             onPersonContact={updatePersonContact}
             onPersonNameBlur={handlePersonNameBlur}
             onRemovePerson={removePerson}
-            onWardrobe={value => updateJobInfo('wardrobe', value || null)}
             onDone={flushPending}
           />
         </section>
@@ -4383,6 +4409,9 @@ Burrow reads it and fills in the fields. Check them over after.
                 nearbyLoading={nearbyLoading}
                 nearbyType={nearbyType}
                 searchFromAddress={searchFromAddress}
+                savedPlaces={fldr.job_info?.saved_places || []}
+                onSavePlace={place => savePlaces([...(fldr.job_info?.saved_places || []), { id: crypto.randomUUID(), ...place }])}
+                onRemovePlace={id => savePlaces((fldr.job_info?.saved_places || []).filter(p => p.id !== id))}
               />
             </div>
           </div>
