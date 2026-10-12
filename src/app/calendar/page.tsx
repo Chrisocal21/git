@@ -44,8 +44,8 @@ function mergeDay(entries: Absence[]): Absence | undefined {
   if (entries.length === 0) return undefined
   const off = entries.find(a => a.dayType === 'off')
   if (off) return off
-  const hasFlight = entries.some(a => a.dayType === 'travel')
-  const hasWork = entries.some(a => a.dayType === 'work')
+  const hasFlight = entries.some(a => a.dayType === 'travel' || a.dayType === 'travel_work')
+  const hasWork = entries.some(a => a.dayType === 'work' || a.dayType === 'travel_work')
   const jobsInRange = new Set(entries.filter(a => a.inJobRange).map(a => a.jobId)).size
   const dayType: DayType = hasFlight && (hasWork || jobsInRange >= 2) ? 'travel_work' : hasFlight ? 'travel' : 'work'
   return { ...entries[0], dayType, isPast: entries.every(a => a.isPast) }
@@ -207,9 +207,15 @@ export default function CalendarPage() {
         const { start, end } = range
         const isPast = end < today
         const flightDays = getFlightDays(fldr, fldrs, personName)
-        // Job's own date window (flights can extend a person's range beyond it)
-        const jobStart = parseDate(fldr.date_start)
-        const jobEnd = parseDate(fldr.date_end) ?? jobStart
+        // Work days come from the event dates (job start/end, else show up time). The trip dates
+        // are only the span of the trip, so they are the fallback when no event dates are set.
+        const evStart = parseDate(fldr.job_info?.job_start_time) ?? parseDate(fldr.job_info?.show_up_time)
+        const evEnd = parseDate(fldr.job_info?.job_end_time) ?? evStart
+        if (evStart) evStart.setHours(0, 0, 0, 0)
+        if (evEnd) evEnd.setHours(0, 0, 0, 0)
+        const hasEventDates = !!evStart && !isTimeOff
+        const jobStart = evStart ?? parseDate(fldr.date_start)
+        const jobEnd = evEnd ?? parseDate(fldr.date_end) ?? jobStart
         const jobStartKey = jobStart ? toDateKey(jobStart) : ''
         const jobEndKey = jobEnd ? toDateKey(jobEnd) : ''
 
@@ -222,12 +228,23 @@ export default function CalendarPage() {
         while (cur <= end) {
           const key = toDateKey(cur)
           if (!map.has(key)) map.set(key, [])
-          const dayType: DayType = isTimeOff ? 'off' : flightDays.has(key) ? 'travel' : 'work'
+          const inJobRange = key >= jobStartKey && key <= jobEndKey
+          const isFlight = flightDays.has(key)
+          // With event dates set: a day outside them is a travel day, a flight on an event day is both
+          // Icons follow the dates entered: flight days get a plane, event days a briefcase, both if they overlap.
+          // A day in the trip span that is neither gets nothing.
+          if (hasEventDates && !isFlight && !inJobRange) {
+            cur.setDate(cur.getDate() + 1)
+            continue
+          }
+          const dayType: DayType = isTimeOff ? 'off'
+            : hasEventDates
+              ? (isFlight && inJobRange ? 'travel_work' : inJobRange ? 'work' : 'travel')
+              : isFlight ? 'travel' : 'work'
 
           const list = map.get(key)!
           const dupe = list.some(a => a.profileId === profileId && a.jobId === fldr.id)
           if (!dupe) {
-            const inJobRange = key >= jobStartKey && key <= jobEndKey
             list.push({ personName, profileId, jobTitle: fldr.title, jobId: fldr.id, isPast, dayType, inJobRange })
           }
 
